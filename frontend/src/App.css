@@ -1,34 +1,225 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
-}
+/* Fiscal Tax Canarie - Custom Styles */
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
-}
-
-.App-header {
-    background-color: #0f0f10;
+/* Landing page hero section */
+.hero-section {
     min-height: 100vh;
+    background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+}
+
+/* Feature cards */
+.feature-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 2rem;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.feature-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    transform: translateY(-4px);
+}
+
+/* Dashboard sidebar */
+.sidebar {
+    background: #fafaf9;
+    border-right: 1px solid #e2e8f0;
+    min-height: 100vh;
+}
+
+.sidebar-link {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    color: #475569;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-link:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.sidebar-link.active {
+    background: #3caca4;
     color: white;
 }
 
-.App-link {
-    color: #61dafb;
+/* Table styles */
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
+.data-table th {
+    background: #f8fafc;
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: #475569;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.data-table tr:hover td {
+    background: #fafafa;
+}
+
+/* Badge styles */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-teal {
+    background: #d4f1ef;
+    color: #329089;
+}
+
+.badge-amber {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.badge-slate {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+/* Upload zone */
+.upload-zone {
+    border: 2px dashed #e2e8f0;
+    border-radius: 1rem;
+    padding: 3rem;
+    text-align: center;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.upload-zone:hover {
+    border-color: #3caca4;
+    background: #f0fafa;
+}
+
+.upload-zone.dragging {
+    border-color: #3caca4;
+    background: #d4f1ef;
+}
+
+/* Calendar deadline marker */
+.deadline-marker {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #3caca4;
+}
+
+/* Note card styles */
+.note-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    transition: box-shadow 0.2s ease;
+}
+
+.note-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.note-card.internal {
+    border-left: 4px solid #f59e0b;
+}
+
+.note-card.public {
+    border-left: 4px solid #3caca4;
+}
+
+/* Stats card */
+.stats-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.stats-card .icon-wrapper {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Input focus states */
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #3caca4;
+    box-shadow: 0 0 0 3px rgba(60, 172, 164, 0.15);
+}
+
+/* Button styles */
+.btn-primary {
+    background: #3caca4;
+    color: #0f172a;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.btn-primary:hover {
+    background: #329089;
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+.btn-secondary {
+    background: white;
+    color: #0f172a;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    border: 2px solid #e2e8f0;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.btn-secondary:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+/* Modal overlay */
+.modal-overlay {
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(4px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: -280px;
+        z-index: 50;
+        transition: left 0.3s ease;
     }
-    to {
-        transform: rotate(360deg);
+    
+    .sidebar.open {
+        left: 0;
     }
 }

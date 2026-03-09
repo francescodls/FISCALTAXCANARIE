@@ -1,0 +1,85 @@
+{
+  "timestamp": "2026-03-09T20:26:44.547965",
+  "total_tests": 15,
+  "passed_tests": 15,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "failures": [],
+  "detailed_results": {
+    "API Health Check": {
+      "passed": true,
+      "details": "Status: 200, Response: {\"message\":\"Fiscal Tax Canarie API\"}",
+      "timestamp": "2026-03-09T20:26:41.450701"
+    },
+    "User Registration (cliente)": {
+      "passed": true,
+      "details": "User ID: 5cc3249b-c948-44be-93cc-39ecdfa772d0, Role: cliente",
+      "timestamp": "2026-03-09T20:26:42.007504"
+    },
+    "User Registration (commercialista)": {
+      "passed": true,
+      "details": "User ID: 7f70aa41-5ab6-4d38-a304-697e249139cf, Role: commercialista",
+      "timestamp": "2026-03-09T20:26:42.396199"
+    },
+    "User Login (cliente)": {
+      "passed": true,
+      "details": "Token received, User: Test Cliente User, Role: cliente",
+      "timestamp": "2026-03-09T20:26:42.806741"
+    },
+    "User Login (commercialista)": {
+      "passed": true,
+      "details": "Token received, User: Test Commercialista User, Role: commercialista",
+      "timestamp": "2026-03-09T20:26:43.178854"
+    },
+    "Auth Me Endpoint": {
+      "passed": true,
+      "details": "User: Test Cliente User, Role: cliente",
+      "timestamp": "2026-03-09T20:26:43.378441"
+    },
+    "Get Clients": {
+      "passed": true,
+      "details": "Retrieved 1 clients",
+      "timestamp": "2026-03-09T20:26:43.530565"
+    },
+    "Get Client Detail": {
+      "passed": true,
+      "details": "Client: Test Cliente User, Email: test_cliente_202641@example.com",
+      "timestamp": "2026-03-09T20:26:43.689310"
+    },
+    "Get Deadlines": {
+      "passed": true,
+      "details": "Retrieved 12 deadlines (includes default fiscal deadlines)",
+      "timestamp": "2026-03-09T20:26:43.819114"
+    },
+    "Get Documents": {
+      "passed": true,
+      "details": "Retrieved 0 documents",
+      "timestamp": "2026-03-09T20:26:43.933091"
+    },
+    "Get Payslips": {
+      "passed": true,
+      "details": "Retrieved 0 payslips",
+      "timestamp": "2026-03-09T20:26:44.047004"
+    },
+    "Get Notes": {
+      "passed": true,
+      "details": "Retrieved 0 notes",
+      "timestamp": "2026-03-09T20:26:44.153356"
+    },
+    "Get Stats (Client)": {
+      "passed": true,
+      "details": "Client stats: {'documents_count': 0, 'payslips_count': 0, 'notes_count': 0, 'deadlines_count': 12}",
+      "timestamp": "2026-03-09T20:26:44.263028"
+    },
+    "Get Stats (Commercialista)": {
+      "passed": true,
+      "details": "Commercialista stats: {'clients_count': 1, 'documents_count': 0, 'payslips_count': 0, 'notes_count': 0}",
+      "timestamp": "2026-03-09T20:26:44.386725"
+    },
+    "Create Note": {
+      "passed": true,
+      "details": "Created note: Test Note, ID: bd4571af-4b41-4ef2-9af6-82f392e78f7a",
+      "timestamp": "2026-03-09T20:26:44.547208"
+    }
+  }
+}
