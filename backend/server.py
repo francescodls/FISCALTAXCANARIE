@@ -16,6 +16,8 @@ import base64
 
 # Import AI service
 from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename
+from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note
+from chatbot_service import chat_with_assistant
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -291,6 +293,12 @@ async def register(user_data: UserCreate):
     # Log attività
     await log_activity("registrazione", f"Nuovo cliente registrato: {user_data.email}", user_id)
     
+    # Invia email di benvenuto (in background)
+    try:
+        await send_welcome_email(user_data.email, user_data.full_name)
+    except Exception as e:
+        logger.error(f"Errore invio email benvenuto: {e}")
+    
     token = create_token(user_id, user_data.email, "cliente")
     user_response = UserResponse(
         id=user_id,
@@ -562,6 +570,23 @@ async def upload_document_with_ai(
         user["id"]
     )
     
+    # Invia notifica email al cliente (se identificato)
+    if final_client_id and not needs_verification:
+        try:
+            client_data = await db.users.find_one({"id": final_client_id}, {"_id": 0})
+            if client_data and client_data.get("email"):
+                doc_title = ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename
+                doc_desc = ai_result.get("descrizione_estesa") if ai_result.get("success") else None
+                await notify_document_uploaded(
+                    client_email=client_data["email"],
+                    client_name=client_data["full_name"],
+                    doc_title=doc_title,
+                    doc_description=doc_desc
+                )
+                logger.info(f"Email notifica documento inviata a {client_data['email']}")
+        except Exception as e:
+            logger.error(f"Errore invio email notifica documento: {e}")
+    
     return {
         "id": doc_id,
         "message": "Documento caricato e analizzato con successo",
@@ -773,8 +798,11 @@ async def get_deadlines(user: dict = Depends(get_current_user)):
     
     return result
 
+class DeadlineCreateWithNotify(DeadlineCreate):
+    send_notification: bool = False
+
 @api_router.post("/deadlines", response_model=DeadlineResponse)
-async def create_deadline(deadline_data: DeadlineCreate, user: dict = Depends(require_commercialista)):
+async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = Depends(require_commercialista)):
     deadline_id = str(uuid.uuid4())
     deadline = {
         "id": deadline_id,
@@ -793,6 +821,23 @@ async def create_deadline(deadline_data: DeadlineCreate, user: dict = Depends(re
     await db.deadlines.insert_one(deadline)
     
     await log_activity("creazione_scadenza", f"Scadenza {deadline_data.title} creata", user["id"])
+    
+    # Invia notifica email ai clienti assegnati (se richiesto)
+    if deadline_data.send_notification and deadline_data.client_ids:
+        for cid in deadline_data.client_ids:
+            try:
+                client_data = await db.users.find_one({"id": cid}, {"_id": 0})
+                if client_data and client_data.get("email"):
+                    await notify_deadline_reminder(
+                        client_email=client_data["email"],
+                        client_name=client_data["full_name"],
+                        deadline_title=deadline_data.title,
+                        deadline_date=deadline_data.due_date,
+                        deadline_description=deadline_data.description
+                    )
+                    logger.info(f"Email notifica scadenza inviata a {client_data['email']}")
+            except Exception as e:
+                logger.error(f"Errore invio email notifica scadenza a {cid}: {e}")
     
     return DeadlineResponse(**deadline)
 
@@ -1096,6 +1141,201 @@ async def get_stats(user: dict = Depends(get_current_user)):
             "deadlines_da_fare": deadlines_da_fare,
             "deadlines_completate": deadlines_completate
         }
+
+# ==================== CHATBOT AI ROUTES ====================
+
+class ChatMessage(BaseModel):
+    message: str
+    conversation_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    response: str
+    conversation_id: str
+    success: bool
+
+@api_router.post("/chat", response_model=ChatResponse)
+async def chat_endpoint(chat_msg: ChatMessage, user: dict = Depends(get_current_user)):
+    """Endpoint per chattare con l'assistente AI"""
+    
+    # Recupera contesto del cliente
+    client_docs = []
+    client_deadlines_list = []
+    
+    if user["role"] == "cliente":
+        # Recupera documenti del cliente
+        docs = await db.documents.find({"client_id": user["id"]}, {"title": 1, "_id": 0}).to_list(20)
+        client_docs = [d["title"] for d in docs]
+        
+        # Recupera scadenze
+        deadlines = await db.deadlines.find({
+            "$or": [{"applies_to_all": True}, {"client_ids": user["id"]}]
+        }, {"title": 1, "due_date": 1, "_id": 0}).to_list(10)
+        client_deadlines_list = [f"{d['title']} ({d['due_date']})" for d in deadlines]
+    
+    # Recupera modelli tributari
+    modelli = await db.modelli_tributari.find({}, {"_id": 0}).to_list(20)
+    
+    # Recupera storico conversazione se esiste
+    conversation_history = []
+    conv_id = chat_msg.conversation_id or str(uuid.uuid4())
+    
+    if chat_msg.conversation_id:
+        conv = await db.conversations.find_one({"id": chat_msg.conversation_id, "user_id": user["id"]})
+        if conv:
+            conversation_history = conv.get("messages", [])[-10:]
+    
+    # Chiama assistente AI
+    result = await chat_with_assistant(
+        user_message=chat_msg.message,
+        client_name=user["full_name"],
+        conversation_history=conversation_history,
+        client_documents=client_docs,
+        client_deadlines=client_deadlines_list,
+        modelli_tributari=modelli
+    )
+    
+    # Salva conversazione
+    new_messages = conversation_history + [
+        {"role": "user", "content": chat_msg.message},
+        {"role": "assistant", "content": result.get("response", "")}
+    ]
+    
+    await db.conversations.update_one(
+        {"id": conv_id},
+        {
+            "$set": {
+                "id": conv_id,
+                "user_id": user["id"],
+                "messages": new_messages[-20:],  # Mantieni ultimi 20 messaggi
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+        },
+        upsert=True
+    )
+    
+    return ChatResponse(
+        response=result.get("response", "Errore nel processare la richiesta"),
+        conversation_id=conv_id,
+        success=result.get("success", False)
+    )
+
+@api_router.delete("/chat/{conversation_id}")
+async def clear_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
+    """Cancella una conversazione"""
+    await db.conversations.delete_one({"id": conversation_id, "user_id": user["id"]})
+    return {"message": "Conversazione cancellata"}
+
+# ==================== NOTIFICATION ROUTES ====================
+
+@api_router.post("/notifications/send-document")
+async def send_document_notification(
+    client_id: str = Form(...),
+    doc_title: str = Form(...),
+    doc_description: str = Form(None),
+    user: dict = Depends(require_commercialista)
+):
+    """Invia notifica email per nuovo documento"""
+    client = await db.users.find_one({"id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    result = await notify_document_uploaded(
+        client_email=client["email"],
+        client_name=client["full_name"],
+        doc_title=doc_title,
+        doc_description=doc_description
+    )
+    
+    # Log notifica
+    await db.notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "type": "document_uploaded",
+        "client_id": client_id,
+        "client_email": client["email"],
+        "subject": f"Nuovo documento: {doc_title}",
+        "sent_by": user["id"],
+        "result": result,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return result
+
+@api_router.post("/notifications/send-deadline-reminder")
+async def send_deadline_reminder(
+    client_id: str = Form(...),
+    deadline_id: str = Form(...),
+    user: dict = Depends(require_commercialista)
+):
+    """Invia promemoria scadenza al cliente"""
+    client = await db.users.find_one({"id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    deadline = await db.deadlines.find_one({"id": deadline_id}, {"_id": 0})
+    if not deadline:
+        raise HTTPException(status_code=404, detail="Scadenza non trovata")
+    
+    result = await notify_deadline_reminder(
+        client_email=client["email"],
+        client_name=client["full_name"],
+        deadline_title=deadline["title"],
+        deadline_date=deadline["due_date"],
+        deadline_description=deadline.get("description")
+    )
+    
+    # Log notifica
+    await db.notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "type": "deadline_reminder",
+        "client_id": client_id,
+        "deadline_id": deadline_id,
+        "client_email": client["email"],
+        "subject": f"Promemoria: {deadline['title']}",
+        "sent_by": user["id"],
+        "result": result,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return result
+
+@api_router.post("/notifications/send-note")
+async def send_note_notification(
+    client_id: str = Form(...),
+    note_title: str = Form(...),
+    note_content: str = Form(...),
+    user: dict = Depends(require_commercialista)
+):
+    """Invia notifica per nuova comunicazione"""
+    client = await db.users.find_one({"id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    result = await notify_new_note(
+        client_email=client["email"],
+        client_name=client["full_name"],
+        note_title=note_title,
+        note_content=note_content
+    )
+    
+    # Log notifica
+    await db.notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "type": "new_note",
+        "client_id": client_id,
+        "client_email": client["email"],
+        "subject": f"Comunicazione: {note_title}",
+        "sent_by": user["id"],
+        "result": result,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return result
+
+@api_router.get("/notifications/history")
+async def get_notifications_history(limit: int = 50, user: dict = Depends(require_commercialista)):
+    """Recupera storico notifiche inviate"""
+    notifications = await db.notifications.find({}, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    return notifications
 
 @api_router.get("/")
 async def root():

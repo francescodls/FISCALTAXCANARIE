@@ -34,7 +34,9 @@ import {
   Bot,
   CheckCircle2,
   AlertCircle,
-  Calendar
+  Calendar,
+  Bell,
+  Send
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -55,6 +57,7 @@ const ClientDetail = () => {
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [uploadingDocAI, setUploadingDocAI] = useState(false);
   const [uploadingPayslip, setUploadingPayslip] = useState(false);
+  const [sendingNotification, setSendingNotification] = useState(false);
   const docFileRef = useRef(null);
   const docFileAIRef = useRef(null);
   const payslipFileRef = useRef(null);
@@ -94,9 +97,17 @@ const ClientDetail = () => {
     due_date: "",
     category: "IRPF",
     priority: "normale",
-    status: "da_fare"
+    status: "da_fare",
+    send_notification: false
   });
   const [savingDeadline, setSavingDeadline] = useState(false);
+  
+  // Notification form
+  const [notificationForm, setNotificationForm] = useState({
+    type: "note",
+    title: "",
+    content: ""
+  });
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -321,14 +332,15 @@ const ClientDetail = () => {
       };
       
       await axios.post(`${API}/deadlines`, deadlineData, { headers });
-      toast.success("Scadenza creata");
+      toast.success(deadlineForm.send_notification ? "Scadenza creata e notifica inviata!" : "Scadenza creata");
       setDeadlineForm({
         title: "",
         description: "",
         due_date: "",
         category: "IRPF",
         priority: "normale",
-        status: "da_fare"
+        status: "da_fare",
+        send_notification: false
       });
       fetchData();
     } catch (error) {
@@ -358,6 +370,60 @@ const ClientDetail = () => {
       fetchData();
     } catch (error) {
       toast.error("Errore nell'eliminazione");
+    }
+  };
+
+  // Send notification to client
+  const handleSendNotification = async (e) => {
+    e.preventDefault();
+    if (!notificationForm.title.trim() || !notificationForm.content.trim()) {
+      toast.error("Compila tutti i campi");
+      return;
+    }
+    
+    setSendingNotification(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append("client_id", clientId);
+      formData.append("note_title", notificationForm.title);
+      formData.append("note_content", notificationForm.content);
+      
+      const response = await axios.post(`${API}/notifications/send-note`, formData, {
+        headers: { ...headers, "Content-Type": "multipart/form-data" }
+      });
+      
+      if (response.data.success) {
+        toast.success("Notifica email inviata con successo!");
+        setNotificationForm({ type: "note", title: "", content: "" });
+      } else {
+        toast.error(response.data.error || "Errore nell'invio della notifica");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'invio della notifica");
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
+  // Send deadline reminder
+  const handleSendDeadlineReminder = async (deadlineId) => {
+    try {
+      const formData = new FormData();
+      formData.append("client_id", clientId);
+      formData.append("deadline_id", deadlineId);
+      
+      const response = await axios.post(`${API}/notifications/send-deadline-reminder`, formData, {
+        headers: { ...headers, "Content-Type": "multipart/form-data" }
+      });
+      
+      if (response.data.success) {
+        toast.success("Promemoria scadenza inviato!");
+      } else {
+        toast.error(response.data.error || "Errore nell'invio del promemoria");
+      }
+    } catch (error) {
+      toast.error("Errore nell'invio del promemoria");
     }
   };
 
@@ -527,6 +593,14 @@ const ClientDetail = () => {
             >
               <StickyNote className="h-4 w-4 mr-2" />
               Appunti
+            </TabsTrigger>
+            <TabsTrigger 
+              value="notifications" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-notifications"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Notifiche
             </TabsTrigger>
           </TabsList>
 
@@ -1163,6 +1237,16 @@ const ClientDetail = () => {
                       </Select>
                     </div>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={deadlineForm.send_notification}
+                      onCheckedChange={(v) => setDeadlineForm({ ...deadlineForm, send_notification: v })}
+                      id="send-notification"
+                    />
+                    <Label htmlFor="send-notification" className="text-sm text-slate-600">
+                      Invia notifica email al cliente
+                    </Label>
+                  </div>
                   <Button
                     type="submit"
                     disabled={savingDeadline}
@@ -1225,6 +1309,15 @@ const ClientDetail = () => {
                           <Button
                             variant="outline"
                             size="sm"
+                            onClick={() => handleSendDeadlineReminder(deadline.id)}
+                            className="border-teal-200 text-teal-600 hover:bg-teal-50"
+                            title="Invia promemoria email"
+                          >
+                            <Bell className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => deleteDeadline(deadline.id)}
                             className="border-red-200 text-red-600 hover:bg-red-50"
                           >
@@ -1241,6 +1334,117 @@ const ClientDetail = () => {
                     <p className="text-sm text-slate-400">Crea una nuova scadenza usando il form sopra</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Notifications Tab */}
+          <TabsContent value="notifications" className="space-y-6">
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Send className="h-5 w-5 text-teal-500" />
+                  Invia Comunicazione al Cliente
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSendNotification} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Oggetto</Label>
+                    <Input
+                      value={notificationForm.title}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, title: e.target.value })}
+                      placeholder="Es: Documenti necessari per dichiarazione"
+                      required
+                      className="border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Messaggio</Label>
+                    <Textarea
+                      value={notificationForm.content}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, content: e.target.value })}
+                      placeholder="Scrivi il messaggio che verrà inviato via email al cliente..."
+                      required
+                      className="border-slate-200 resize-none"
+                      rows={6}
+                    />
+                  </div>
+                  <div className="bg-stone-50 p-4 rounded-lg">
+                    <p className="text-sm text-slate-600">
+                      <strong>Destinatario:</strong> {client?.full_name} ({client?.email})
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Il cliente riceverà questa comunicazione via email con il branding di Fiscal Tax Canarie.
+                    </p>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={sendingNotification}
+                    className="bg-teal-500 hover:bg-teal-600 text-white font-semibold"
+                    data-testid="send-notification-btn"
+                  >
+                    {sendingNotification ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        Invio in corso...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Invia Email
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-amber-500" />
+                  Notifiche Rapide
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-600 mb-4">
+                  Usa queste azioni rapide per inviare notifiche predefinite:
+                </p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Card className="border border-slate-200 bg-stone-50">
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold text-slate-900 mb-2">Promemoria Scadenze</h4>
+                      <p className="text-sm text-slate-600 mb-4">
+                        Vai alla tab Scadenze e clicca l'icona campanella per inviare un promemoria al cliente.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setActiveTab("deadlines")}
+                        className="border-slate-200 text-slate-600"
+                      >
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Vai alle Scadenze
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <Card className="border border-slate-200 bg-stone-50">
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold text-slate-900 mb-2">Notifica Documento</h4>
+                      <p className="text-sm text-slate-600 mb-4">
+                        Carica un documento con AI per inviare automaticamente una notifica al cliente.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setActiveTab("documents")}
+                        className="border-slate-200 text-slate-600"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Vai ai Documenti
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
