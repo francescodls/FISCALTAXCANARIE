@@ -29,7 +29,12 @@ import {
   Eye,
   EyeOff,
   Phone,
-  Mail
+  Mail,
+  Sparkles,
+  Bot,
+  CheckCircle2,
+  AlertCircle,
+  Calendar
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -42,14 +47,20 @@ const ClientDetail = () => {
   const [documents, setDocuments] = useState([]);
   const [payslips, setPayslips] = useState([]);
   const [notes, setNotes] = useState([]);
+  const [deadlines, setDeadlines] = useState([]);
   const [activeTab, setActiveTab] = useState("documents");
   const [loading, setLoading] = useState(true);
   
   // Upload states
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [uploadingDocAI, setUploadingDocAI] = useState(false);
   const [uploadingPayslip, setUploadingPayslip] = useState(false);
   const docFileRef = useRef(null);
+  const docFileAIRef = useRef(null);
   const payslipFileRef = useRef(null);
+  
+  // AI Analysis result
+  const [aiAnalysisResult, setAiAnalysisResult] = useState(null);
   
   // Document form
   const [docForm, setDocForm] = useState({
@@ -75,6 +86,17 @@ const ClientDetail = () => {
   });
   const [editingNote, setEditingNote] = useState(null);
   const [savingNote, setSavingNote] = useState(false);
+  
+  // Deadline form
+  const [deadlineForm, setDeadlineForm] = useState({
+    title: "",
+    description: "",
+    due_date: "",
+    category: "IRPF",
+    priority: "normale",
+    status: "da_fare"
+  });
+  const [savingDeadline, setSavingDeadline] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -97,16 +119,22 @@ const ClientDetail = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [clientRes, docsRes, payslipsRes, notesRes] = await Promise.all([
+      const [clientRes, docsRes, payslipsRes, notesRes, deadlinesRes] = await Promise.all([
         axios.get(`${API}/clients/${clientId}`, { headers }),
         axios.get(`${API}/documents?client_id=${clientId}`, { headers }),
         axios.get(`${API}/payslips?client_id=${clientId}`, { headers }),
-        axios.get(`${API}/notes?client_id=${clientId}`, { headers })
+        axios.get(`${API}/notes?client_id=${clientId}`, { headers }),
+        axios.get(`${API}/deadlines`, { headers })
       ]);
       setClient(clientRes.data);
       setDocuments(docsRes.data);
       setPayslips(payslipsRes.data);
       setNotes(notesRes.data);
+      // Filtra scadenze per questo cliente
+      const clientDeadlines = deadlinesRes.data.filter(
+        d => d.applies_to_all || d.client_ids?.includes(clientId)
+      );
+      setDeadlines(clientDeadlines);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
       if (error.response?.status === 404) {
@@ -145,6 +173,35 @@ const ClientDetail = () => {
       toast.error("Errore nel caricamento del documento");
     } finally {
       setUploadingDoc(false);
+    }
+  };
+
+  // AI Document upload
+  const handleDocUploadAI = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingDocAI(true);
+    setAiAnalysisResult(null);
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("client_id", clientId);
+    
+    try {
+      const response = await axios.post(`${API}/documents/upload-auto`, formData, {
+        headers: { ...headers, "Content-Type": "multipart/form-data" }
+      });
+      
+      setAiAnalysisResult(response.data);
+      toast.success("Documento analizzato e caricato con AI!");
+      
+      if (docFileAIRef.current) docFileAIRef.current.value = "";
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nell'analisi AI del documento");
+    } finally {
+      setUploadingDocAI(false);
     }
   };
 
@@ -248,6 +305,60 @@ const ClientDetail = () => {
       content: note.content,
       is_internal: note.is_internal
     });
+  };
+
+  // Deadline functions
+  const handleDeadlineSave = async (e) => {
+    e.preventDefault();
+    setSavingDeadline(true);
+    
+    try {
+      const deadlineData = {
+        ...deadlineForm,
+        applies_to_all: false,
+        client_ids: [clientId],
+        is_recurring: false
+      };
+      
+      await axios.post(`${API}/deadlines`, deadlineData, { headers });
+      toast.success("Scadenza creata");
+      setDeadlineForm({
+        title: "",
+        description: "",
+        due_date: "",
+        category: "IRPF",
+        priority: "normale",
+        status: "da_fare"
+      });
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nella creazione della scadenza");
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
+
+  const updateDeadlineStatus = async (deadlineId, newStatus) => {
+    try {
+      const formData = new FormData();
+      formData.append("status", newStatus);
+      await axios.patch(`${API}/deadlines/${deadlineId}/status`, formData, { headers });
+      toast.success("Stato aggiornato");
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento");
+    }
+  };
+
+  const deleteDeadline = async (deadlineId) => {
+    if (!confirm("Sei sicuro di voler eliminare questa scadenza?")) return;
+    try {
+      await axios.delete(`${API}/deadlines/${deadlineId}`, { headers });
+      toast.success("Scadenza eliminata");
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nell'eliminazione");
+    }
   };
 
   // Download function
@@ -369,6 +480,10 @@ const ClientDetail = () => {
                     {payslips.length} Buste Paga
                   </Badge>
                   <Badge className="bg-amber-50 text-amber-700 border border-amber-100 px-4 py-2">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    {deadlines.length} Scadenze
+                  </Badge>
+                  <Badge className="bg-purple-50 text-purple-700 border border-purple-100 px-4 py-2">
                     <StickyNote className="h-4 w-4 mr-2" />
                     {notes.length} Appunti
                   </Badge>
@@ -383,7 +498,7 @@ const ClientDetail = () => {
           <TabsList className="bg-white border border-slate-200 p-1 rounded-lg">
             <TabsTrigger 
               value="documents" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-slate-900 px-6"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
               data-testid="tab-documents"
             >
               <FileText className="h-4 w-4 mr-2" />
@@ -391,15 +506,23 @@ const ClientDetail = () => {
             </TabsTrigger>
             <TabsTrigger 
               value="payslips" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-slate-900 px-6"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
               data-testid="tab-payslips"
             >
               <Wallet className="h-4 w-4 mr-2" />
               Buste Paga
             </TabsTrigger>
             <TabsTrigger 
+              value="deadlines" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-deadlines"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Scadenze
+            </TabsTrigger>
+            <TabsTrigger 
               value="notes" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-slate-900 px-6"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
               data-testid="tab-notes"
             >
               <StickyNote className="h-4 w-4 mr-2" />
@@ -476,12 +599,12 @@ const ClientDetail = () => {
                   <Button
                     type="submit"
                     disabled={uploadingDoc}
-                    className="bg-teal-500 hover:bg-teal-600 text-slate-900 font-semibold"
+                    className="bg-teal-500 hover:bg-teal-600 text-white font-semibold"
                     data-testid="doc-upload-btn"
                   >
                     {uploadingDoc ? (
                       <div className="flex items-center gap-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-900 border-t-transparent"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                         Caricamento...
                       </div>
                     ) : (
@@ -492,6 +615,76 @@ const ClientDetail = () => {
                     )}
                   </Button>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* AI Upload Section */}
+            <Card className="bg-gradient-to-r from-teal-50 to-blue-50 border border-teal-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-teal-500" />
+                  Caricamento Intelligente con AI
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-600 mb-4">
+                  Carica un PDF e l'AI analizzerà automaticamente il documento, estrarrà le informazioni e lo classificherà.
+                </p>
+                <div className="flex items-center gap-4">
+                  <Input
+                    type="file"
+                    ref={docFileAIRef}
+                    accept=".pdf"
+                    onChange={handleDocUploadAI}
+                    disabled={uploadingDocAI}
+                    className="border-teal-200 flex-1"
+                    data-testid="doc-ai-file-input"
+                  />
+                  {uploadingDocAI && (
+                    <div className="flex items-center gap-2 text-teal-600">
+                      <Bot className="h-5 w-5 animate-bounce" />
+                      <span>Analisi AI in corso...</span>
+                    </div>
+                  )}
+                </div>
+                
+                {/* AI Analysis Result */}
+                {aiAnalysisResult && aiAnalysisResult.ai_analysis && (
+                  <div className="mt-4 p-4 bg-white rounded-lg border border-teal-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      <span className="font-semibold text-slate-900">Analisi completata!</span>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-slate-500">Tipo documento:</span>
+                        <span className="ml-2 font-medium">{aiAnalysisResult.ai_analysis.tipo_documento}</span>
+                      </div>
+                      {aiAnalysisResult.ai_analysis.modello_tributario && (
+                        <div>
+                          <span className="text-slate-500">Modello:</span>
+                          <Badge className="ml-2 bg-teal-500 text-white">
+                            {aiAnalysisResult.ai_analysis.modello_tributario}
+                          </Badge>
+                        </div>
+                      )}
+                      <div className="col-span-2">
+                        <span className="text-slate-500">Descrizione:</span>
+                        <p className="mt-1 text-slate-700">{aiAnalysisResult.ai_analysis.descrizione_estesa}</p>
+                      </div>
+                      {aiAnalysisResult.ai_analysis.tags && aiAnalysisResult.ai_analysis.tags.length > 0 && (
+                        <div className="col-span-2">
+                          <span className="text-slate-500">Tags:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {aiAnalysisResult.ai_analysis.tags.map((tag, i) => (
+                              <Badge key={i} className="bg-slate-100 text-slate-600">{tag}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -865,6 +1058,187 @@ const ClientDetail = () => {
                   <div className="text-center py-12">
                     <StickyNote className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-500">Nessun appunto creato</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Deadlines Tab */}
+          <TabsContent value="deadlines" className="space-y-6">
+            {/* Create Deadline Form */}
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-teal-500" />
+                  Nuova Scadenza per {client?.full_name}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleDeadlineSave} className="space-y-4">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Titolo</Label>
+                      <Input
+                        value={deadlineForm.title}
+                        onChange={(e) => setDeadlineForm({ ...deadlineForm, title: e.target.value })}
+                        placeholder="Es: Modelo 303 Q1 2025"
+                        required
+                        className="border-slate-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data Scadenza</Label>
+                      <Input
+                        type="date"
+                        value={deadlineForm.due_date}
+                        onChange={(e) => setDeadlineForm({ ...deadlineForm, due_date: e.target.value })}
+                        required
+                        className="border-slate-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Descrizione</Label>
+                    <Textarea
+                      value={deadlineForm.description}
+                      onChange={(e) => setDeadlineForm({ ...deadlineForm, description: e.target.value })}
+                      placeholder="Descrizione della scadenza..."
+                      required
+                      className="border-slate-200 resize-none"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Categoria</Label>
+                      <Select 
+                        value={deadlineForm.category} 
+                        onValueChange={(v) => setDeadlineForm({ ...deadlineForm, category: v })}
+                      >
+                        <SelectTrigger className="border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="IVA">IVA</SelectItem>
+                          <SelectItem value="IRPF">IRPF</SelectItem>
+                          <SelectItem value="IGIC">IGIC</SelectItem>
+                          <SelectItem value="Società">Società</SelectItem>
+                          <SelectItem value="Informativa">Informativa</SelectItem>
+                          <SelectItem value="Altro">Altro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Priorità</Label>
+                      <Select 
+                        value={deadlineForm.priority} 
+                        onValueChange={(v) => setDeadlineForm({ ...deadlineForm, priority: v })}
+                      >
+                        <SelectTrigger className="border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="bassa">Bassa</SelectItem>
+                          <SelectItem value="normale">Normale</SelectItem>
+                          <SelectItem value="alta">Alta</SelectItem>
+                          <SelectItem value="urgente">Urgente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Stato</Label>
+                      <Select 
+                        value={deadlineForm.status} 
+                        onValueChange={(v) => setDeadlineForm({ ...deadlineForm, status: v })}
+                      >
+                        <SelectTrigger className="border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="da_fare">Da fare</SelectItem>
+                          <SelectItem value="in_lavorazione">In lavorazione</SelectItem>
+                          <SelectItem value="completata">Completata</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={savingDeadline}
+                    className="bg-teal-500 hover:bg-teal-600 text-white font-semibold"
+                  >
+                    {savingDeadline ? "Salvataggio..." : "Crea Scadenza"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Deadlines List */}
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg">Scadenze del Cliente</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {deadlines.length > 0 ? (
+                  <div className="space-y-3">
+                    {deadlines.map((deadline) => (
+                      <div 
+                        key={deadline.id} 
+                        className="flex items-center justify-between p-4 bg-stone-50 rounded-lg"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-3 h-3 rounded-full ${
+                            deadline.status === 'completata' ? 'bg-green-500' :
+                            deadline.status === 'scaduta' ? 'bg-red-500' :
+                            deadline.status === 'in_lavorazione' ? 'bg-blue-500' :
+                            'bg-amber-500'
+                          }`}></div>
+                          <div>
+                            <p className="font-medium text-slate-900">{deadline.title}</p>
+                            <p className="text-sm text-slate-500">{deadline.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge className={`priority-${deadline.priority}`}>
+                            {deadline.priority}
+                          </Badge>
+                          <Badge className={`status-${deadline.status}`}>
+                            {deadline.status.replace('_', ' ')}
+                          </Badge>
+                          <Badge className="bg-teal-50 text-teal-700 border border-teal-100">
+                            {format(parseISO(deadline.due_date), "d MMM yyyy", { locale: it })}
+                          </Badge>
+                          <Select
+                            value={deadline.status}
+                            onValueChange={(v) => updateDeadlineStatus(deadline.id, v)}
+                          >
+                            <SelectTrigger className="w-[140px] h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="da_fare">Da fare</SelectItem>
+                              <SelectItem value="in_lavorazione">In lavorazione</SelectItem>
+                              <SelectItem value="completata">Completata</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteDeadline(deadline.id)}
+                            className="border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500">Nessuna scadenza per questo cliente</p>
+                    <p className="text-sm text-slate-400">Crea una nuova scadenza usando il form sopra</p>
                   </div>
                 )}
               </CardContent>

@@ -199,7 +199,7 @@ const CommercialDashboard = () => {
           <TabsList className="bg-white border border-slate-200 p-1 rounded-lg">
             <TabsTrigger 
               value="clients" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
               data-testid="tab-clients"
             >
               <Users className="h-4 w-4 mr-2" />
@@ -207,7 +207,7 @@ const CommercialDashboard = () => {
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
               data-testid="tab-stats"
             >
               <BarChart3 className="h-4 w-4 mr-2" />
@@ -215,7 +215,7 @@ const CommercialDashboard = () => {
             </TabsTrigger>
             <TabsTrigger 
               value="activity" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
               data-testid="tab-activity"
             >
               <Activity className="h-4 w-4 mr-2" />

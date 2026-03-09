@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -13,6 +13,9 @@ from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
 import base64
+
+# Import AI service
+from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -470,6 +473,157 @@ async def delete_document(doc_id: str, user: dict = Depends(require_commercialis
     await log_activity("eliminazione_documento", f"Documento {doc_id} eliminato", user["id"])
     return {"message": "Documento eliminato"}
 
+# ==================== AI DOCUMENT ANALYSIS ====================
+
+@api_router.post("/documents/upload-auto")
+async def upload_document_with_ai(
+    file: UploadFile = File(...),
+    client_id: Optional[str] = Form(None),
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Carica un documento e lo analizza automaticamente con AI.
+    - Estrae testo dal PDF
+    - Identifica tipo documento, modello tributario
+    - Suggerisce cliente se non specificato
+    - Genera descrizione e tag
+    - Rinomina automaticamente il file
+    """
+    file_content = await file.read()
+    file_base64 = base64.b64encode(file_content).decode('utf-8')
+    
+    # Estrai testo dal PDF
+    extracted_text = ""
+    if file.content_type == "application/pdf" or file.filename.lower().endswith(".pdf"):
+        extracted_text = await extract_text_from_pdf(file_base64)
+    
+    # Recupera lista clienti per matching
+    clients = await db.users.find({"role": "cliente"}, {"_id": 0, "password": 0}).to_list(1000)
+    
+    # Analizza con AI
+    ai_result = await analyze_document_with_ai(
+        file_content=extracted_text or f"File: {file.filename}",
+        file_name=file.filename,
+        clients_list=clients
+    )
+    
+    # Determina cliente
+    final_client_id = client_id
+    client_confidence = "manuale"
+    
+    if not final_client_id and ai_result.get("success") and ai_result.get("cliente_identificato", {}).get("id"):
+        final_client_id = ai_result["cliente_identificato"]["id"]
+        client_confidence = ai_result["cliente_identificato"].get("confidenza", "bassa")
+    
+    # Se ancora nessun cliente, metti in "da verificare"
+    needs_verification = not final_client_id or client_confidence == "bassa"
+    
+    # Genera nome file standardizzato
+    suggested_filename = file.filename
+    if ai_result.get("success") and ai_result.get("nome_file_suggerito"):
+        suggested_filename = ai_result["nome_file_suggerito"]
+    
+    # Determina categoria
+    category = "altro"
+    if ai_result.get("success") and ai_result.get("categoria_suggerita"):
+        category = ai_result["categoria_suggerita"]
+    
+    # Crea documento
+    doc_id = str(uuid.uuid4())
+    document = {
+        "id": doc_id,
+        "title": ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename,
+        "description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
+        "category": category,
+        "client_id": final_client_id,
+        "file_name": file.filename,
+        "file_name_suggested": suggested_filename,
+        "file_data": file_base64,
+        "file_type": file.content_type,
+        "uploaded_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ai_analysis": ai_result if ai_result.get("success") else None,
+        "ai_description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
+        "tags": ai_result.get("tags", []) if ai_result.get("success") else [],
+        "modello_tributario": ai_result.get("modello_tributario") if ai_result.get("success") else None,
+        "data_documento": ai_result.get("data_documento") if ai_result.get("success") else None,
+        "periodo_riferimento": ai_result.get("periodo_riferimento") if ai_result.get("success") else None,
+        "needs_verification": needs_verification,
+        "client_confidence": client_confidence,
+        "version": 1,
+        "versions_history": [],
+        "extracted_text": extracted_text[:2000] if extracted_text else None
+    }
+    await db.documents.insert_one(document)
+    
+    await log_activity(
+        "caricamento_documento_ai", 
+        f"Documento {file.filename} caricato con analisi AI. Cliente: {final_client_id or 'da assegnare'}, Confidenza: {client_confidence}",
+        user["id"]
+    )
+    
+    return {
+        "id": doc_id,
+        "message": "Documento caricato e analizzato con successo",
+        "ai_analysis": ai_result if ai_result.get("success") else None,
+        "needs_verification": needs_verification,
+        "client_id": final_client_id,
+        "client_confidence": client_confidence,
+        "suggested_filename": suggested_filename,
+        "category": category
+    }
+
+@api_router.get("/documents/pending-verification")
+async def get_documents_pending_verification(user: dict = Depends(require_commercialista)):
+    """Recupera documenti che necessitano verifica manuale"""
+    documents = await db.documents.find(
+        {"needs_verification": True},
+        {"_id": 0, "file_data": 0, "extracted_text": 0}
+    ).to_list(100)
+    return documents
+
+@api_router.put("/documents/{doc_id}/verify")
+async def verify_document(
+    doc_id: str,
+    client_id: str = Form(...),
+    title: str = Form(None),
+    category: str = Form(None),
+    user: dict = Depends(require_commercialista)
+):
+    """Verifica e corregge l'assegnazione di un documento"""
+    update_data = {
+        "client_id": client_id,
+        "needs_verification": False,
+        "client_confidence": "verificato"
+    }
+    if title:
+        update_data["title"] = title
+    if category:
+        update_data["category"] = category
+    
+    result = await db.documents.update_one({"id": doc_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    await log_activity("verifica_documento", f"Documento {doc_id} verificato e assegnato a {client_id}", user["id"])
+    
+    return {"message": "Documento verificato con successo"}
+
+@api_router.put("/documents/{doc_id}/rename")
+async def rename_document(
+    doc_id: str,
+    new_filename: str = Form(...),
+    user: dict = Depends(require_commercialista)
+):
+    """Rinomina un documento"""
+    result = await db.documents.update_one({"id": doc_id}, {"$set": {"file_name": new_filename}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    await log_activity("rinomina_documento", f"Documento {doc_id} rinominato in {new_filename}", user["id"])
+    
+    return {"message": "Documento rinominato con successo"}
+
 # ==================== PAYSLIPS ROUTES ====================
 
 @api_router.post("/payslips")
@@ -798,8 +952,7 @@ async def init_default_modelli_tributari():
     for modello in modelli:
         await db.modelli_tributari.insert_one(modello)
     
-    # Crea anche le scadenze predefinite
-    await init_default_deadlines()
+    # NON creare scadenze predefinite - il commercialista le assegna per tipo cliente
 
 async def init_default_deadlines():
     """Inizializza le scadenze predefinite"""

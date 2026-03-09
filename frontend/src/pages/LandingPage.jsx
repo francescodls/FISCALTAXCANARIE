@@ -242,7 +242,7 @@ const LandingPage = () => {
                 </div>
                 <div className="flex items-center gap-3 text-slate-400">
                   <Phone className="h-5 w-5" />
-                  <span>+34 XXX XXX XXX</span>
+                  <span>+34 658 071 848</span>
                 </div>
                 <div className="flex items-center gap-3 text-slate-400">
                   <Mail className="h-5 w-5" />

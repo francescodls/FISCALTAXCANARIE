@@ -184,42 +184,42 @@ const ClientDashboard = () => {
           <TabsList className="bg-white border border-slate-200 p-1 rounded-lg flex-wrap">
             <TabsTrigger 
               value="overview" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-overview"
             >
               Panoramica
             </TabsTrigger>
             <TabsTrigger 
               value="deadlines" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-deadlines"
             >
               Scadenze
             </TabsTrigger>
             <TabsTrigger 
               value="documents" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-documents"
             >
               Documenti
             </TabsTrigger>
             <TabsTrigger 
               value="payslips" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-payslips"
             >
               Buste Paga
             </TabsTrigger>
             <TabsTrigger 
               value="notes" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-notes"
             >
               Comunicazioni
             </TabsTrigger>
             <TabsTrigger 
               value="modelli" 
-              className="data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-modelli"
             >
               Guida Modelli
