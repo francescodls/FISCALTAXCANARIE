@@ -15,7 +15,7 @@ import bcrypt
 import base64
 
 # Import AI service
-from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename
+from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename, search_documents_semantic
 from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note
 from chatbot_service import chat_with_assistant
 
@@ -461,6 +461,42 @@ async def get_documents(client_id: Optional[str] = None, user: dict = Depends(ge
     documents = await db.documents.find(query, {"_id": 0, "file_data": 0, "versions_history": 0}).to_list(1000)
     return [DocumentResponse(**doc) for doc in documents]
 
+@api_router.get("/documents/search")
+async def search_documents(
+    q: str,
+    client_id: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Ricerca semantica nei documenti usando AI"""
+    query = {}
+    if user["role"] == "cliente":
+        query["client_id"] = user["id"]
+    elif client_id:
+        query["client_id"] = client_id
+    
+    # Recupera documenti (senza file_data per performance)
+    documents = await db.documents.find(
+        query, 
+        {"_id": 0, "file_data": 0, "versions_history": 0, "extracted_text": 0}
+    ).to_list(100)
+    
+    if not documents:
+        return []
+    
+    # Esegui ricerca semantica
+    results = await search_documents_semantic(q, documents)
+    
+    return results
+
+@api_router.get("/documents/pending-verification")
+async def get_documents_pending_verification(user: dict = Depends(require_commercialista)):
+    """Recupera documenti che necessitano verifica manuale"""
+    documents = await db.documents.find(
+        {"needs_verification": True},
+        {"_id": 0, "file_data": 0, "extracted_text": 0}
+    ).to_list(100)
+    return documents
+
 @api_router.get("/documents/{doc_id}")
 async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
@@ -526,17 +562,37 @@ async def upload_document_with_ai(
     # Se ancora nessun cliente, metti in "da verificare"
     needs_verification = not final_client_id or client_confidence == "bassa"
     
-    # Genera nome file standardizzato
-    suggested_filename = file.filename
+    # Ottieni info cliente per nome file
+    client_name_for_file = None
+    if final_client_id:
+        client_info = await db.users.find_one({"id": final_client_id}, {"full_name": 1, "_id": 0})
+        if client_info:
+            client_name_for_file = client_info.get("full_name")
+    
+    # Genera nome file standardizzato automaticamente
+    original_ext = "." + file.filename.rsplit(".", 1)[-1] if "." in file.filename else ".pdf"
+    
+    standardized_filename = generate_standard_filename(
+        tipo_documento=ai_result.get("tipo_documento") if ai_result.get("success") else None,
+        data_documento=ai_result.get("data_documento") if ai_result.get("success") else None,
+        cliente_nome=client_name_for_file,
+        riferimento=ai_result.get("periodo_riferimento") if ai_result.get("success") else None,
+        original_extension=original_ext
+    )
+    
+    # Usa nome suggerito dall'AI se diverso e valido
+    suggested_filename = standardized_filename
     if ai_result.get("success") and ai_result.get("nome_file_suggerito"):
-        suggested_filename = ai_result["nome_file_suggerito"]
+        ai_suggested = ai_result["nome_file_suggerito"]
+        if ai_suggested and len(ai_suggested) > 10:  # Se nome AI è valido
+            suggested_filename = ai_suggested
     
     # Determina categoria
     category = "altro"
     if ai_result.get("success") and ai_result.get("categoria_suggerita"):
         category = ai_result["categoria_suggerita"]
     
-    # Crea documento
+    # Crea documento con nome file rinominato
     doc_id = str(uuid.uuid4())
     document = {
         "id": doc_id,
@@ -544,7 +600,8 @@ async def upload_document_with_ai(
         "description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
         "category": category,
         "client_id": final_client_id,
-        "file_name": file.filename,
+        "file_name": standardized_filename,  # Nome rinominato automaticamente
+        "file_name_original": file.filename,  # Nome originale per riferimento
         "file_name_suggested": suggested_filename,
         "file_data": file_base64,
         "file_type": file.content_type,
@@ -595,17 +652,10 @@ async def upload_document_with_ai(
         "client_id": final_client_id,
         "client_confidence": client_confidence,
         "suggested_filename": suggested_filename,
+        "standardized_filename": standardized_filename,
+        "original_filename": file.filename,
         "category": category
     }
-
-@api_router.get("/documents/pending-verification")
-async def get_documents_pending_verification(user: dict = Depends(require_commercialista)):
-    """Recupera documenti che necessitano verifica manuale"""
-    documents = await db.documents.find(
-        {"needs_verification": True},
-        {"_id": 0, "file_data": 0, "extracted_text": 0}
-    ).to_list(100)
-    return documents
 
 @api_router.put("/documents/{doc_id}/verify")
 async def verify_document(
