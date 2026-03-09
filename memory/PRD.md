@@ -54,12 +54,25 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 - [x] **Checkbox "Invia notifica email"** nel form creazione scadenze
 - [x] **Pulsante promemoria** (icona campanella) nella lista scadenze
 
-### Fase 4 - DA IMPLEMENTARE
-- [ ] Statistiche avanzate con grafici
-- [ ] Versioning documenti
-- [ ] Log completo e audit trail
-- [ ] Ricerca avanzata documenti
-- [ ] Rinomina automatica file dopo analisi AI (`AAAA-MM-GG_TipoDocumento_NomeCliente.ext`)
+### Fase 4 (P1/P2) - COMPLETATA ✅ (9 Marzo 2026)
+- [x] **Rinomina automatica file** dopo analisi AI
+  - Formato: `YYYY-MM-DD_TipoDocumento_NomeCliente[_Riferimento].ext`
+  - Funzione `generate_standard_filename()` in `ai_service.py`
+  - Chiamata automaticamente in `/api/documents/upload-auto`
+- [x] **Dashboard statistiche avanzate con grafici**
+  - Grafico a torta SVG per distribuzione scadenze
+  - Progress bar per stato complessivo scadenze
+  - Card riepilogo generale (documenti, buste paga, appunti, da verificare)
+- [x] **Ricerca semantica documenti**
+  - Endpoint `/api/documents/search?q=<query>`
+  - Funzione `search_documents_semantic()` con AI
+  - Tab "Ricerca AI" nella dashboard commercialista
+  - Fallback a ricerca testuale se AI non disponibile
+- [x] **Sezione documenti "Da Verificare"**
+  - Tab dedicata nella dashboard commercialista
+  - Mostra documenti con `needs_verification=true`
+  - Dropdown per selezionare cliente e verificare assegnazione
+  - Badge con contatore nel menu tab
 
 ## Account Predefiniti
 - **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
@@ -79,12 +92,14 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Documenti
 - `POST /api/documents` - Upload manuale
-- `POST /api/documents/upload-auto` - Upload con analisi AI
+- `POST /api/documents/upload-auto` - Upload con analisi AI + rinomina automatica
 - `GET /api/documents` - Lista documenti
+- `GET /api/documents/search?q=<query>` - Ricerca semantica AI
+- `GET /api/documents/pending-verification` - Documenti da verificare
 - `GET /api/documents/{id}` - Dettaglio/download
+- `PUT /api/documents/{id}/verify` - Verifica assegnazione cliente
+- `PUT /api/documents/{id}/rename` - Rinomina documento
 - `DELETE /api/documents/{id}` - Elimina
-- `GET /api/documents/pending-verification` - Da verificare
-- `PUT /api/documents/{id}/verify` - Verifica assegnazione
 
 ### Scadenze
 - `GET /api/deadlines` - Lista scadenze
@@ -105,22 +120,21 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Altri
 - `GET /api/modelli-tributari` - Lista modelli tributari
-- `GET /api/stats` - Statistiche
+- `GET /api/stats` - Statistiche (include dati per grafici)
 - `GET /api/activity-logs` - Log attività
 
 ## Integrazioni
-- **OpenAI GPT-4o-mini**: Chatbot e analisi documenti (via Emergent LLM Key)
+- **OpenAI GPT-4o-mini**: Chatbot, analisi documenti, ricerca semantica (via Emergent LLM Key)
 - **Brevo**: Email transazionali (sib-api-v3-sdk)
 
 ## Next Tasks (Priorità)
-1. **P1**: Implementare rinomina automatica file dopo analisi AI
-2. **P1**: Dashboard statistiche avanzate con grafici
-3. **P2**: Ricerca semantica documenti
-4. **P2**: Gestione documenti "da verificare" nella dashboard commercialista
-5. **P3**: Scadenze ricorrenti con promemoria automatici
+1. **P2**: Scadenze ricorrenti con promemoria automatici settimanali
+2. **P2**: Versioning documenti con storico modifiche
+3. **P3**: Sistema di logging/audit completo
+4. **P3**: Report esportabili (PDF/Excel)
 
 ## Future Tasks
 - Integrazione firma elettronica
 - Integrazione WhatsApp Business
 - Supporto multilingua (Italiano/Spagnolo)
-- Sistema di audit trail completo
+- Dashboard mobile responsive avanzata
