@@ -108,6 +108,12 @@ const ClientDetail = () => {
     title: "",
     content: ""
   });
+  
+  // Client edit form (anagrafica)
+  const [editingClient, setEditingClient] = useState(false);
+  const [clientForm, setClientForm] = useState({});
+  const [savingClient, setSavingClient] = useState(false);
+  const [deletingClient, setDeletingClient] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -146,6 +152,25 @@ const ClientDetail = () => {
         d => d.applies_to_all || d.client_ids?.includes(clientId)
       );
       setDeadlines(clientDeadlines);
+      // Inizializza form anagrafica
+      setClientForm({
+        full_name: clientRes.data.full_name || "",
+        email: clientRes.data.email || "",
+        phone: clientRes.data.phone || "",
+        codice_fiscale: clientRes.data.codice_fiscale || "",
+        nie: clientRes.data.nie || "",
+        nif: clientRes.data.nif || "",
+        cif: clientRes.data.cif || "",
+        indirizzo: clientRes.data.indirizzo || "",
+        citta: clientRes.data.citta || "",
+        cap: clientRes.data.cap || "",
+        provincia: clientRes.data.provincia || "",
+        iban: clientRes.data.iban || "",
+        regime_fiscale: clientRes.data.regime_fiscale || "",
+        tipo_attivita: clientRes.data.tipo_attivita || "",
+        tipo_cliente: clientRes.data.tipo_cliente || "autonomo",
+        stato: clientRes.data.stato || "attivo"
+      });
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
       if (error.response?.status === 404) {
@@ -153,6 +178,42 @@ const ClientDetail = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Client management functions
+  const handleSaveClient = async (e) => {
+    e.preventDefault();
+    setSavingClient(true);
+    
+    try {
+      await axios.put(`${API}/clients/${clientId}`, clientForm, { headers });
+      toast.success("Dati cliente aggiornati");
+      setEditingClient(false);
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento dei dati");
+    } finally {
+      setSavingClient(false);
+    }
+  };
+
+  const handleDeleteClient = async (permanent = false) => {
+    const message = permanent 
+      ? "Sei sicuro di voler ELIMINARE PERMANENTEMENTE questo cliente e tutti i suoi dati? Questa azione non può essere annullata."
+      : "Sei sicuro di voler archiviare questo cliente?";
+    
+    if (!confirm(message)) return;
+    
+    setDeletingClient(true);
+    try {
+      await axios.delete(`${API}/clients/${clientId}?permanent=${permanent}`, { headers });
+      toast.success(permanent ? "Cliente eliminato permanentemente" : "Cliente archiviato");
+      navigate("/admin");
+    } catch (error) {
+      toast.error("Errore nell'operazione");
+    } finally {
+      setDeletingClient(false);
     }
   };
 
@@ -601,6 +662,14 @@ const ClientDetail = () => {
             >
               <Bell className="h-4 w-4 mr-2" />
               Notifiche
+            </TabsTrigger>
+            <TabsTrigger 
+              value="anagrafica" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-anagrafica"
+            >
+              <User className="h-4 w-4 mr-2" />
+              Anagrafica
             </TabsTrigger>
           </TabsList>
 
@@ -1444,6 +1513,307 @@ const ClientDetail = () => {
                       </Button>
                     </CardContent>
                   </Card>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Anagrafica Tab */}
+          <TabsContent value="anagrafica" className="space-y-6">
+            <Card className="bg-white border border-slate-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <User className="h-5 w-5 text-teal-500" />
+                  Dati Anagrafici Cliente
+                </CardTitle>
+                <div className="flex gap-2">
+                  {!editingClient ? (
+                    <Button
+                      onClick={() => setEditingClient(true)}
+                      className="bg-teal-500 hover:bg-teal-600 text-white"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Modifica
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditingClient(false);
+                        // Reset form
+                        setClientForm({
+                          ...clientForm,
+                          full_name: client?.full_name || "",
+                          phone: client?.phone || ""
+                        });
+                      }}
+                      className="border-slate-200"
+                    >
+                      Annulla
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveClient} className="space-y-6">
+                  {/* Dati Personali */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Dati Personali</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome Completo *</Label>
+                        <Input
+                          value={clientForm.full_name || ""}
+                          onChange={(e) => setClientForm({...clientForm, full_name: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input
+                          value={clientForm.email || ""}
+                          disabled={true}
+                          className="border-slate-200 bg-slate-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Telefono</Label>
+                        <Input
+                          value={clientForm.phone || ""}
+                          onChange={(e) => setClientForm({...clientForm, phone: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="+34 612 345 678"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documenti di Identità Fiscale */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Identificazione Fiscale</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>NIE <span className="text-xs text-slate-400">(Stranieri)</span></Label>
+                        <Input
+                          value={clientForm.nie || ""}
+                          onChange={(e) => setClientForm({...clientForm, nie: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="X-1234567-A"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>NIF <span className="text-xs text-slate-400">(Persone fisiche)</span></Label>
+                        <Input
+                          value={clientForm.nif || ""}
+                          onChange={(e) => setClientForm({...clientForm, nif: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="12345678A"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CIF <span className="text-xs text-slate-400">(Società)</span></Label>
+                        <Input
+                          value={clientForm.cif || ""}
+                          onChange={(e) => setClientForm({...clientForm, cif: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="B12345678"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Codice Fiscale IT</Label>
+                        <Input
+                          value={clientForm.codice_fiscale || ""}
+                          onChange={(e) => setClientForm({...clientForm, codice_fiscale: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="RSSMRA80A01H501Z"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Indirizzo */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Indirizzo</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2 lg:col-span-2">
+                        <Label>Indirizzo</Label>
+                        <Input
+                          value={clientForm.indirizzo || ""}
+                          onChange={(e) => setClientForm({...clientForm, indirizzo: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="Calle Principal, 123"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Città</Label>
+                        <Input
+                          value={clientForm.citta || ""}
+                          onChange={(e) => setClientForm({...clientForm, citta: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="Las Palmas"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Provincia</Label>
+                        <Input
+                          value={clientForm.provincia || ""}
+                          onChange={(e) => setClientForm({...clientForm, provincia: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="Las Palmas"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CAP</Label>
+                        <Input
+                          value={clientForm.cap || ""}
+                          onChange={(e) => setClientForm({...clientForm, cap: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="35001"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dati Bancari */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Dati Bancari</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>IBAN</Label>
+                        <Input
+                          value={clientForm.iban || ""}
+                          onChange={(e) => setClientForm({...clientForm, iban: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="ES12 1234 5678 9012 3456 7890"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Attività e Tipo Cliente */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Classificazione</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Tipo Cliente</Label>
+                        <Select
+                          value={clientForm.tipo_cliente || "autonomo"}
+                          onValueChange={(v) => setClientForm({...clientForm, tipo_cliente: v})}
+                          disabled={!editingClient}
+                        >
+                          <SelectTrigger className="border-slate-200">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="autonomo">Autonomo</SelectItem>
+                            <SelectItem value="societa">Società</SelectItem>
+                            <SelectItem value="privato">Privato</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Regime Fiscale</Label>
+                        <Input
+                          value={clientForm.regime_fiscale || ""}
+                          onChange={(e) => setClientForm({...clientForm, regime_fiscale: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="Es: Regime ordinario"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tipo Attività</Label>
+                        <Input
+                          value={clientForm.tipo_attivita || ""}
+                          onChange={(e) => setClientForm({...clientForm, tipo_attivita: e.target.value})}
+                          disabled={!editingClient}
+                          className="border-slate-200"
+                          placeholder="Es: Commercio"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Stato</Label>
+                        <Select
+                          value={clientForm.stato || "attivo"}
+                          onValueChange={(v) => setClientForm({...clientForm, stato: v})}
+                          disabled={!editingClient}
+                        >
+                          <SelectTrigger className="border-slate-200">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="attivo">Attivo</SelectItem>
+                            <SelectItem value="sospeso">Sospeso</SelectItem>
+                            <SelectItem value="cessato">Cessato</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {editingClient && (
+                    <div className="flex justify-end pt-4 border-t">
+                      <Button
+                        type="submit"
+                        disabled={savingClient}
+                        className="bg-teal-500 hover:bg-teal-600 text-white"
+                      >
+                        {savingClient ? "Salvataggio..." : "Salva Modifiche"}
+                      </Button>
+                    </div>
+                  )}
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Danger Zone */}
+            <Card className="bg-white border border-red-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg text-red-600 flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  Zona Pericolosa
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg">
+                  <div>
+                    <h4 className="font-semibold text-slate-900">Archivia Cliente</h4>
+                    <p className="text-sm text-slate-600">Il cliente verrà disattivato ma i dati saranno mantenuti.</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDeleteClient(false)}
+                    disabled={deletingClient}
+                    className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                  >
+                    Archivia
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+                  <div>
+                    <h4 className="font-semibold text-red-800">Elimina Permanentemente</h4>
+                    <p className="text-sm text-red-600">Tutti i dati del cliente verranno eliminati definitivamente.</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDeleteClient(true)}
+                    disabled={deletingClient}
+                    className="border-red-300 text-red-700 hover:bg-red-100"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina
+                  </Button>
                 </div>
               </CardContent>
             </Card>

@@ -52,9 +52,17 @@ class UserCreate(BaseModel):
     full_name: str
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None  # Número de Identidad de Extranjero
+    nif: Optional[str] = None  # Número de Identificación Fiscal
+    cif: Optional[str] = None  # Código de Identificación Fiscal (società)
     indirizzo: Optional[str] = None
+    citta: Optional[str] = None
+    cap: Optional[str] = None
+    provincia: Optional[str] = None
+    iban: Optional[str] = None  # Conto bancario
     regime_fiscale: Optional[str] = None
     tipo_attivita: Optional[str] = None
+    tipo_cliente: Optional[str] = "autonomo"  # autonomo, societa, privato
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -66,9 +74,17 @@ class UserResponse(BaseModel):
     full_name: str
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None
+    nif: Optional[str] = None
+    cif: Optional[str] = None
     indirizzo: Optional[str] = None
+    citta: Optional[str] = None
+    cap: Optional[str] = None
+    provincia: Optional[str] = None
+    iban: Optional[str] = None
     regime_fiscale: Optional[str] = None
     tipo_attivita: Optional[str] = None
+    tipo_cliente: Optional[str] = "autonomo"
     role: str
     stato: str = "attivo"
     created_at: str
@@ -82,11 +98,32 @@ class ClientUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None
+    nif: Optional[str] = None
+    cif: Optional[str] = None
     indirizzo: Optional[str] = None
+    citta: Optional[str] = None
+    cap: Optional[str] = None
+    provincia: Optional[str] = None
+    iban: Optional[str] = None
     regime_fiscale: Optional[str] = None
     tipo_attivita: Optional[str] = None
+    tipo_cliente: Optional[str] = None
     stato: Optional[str] = None
     note_interne: Optional[str] = None
+
+class ClientListCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    color: str = "#3caca4"
+
+class ClientListResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    color: str
+    client_count: int = 0
+    created_at: str
 
 class DocumentCreate(BaseModel):
     title: str
@@ -160,17 +197,22 @@ class DeadlineResponse(BaseModel):
     modello_tributario_id: Optional[str] = None
     created_at: Optional[str] = None
 
-class ClientListResponse(BaseModel):
+class ClientInListResponse(BaseModel):
     id: str
     email: str
     full_name: str
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None
+    nif: Optional[str] = None
+    cif: Optional[str] = None
+    tipo_cliente: Optional[str] = "autonomo"
     stato: str = "attivo"
     created_at: str
     documents_count: int = 0
     payslips_count: int = 0
     notes_count: int = 0
+    lists: List[str] = []  # IDs delle liste di appartenenza
 
 # Modello Tributario
 class ModelloTributarioCreate(BaseModel):
@@ -358,25 +400,40 @@ async def get_me(user: dict = Depends(get_current_user)):
 
 # ==================== CLIENTS ROUTES (COMMERCIALISTA) ====================
 
-@api_router.get("/clients", response_model=List[ClientListResponse])
-async def get_clients(user: dict = Depends(require_commercialista)):
-    clients = await db.users.find({"role": "cliente"}, {"_id": 0, "password": 0}).to_list(1000)
+@api_router.get("/clients", response_model=List[ClientInListResponse])
+async def get_clients(
+    tipo_cliente: Optional[str] = None,
+    list_id: Optional[str] = None,
+    user: dict = Depends(require_commercialista)
+):
+    query = {"role": "cliente"}
+    if tipo_cliente:
+        query["tipo_cliente"] = tipo_cliente
+    if list_id:
+        query["lists"] = list_id
+    
+    clients = await db.users.find(query, {"_id": 0, "password": 0}).to_list(1000)
     result = []
     for client in clients:
         docs_count = await db.documents.count_documents({"client_id": client["id"]})
         payslips_count = await db.payslips.count_documents({"client_id": client["id"]})
         notes_count = await db.notes.count_documents({"client_id": client["id"]})
-        result.append(ClientListResponse(
+        result.append(ClientInListResponse(
             id=client["id"],
             email=client["email"],
             full_name=client["full_name"],
             phone=client.get("phone"),
             codice_fiscale=client.get("codice_fiscale"),
+            nie=client.get("nie"),
+            nif=client.get("nif"),
+            cif=client.get("cif"),
+            tipo_cliente=client.get("tipo_cliente", "autonomo"),
             stato=client.get("stato", "attivo"),
             created_at=client["created_at"],
             documents_count=docs_count,
             payslips_count=payslips_count,
-            notes_count=notes_count
+            notes_count=notes_count,
+            lists=client.get("lists", [])
         ))
     return result
 
@@ -401,17 +458,165 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
     return {"message": "Cliente aggiornato"}
 
 @api_router.delete("/clients/{client_id}")
-async def delete_client(client_id: str, user: dict = Depends(require_commercialista)):
-    # Archivia invece di eliminare
+async def delete_client(client_id: str, permanent: bool = False, user: dict = Depends(require_commercialista)):
+    if permanent:
+        # Eliminazione permanente - elimina anche tutti i dati correlati
+        client = await db.users.find_one({"id": client_id, "role": "cliente"})
+        if not client:
+            raise HTTPException(status_code=404, detail="Cliente non trovato")
+        
+        # Elimina documenti, buste paga, note e scadenze del cliente
+        await db.documents.delete_many({"client_id": client_id})
+        await db.payslips.delete_many({"client_id": client_id})
+        await db.notes.delete_many({"client_id": client_id})
+        await db.deadlines.update_many(
+            {"client_ids": client_id},
+            {"$pull": {"client_ids": client_id}}
+        )
+        
+        # Elimina l'utente
+        await db.users.delete_one({"id": client_id})
+        await log_activity("eliminazione_permanente_cliente", f"Cliente {client['full_name']} eliminato permanentemente", user["id"])
+        return {"message": "Cliente e tutti i dati correlati eliminati permanentemente"}
+    else:
+        # Archivia invece di eliminare
+        result = await db.users.update_one(
+            {"id": client_id, "role": "cliente"},
+            {"$set": {"stato": "cessato"}}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Cliente non trovato")
+        
+        await log_activity("archiviazione_cliente", f"Cliente {client_id} archiviato", user["id"])
+        return {"message": "Cliente archiviato"}
+
+# ==================== CLIENT LISTS (CATEGORIE) ====================
+
+@api_router.get("/client-lists")
+async def get_client_lists(user: dict = Depends(require_commercialista)):
+    lists = await db.client_lists.find({}, {"_id": 0}).to_list(100)
+    
+    # Aggiungi conteggio clienti per lista
+    for lst in lists:
+        count = await db.users.count_documents({"lists": lst["id"], "role": "cliente"})
+        lst["client_count"] = count
+    
+    return lists
+
+@api_router.post("/client-lists")
+async def create_client_list(list_data: ClientListCreate, user: dict = Depends(require_commercialista)):
+    list_id = str(uuid.uuid4())
+    new_list = {
+        "id": list_id,
+        "name": list_data.name,
+        "description": list_data.description,
+        "color": list_data.color,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.client_lists.insert_one(new_list)
+    await log_activity("creazione_lista", f"Lista '{list_data.name}' creata", user["id"])
+    return {"id": list_id, "message": "Lista creata"}
+
+@api_router.put("/client-lists/{list_id}")
+async def update_client_list(list_id: str, list_data: ClientListCreate, user: dict = Depends(require_commercialista)):
+    result = await db.client_lists.update_one(
+        {"id": list_id},
+        {"$set": {"name": list_data.name, "description": list_data.description, "color": list_data.color}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lista non trovata")
+    return {"message": "Lista aggiornata"}
+
+@api_router.delete("/client-lists/{list_id}")
+async def delete_client_list(list_id: str, user: dict = Depends(require_commercialista)):
+    # Rimuovi la lista da tutti i clienti
+    await db.users.update_many({"lists": list_id}, {"$pull": {"lists": list_id}})
+    # Elimina la lista
+    result = await db.client_lists.delete_one({"id": list_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Lista non trovata")
+    await log_activity("eliminazione_lista", f"Lista {list_id} eliminata", user["id"])
+    return {"message": "Lista eliminata"}
+
+@api_router.post("/client-lists/{list_id}/clients/{client_id}")
+async def add_client_to_list(list_id: str, client_id: str, user: dict = Depends(require_commercialista)):
+    # Verifica che la lista esista
+    lst = await db.client_lists.find_one({"id": list_id})
+    if not lst:
+        raise HTTPException(status_code=404, detail="Lista non trovata")
+    
+    # Aggiungi cliente alla lista
     result = await db.users.update_one(
         {"id": client_id, "role": "cliente"},
-        {"$set": {"stato": "cessato"}}
+        {"$addToSet": {"lists": list_id}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
+    return {"message": "Cliente aggiunto alla lista"}
+
+@api_router.delete("/client-lists/{list_id}/clients/{client_id}")
+async def remove_client_from_list(list_id: str, client_id: str, user: dict = Depends(require_commercialista)):
+    result = await db.users.update_one(
+        {"id": client_id, "role": "cliente"},
+        {"$pull": {"lists": list_id}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    return {"message": "Cliente rimosso dalla lista"}
+
+@api_router.post("/client-lists/{list_id}/send-notification")
+async def send_notification_to_list(
+    list_id: str,
+    subject: str = Form(...),
+    content: str = Form(...),
+    user: dict = Depends(require_commercialista)
+):
+    """Invia una notifica email a tutti i clienti di una lista"""
+    # Verifica che la lista esista
+    lst = await db.client_lists.find_one({"id": list_id})
+    if not lst:
+        raise HTTPException(status_code=404, detail="Lista non trovata")
     
-    await log_activity("eliminazione_cliente", f"Cliente {client_id} archiviato", user["id"])
-    return {"message": "Cliente archiviato"}
+    # Trova tutti i clienti nella lista
+    clients = await db.users.find(
+        {"lists": list_id, "role": "cliente", "stato": "attivo"},
+        {"_id": 0, "email": 1, "full_name": 1}
+    ).to_list(1000)
+    
+    if not clients:
+        return {"success": False, "error": "Nessun cliente attivo nella lista"}
+    
+    # Invia email a tutti i clienti
+    sent_count = 0
+    errors = []
+    for client in clients:
+        try:
+            result = await notify_new_note(
+                client_email=client["email"],
+                client_name=client["full_name"],
+                note_title=subject,
+                note_content=content
+            )
+            if result.get("success"):
+                sent_count += 1
+            else:
+                errors.append(f"{client['email']}: {result.get('error')}")
+        except Exception as e:
+            errors.append(f"{client['email']}: {str(e)}")
+    
+    await log_activity(
+        "notifica_lista",
+        f"Notifica '{subject}' inviata a lista '{lst['name']}': {sent_count}/{len(clients)} email inviate",
+        user["id"]
+    )
+    
+    return {
+        "success": True,
+        "sent_count": sent_count,
+        "total_clients": len(clients),
+        "list_name": lst["name"],
+        "errors": errors if errors else None
+    }
 
 # ==================== DOCUMENTS ROUTES ====================
 
@@ -683,6 +888,136 @@ async def verify_document(
     await log_activity("verifica_documento", f"Documento {doc_id} verificato e assegnato a {client_id}", user["id"])
     
     return {"message": "Documento verificato con successo"}
+
+@api_router.post("/documents/upload-batch")
+async def upload_documents_batch(
+    files: List[UploadFile] = File(...),
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Carica più documenti contemporaneamente e li analizza con AI.
+    L'IA identifica automaticamente il cliente per ogni documento.
+    """
+    results = []
+    clients = await db.users.find({"role": "cliente"}, {"_id": 0, "password": 0}).to_list(1000)
+    
+    for file in files:
+        try:
+            file_content = await file.read()
+            file_base64 = base64.b64encode(file_content).decode('utf-8')
+            
+            # Estrai testo dal PDF
+            extracted_text = ""
+            if file.content_type == "application/pdf" or file.filename.lower().endswith(".pdf"):
+                extracted_text = await extract_text_from_pdf(file_base64)
+            
+            # Analizza con AI
+            ai_result = await analyze_document_with_ai(
+                file_content=extracted_text or f"File: {file.filename}",
+                file_name=file.filename,
+                clients_list=clients
+            )
+            
+            # Determina cliente
+            final_client_id = None
+            client_confidence = "non_identificato"
+            
+            if ai_result.get("success") and ai_result.get("cliente_identificato", {}).get("id"):
+                final_client_id = ai_result["cliente_identificato"]["id"]
+                client_confidence = ai_result["cliente_identificato"].get("confidenza", "bassa")
+            
+            needs_verification = not final_client_id or client_confidence == "bassa"
+            
+            # Ottieni info cliente per nome file
+            client_name_for_file = None
+            if final_client_id:
+                client_info = await db.users.find_one({"id": final_client_id}, {"full_name": 1, "_id": 0})
+                if client_info:
+                    client_name_for_file = client_info.get("full_name")
+            
+            # Genera nome file standardizzato
+            original_ext = "." + file.filename.rsplit(".", 1)[-1] if "." in file.filename else ".pdf"
+            
+            standardized_filename = generate_standard_filename(
+                tipo_documento=ai_result.get("tipo_documento") if ai_result.get("success") else None,
+                data_documento=ai_result.get("data_documento") if ai_result.get("success") else None,
+                cliente_nome=client_name_for_file,
+                riferimento=ai_result.get("periodo_riferimento") if ai_result.get("success") else None,
+                original_extension=original_ext
+            )
+            
+            category = ai_result.get("categoria_suggerita", "altro") if ai_result.get("success") else "altro"
+            
+            # Crea documento
+            doc_id = str(uuid.uuid4())
+            document = {
+                "id": doc_id,
+                "title": ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename,
+                "description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
+                "category": category,
+                "client_id": final_client_id,
+                "file_name": standardized_filename,
+                "file_name_original": file.filename,
+                "file_data": file_base64,
+                "file_type": file.content_type,
+                "uploaded_by": user["id"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "ai_analysis": ai_result if ai_result.get("success") else None,
+                "ai_description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
+                "tags": ai_result.get("tags", []) if ai_result.get("success") else [],
+                "modello_tributario": ai_result.get("modello_tributario") if ai_result.get("success") else None,
+                "needs_verification": needs_verification,
+                "client_confidence": client_confidence,
+                "version": 1
+            }
+            await db.documents.insert_one(document)
+            
+            results.append({
+                "id": doc_id,
+                "original_filename": file.filename,
+                "standardized_filename": standardized_filename,
+                "client_id": final_client_id,
+                "client_name": client_name_for_file,
+                "client_confidence": client_confidence,
+                "needs_verification": needs_verification,
+                "category": category,
+                "success": True
+            })
+            
+            # Notifica cliente se identificato con alta confidenza
+            if final_client_id and not needs_verification:
+                try:
+                    client_data = await db.users.find_one({"id": final_client_id}, {"_id": 0})
+                    if client_data and client_data.get("email"):
+                        await notify_document_uploaded(
+                            client_email=client_data["email"],
+                            client_name=client_data["full_name"],
+                            doc_title=document["title"],
+                            doc_description=document.get("description")
+                        )
+                except Exception as e:
+                    logger.error(f"Errore invio email notifica: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Errore elaborazione file {file.filename}: {e}")
+            results.append({
+                "original_filename": file.filename,
+                "success": False,
+                "error": str(e)
+            })
+    
+    await log_activity(
+        "caricamento_batch",
+        f"Caricati {len([r for r in results if r.get('success')])} documenti su {len(files)}",
+        user["id"]
+    )
+    
+    return {
+        "message": f"Elaborati {len(files)} documenti",
+        "results": results,
+        "needs_verification_count": len([r for r in results if r.get("needs_verification")]),
+        "assigned_count": len([r for r in results if r.get("client_id") and not r.get("needs_verification")])
+    }
 
 @api_router.put("/documents/{doc_id}/rename")
 async def rename_document(

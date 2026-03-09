@@ -175,6 +175,15 @@ const CommercialDashboard = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Button 
+              variant="outline"
+              onClick={() => navigate("/admin/lists")}
+              className="border-teal-200 text-teal-600 hover:bg-teal-50"
+              data-testid="manage-lists-btn"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Gestione Liste
+            </Button>
             <div className="flex items-center gap-2 text-slate-600">
               <User className="h-5 w-5" />
               <span className="font-medium">{user?.full_name}</span>

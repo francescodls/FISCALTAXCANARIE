@@ -12,6 +12,7 @@ import RegisterPage from "@/pages/RegisterPage";
 import ClientDashboard from "@/pages/ClientDashboard";
 import CommercialDashboard from "@/pages/CommercialDashboard";
 import ClientDetail from "@/pages/ClientDetail";
+import ClientLists from "@/pages/ClientLists";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -167,6 +168,11 @@ function AppRoutes() {
       <Route path="/admin/client/:clientId" element={
         <ProtectedRoute requiredRole="commercialista">
           <ClientDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/lists" element={
+        <ProtectedRoute requiredRole="commercialista">
+          <ClientLists />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
