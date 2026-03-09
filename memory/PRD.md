@@ -1,63 +1,78 @@
-# Fiscal Tax Canarie - PRD
+# Fiscal Tax Canarie - PRD Aggiornato
 
 ## Problem Statement
-App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. L'app serve ai clienti per conoscere modelli tributari e scadenze, pagamento tasse, accesso alla documentazione. Include sezione per buste paga (PDF) e appunti per ogni cliente.
+App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. Gestione clienti, documenti fiscali, scadenze tributarie e comunicazioni. Collegata a fiscaltaxcanarie.com.
 
 ## User Personas
-1. **Cliente**: Cittadino/azienda che ha bisogno di gestire pratiche fiscali
-2. **Commercialista**: Professionista che gestisce i clienti e le loro pratiche
+1. **Cliente**: Utente che accede alla propria area riservata per documenti, scadenze, buste paga
+2. **Commercialista/Admin**: Account unico (info@fiscaltaxcanarie.com) con accesso completo a tutti i clienti
 
-## Core Requirements
-- Autenticazione JWT con email/password
-- Due ruoli: Cliente e Commercialista
-- Calendario scadenze fiscali Canarie
-- Upload/download documenti PDF
-- Upload/download buste paga PDF
-- Sistema appunti (interni e pubblici)
-- Design: tema chiaro, colori bianco e #3caca4 (teal)
+## Core Requirements (Static)
+- Autenticazione JWT - registrazione SOLO per clienti
+- Account commercialista predefinito: info@fiscaltaxcanarie.com / Triana48+
+- Calendario scadenze con stati (da_fare, in_lavorazione, completata, scaduta)
+- Upload documenti e buste paga PDF
+- Appunti con visibilità (interni/pubblici)
+- Schede informative modelli tributari
+- Design: bianco + #3caca4 (teal) con TESTO BIANCO su sfondi teal
+- Log attività e tracciabilità
 
 ## What's Been Implemented (Jan 2026)
-### Backend (FastAPI + MongoDB)
-- [x] Auth: register, login, JWT tokens
-- [x] CRUD Users con ruoli (cliente/commercialista)
-- [x] CRUD Documents con upload PDF (base64)
-- [x] CRUD Payslips (buste paga) con upload PDF
-- [x] CRUD Notes con visibilità (interno/pubblico)
-- [x] Scadenze fiscali predefinite Canarie (12 modelli)
-- [x] Stats endpoint per dashboard
 
-### Frontend (React)
-- [x] Landing page con servizi
-- [x] Login/Register pages
-- [x] Client Dashboard: scadenze, documenti, buste paga, appunti
-- [x] Commercial Dashboard: lista clienti, stats
-- [x] Client Detail page: upload docs/payslips, gestione appunti
-- [x] Calendario con date scadenze evidenziate
-- [x] Download file PDF
+### Fase 1 - COMPLETATA ✅
+**Backend (FastAPI + MongoDB)**
+- [x] Auth JWT con ruoli (cliente/commercialista)
+- [x] Account commercialista predefinito auto-creato al startup
+- [x] Registrazione SOLO per clienti (no opzione commercialista)
+- [x] CRUD Clienti con stati (attivo/sospeso/cessato)
+- [x] CRUD Documenti con upload PDF
+- [x] CRUD Buste Paga con upload PDF
+- [x] CRUD Appunti (interni/pubblici)
+- [x] Scadenze con stati e priorità (9 scadenze predefinite)
+- [x] Modelli Tributari con schede informative (8 modelli)
+- [x] Log attività sistema
+- [x] Stats avanzate per dashboard
 
-## Test Results
-- Backend: 100% (15/15 tests passed)
-- Frontend: 90% (funzionalità core funzionanti)
+**Frontend (React)**
+- [x] Landing page con sezione teal e TESTO BIANCO
+- [x] Login/Register (solo clienti)
+- [x] Dashboard Commercialista: stats, lista clienti, attività, tab
+- [x] Dashboard Cliente: panoramica, scadenze, documenti, buste paga, comunicazioni
+- [x] Tab "Guida Modelli Tributari" con schede dettagliate per cliente
+- [x] Calendario interattivo con stati scadenze
+- [x] Bottoni teal con testo BIANCO
 
-## Prioritized Backlog
-### P0 (Critical) - DONE
-- [x] Auth system
-- [x] CRUD operations
-- [x] File upload/download
+### Fase 2 - DA IMPLEMENTARE
+- [ ] OCR e classificazione automatica documenti con OpenAI GPT
+- [ ] Rinomina automatica file secondo standard
+- [ ] Associazione automatica documento al cliente
 
-### P1 (High Priority)
-- [ ] Email notifications per scadenze imminenti
-- [ ] Password recovery
-- [ ] Admin panel per gestione scadenze custom
+### Fase 3 - DA IMPLEMENTARE
+- [ ] Assistente AI per clienti (ChatGPT)
+- [ ] Notifiche email automatiche con Brevo
+- [ ] Richiesta documenti al cliente
 
-### P2 (Medium Priority)
-- [ ] Export report PDF per cliente
-- [ ] Dashboard analytics/charts
-- [ ] Multi-language support (ES/IT)
-- [ ] Dark mode toggle
+### Fase 4 - DA IMPLEMENTARE
+- [ ] Statistiche avanzate con grafici
+- [ ] Versioning documenti
+- [ ] Log completo e audit trail
+- [ ] Ricerca avanzata documenti
 
-## Next Tasks
-1. Testare upload documenti/buste paga end-to-end
-2. Aggiungere notifiche email scadenze
-3. Implementare password recovery
-4. Aggiungere gestione scadenze personalizzate
+## Account Predefiniti
+- **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
+
+## Modelli Tributari Precaricati (8)
+1. Modelo-303 - IVA Trimestrale
+2. Modelo-111 - Ritenute IRPF
+3. Modelo-130 - Pagamento Frazionato IRPF
+4. IGIC - Imposta Generale Indiretta Canarie
+5. Modelo-390 - Riepilogo Annuale IVA
+6. Modelo-200 - Imposta Società
+7. Modelo-347 - Operazioni con Terzi
+8. IRPF-Renta - Dichiarazione Redditi Persone Fisiche
+
+## Next Tasks (Priorità)
+1. **Fase 2**: Integrare OpenAI GPT per OCR documenti
+2. **Fase 3**: Configurare Brevo per email automatiche
+3. **Fase 3**: Aggiungere assistente AI
+4. **Fase 4**: Dashboard statistiche avanzate

@@ -600,15 +600,24 @@ async def get_deadlines(user: dict = Depends(get_current_user)):
     
     deadlines = await db.deadlines.find(query, {"_id": 0}).to_list(1000)
     
-    # Aggiorna stato scadenze scadute
+    # Aggiorna stato scadenze scadute e aggiungi campi mancanti
     now = datetime.now(timezone.utc).date()
+    result = []
     for deadline in deadlines:
+        # Aggiungi valori di default per campi mancanti
+        deadline.setdefault("status", "da_fare")
+        deadline.setdefault("priority", "normale")
+        deadline.setdefault("modello_tributario_id", None)
+        deadline.setdefault("created_at", None)
+        
         due_date = datetime.fromisoformat(deadline["due_date"]).date() if isinstance(deadline["due_date"], str) else deadline["due_date"]
         if due_date < now and deadline.get("status") not in ["completata", "scaduta"]:
             deadline["status"] = "scaduta"
-            await db.deadlines.update_one({"id": deadline["id"]}, {"$set": {"status": "scaduta"}})
+            await db.deadlines.update_one({"id": deadline["id"]}, {"$set": {"status": "scaduta", "priority": deadline["priority"]}})
+        
+        result.append(DeadlineResponse(**deadline))
     
-    return [DeadlineResponse(**d) for d in deadlines]
+    return result
 
 @api_router.post("/deadlines", response_model=DeadlineResponse)
 async def create_deadline(deadline_data: DeadlineCreate, user: dict = Depends(require_commercialista)):
