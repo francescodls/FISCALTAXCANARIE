@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   Phone,
   Mail,
-  MapPin
+  MapPin,
+  BookOpen
 } from "lucide-react";
 
 const LandingPage = () => {
@@ -40,9 +41,9 @@ const LandingPage = () => {
       description: "I tuoi dati sono protetti con crittografia avanzata. Solo tu e il nostro team possiamo accedere ai tuoi documenti."
     },
     {
-      icon: Users,
-      title: "Assistenza Dedicata",
-      description: "Il nostro team di professionisti gestisce tutte le tue pratiche fiscali con cura e precisione, tu hai tutto sotto controllo."
+      icon: BookOpen,
+      title: "Guida Modelli Tributari",
+      description: "Consulta le spiegazioni dettagliate di tutti i modelli tributari delle Canarie. Capisci cosa devi presentare e quando."
     },
     {
       icon: TrendingUp,
@@ -56,6 +57,7 @@ const LandingPage = () => {
     "Scadenze fiscali sempre sotto controllo",
     "Comunicazione diretta con il tuo commercialista",
     "Buste paga e documenti in un unico posto",
+    "Spiegazioni chiare dei modelli tributari",
     "Note e appunti condivisi per ogni pratica"
   ];
 
@@ -81,7 +83,7 @@ const LandingPage = () => {
             </Button>
             <Button 
               onClick={() => navigate("/register")}
-              className="bg-teal-500 hover:bg-teal-600 text-slate-900 font-semibold px-6"
+              className="bg-teal-500 hover:bg-teal-600 text-white font-semibold px-6"
               data-testid="header-register-btn"
             >
               Registrati
@@ -107,7 +109,7 @@ const LandingPage = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button 
                   onClick={() => navigate("/register")}
-                  className="bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold px-8 py-6 h-auto text-lg rounded-lg btn-press"
+                  className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-8 py-6 h-auto text-lg rounded-lg btn-press"
                   data-testid="hero-cta-btn"
                 >
                   Accedi all'Area Clienti
@@ -154,8 +156,8 @@ const LandingPage = () => {
                 data-testid={`feature-card-${index}`}
               >
                 <CardContent className="p-8">
-                  <div className="w-14 h-14 bg-teal-50 rounded-xl flex items-center justify-center mb-6">
-                    <feature.icon className="h-7 w-7 text-teal-600" />
+                  <div className="w-14 h-14 bg-teal-500 rounded-xl flex items-center justify-center mb-6">
+                    <feature.icon className="h-7 w-7 text-white" />
                   </div>
                   <h3 className="font-heading font-semibold text-xl text-slate-900 mb-3">
                     {feature.title}
@@ -170,24 +172,24 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-20 md:py-32 bg-stone-50">
+      {/* CTA Section con sfondo teal e testo bianco */}
+      <section className="py-20 md:py-32 bg-teal-500">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
-              <h2 className="font-heading text-3xl md:text-4xl font-bold text-slate-900">
+              <h2 className="font-heading text-3xl md:text-4xl font-bold text-white">
                 Perché scegliere la nostra piattaforma?
               </h2>
               <div className="space-y-4">
                 {benefits.map((benefit, index) => (
                   <div key={index} className="flex items-start gap-3">
-                    <CheckCircle2 className="h-6 w-6 text-teal-500 flex-shrink-0 mt-0.5" />
-                    <span className="text-slate-700 text-lg">{benefit}</span>
+                    <CheckCircle2 className="h-6 w-6 text-white flex-shrink-0 mt-0.5" />
+                    <span className="text-white text-lg">{benefit}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <Card className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 md:p-10">
+            <Card className="bg-white border-0 rounded-2xl shadow-xl p-8 md:p-10">
               <h3 className="font-heading font-bold text-2xl text-slate-900 mb-6">
                 Sei già nostro cliente?
               </h3>
@@ -197,7 +199,7 @@ const LandingPage = () => {
               <div className="space-y-4">
                 <Button 
                   onClick={() => navigate("/login")}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold py-6 h-auto text-lg rounded-lg btn-press"
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-6 h-auto text-lg rounded-lg btn-press"
                   data-testid="cta-login-btn"
                 >
                   Accedi
@@ -223,7 +225,7 @@ const LandingPage = () => {
             <div>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center">
-                  <span className="text-slate-900 font-bold text-lg font-heading">FT</span>
+                  <span className="text-white font-bold text-lg font-heading">FT</span>
                 </div>
                 <span className="font-heading font-bold text-xl">Fiscal Tax Canarie</span>
               </div>
@@ -263,6 +265,14 @@ const LandingPage = () => {
                 >
                   Registrati
                 </button>
+                <a 
+                  href="https://fiscaltaxcanarie.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-slate-400 hover:text-teal-400 transition-colors"
+                >
+                  Sito Web Principale
+                </a>
               </div>
             </div>
           </div>

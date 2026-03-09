@@ -1,447 +1,247 @@
-#!/usr/bin/env python3
-
 import requests
 import sys
-import json
 from datetime import datetime
-from typing import Dict, Any, Optional
 
 class FiscalTaxCanarieAPITester:
-    def __init__(self, base_url="https://tribute-models-docs.preview.emergentagent.com"):
+    def __init__(self, base_url="https://tribute-models-docs.preview.emergentagent.com/api"):
         self.base_url = base_url
-        self.api_url = f"{base_url}/api"
-        self.client_token = None
-        self.commercialista_token = None
-        self.client_user = None
-        self.commercialista_user = None
-        self.test_client_id = None
+        self.token = None
         self.tests_run = 0
         self.tests_passed = 0
-        self.failed_tests = []
-        self.test_results = {}
+        self.test_client_id = None
 
-    def log_test(self, test_name: str, success: bool, details: str = ""):
-        """Log test results"""
+    def run_test(self, name, method, endpoint, expected_status, data=None, headers=None):
+        """Run a single API test"""
+        url = f"{self.base_url}/{endpoint}"
+        test_headers = {'Content-Type': 'application/json'}
+        if self.token:
+            test_headers['Authorization'] = f'Bearer {self.token}'
+        if headers:
+            test_headers.update(headers)
+
         self.tests_run += 1
+        print(f"\n🔍 Testing {name}...")
+        
+        try:
+            if method == 'GET':
+                response = requests.get(url, headers=test_headers)
+            elif method == 'POST':
+                response = requests.post(url, json=data, headers=test_headers)
+            elif method == 'PUT':
+                response = requests.put(url, json=data, headers=test_headers)
+            elif method == 'PATCH':
+                response = requests.patch(url, json=data, headers=test_headers)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=test_headers)
+
+            success = response.status_code == expected_status
+            if success:
+                self.tests_passed += 1
+                print(f"✅ Passed - Status: {response.status_code}")
+                try:
+                    return success, response.json()
+                except:
+                    return success, {}
+            else:
+                print(f"❌ Failed - Expected {expected_status}, got {response.status_code}")
+                try:
+                    error_detail = response.json()
+                    print(f"   Error: {error_detail}")
+                except:
+                    print(f"   Response: {response.text}")
+
+            return False, {}
+
+        except Exception as e:
+            print(f"❌ Failed - Error: {str(e)}")
+            return False, {}
+
+    def test_predefined_accountant_login(self):
+        """Test predefined accountant login with info@fiscaltaxcanarie.com / Triana48+"""
+        success, response = self.run_test(
+            "Predefined Accountant Login",
+            "POST",
+            "auth/login",
+            200,
+            data={"email": "info@fiscaltaxcanarie.com", "password": "Triana48+"}
+        )
+        if success and 'access_token' in response:
+            self.token = response['access_token']
+            user_role = response.get('user', {}).get('role')
+            if user_role == 'commercialista':
+                print(f"   ✅ Accountant role confirmed: {user_role}")
+                return True
+            else:
+                print(f"   ❌ Wrong role: {user_role}")
+                return False
+        return False
+
+    def test_client_registration_only(self):
+        """Test that registration creates only client accounts"""
+        test_email = f"test_client_{datetime.now().strftime('%H%M%S')}@example.com"
+        success, response = self.run_test(
+            "Client Registration (No Role Option)",
+            "POST",
+            "auth/register",
+            200,
+            data={
+                "email": test_email,
+                "password": "TestPass123!",
+                "full_name": "Test Client User",
+                "phone": "+34 123456789",
+                "codice_fiscale": "X1234567A"
+            }
+        )
         if success:
-            self.tests_passed += 1
-            print(f"✅ {test_name} - PASSED")
-        else:
-            print(f"❌ {test_name} - FAILED: {details}")
-            self.failed_tests.append(f"{test_name}: {details}")
-        
-        self.test_results[test_name] = {
-            "passed": success,
-            "details": details,
-            "timestamp": datetime.now().isoformat()
-        }
+            user_role = response.get('user', {}).get('role')
+            self.test_client_id = response.get('user', {}).get('id')
+            if user_role == 'cliente':
+                print(f"   ✅ Registration forced client role: {user_role}")
+                return True
+            else:
+                print(f"   ❌ Wrong role assigned: {user_role}")
+                return False
+        return False
 
-    def test_health_check(self):
-        """Test basic API health"""
-        try:
-            response = requests.get(f"{self.api_url}/", timeout=10)
-            success = response.status_code == 200 and "Fiscal Tax Canarie" in response.text
-            details = f"Status: {response.status_code}, Response: {response.text[:100]}"
-            self.log_test("API Health Check", success, details)
-            return success
-        except Exception as e:
-            self.log_test("API Health Check", False, f"Connection error: {str(e)}")
-            return False
+    def test_modelli_tributari_api(self):
+        """Test API modelli-tributari returns 8 predefined models"""
+        success, response = self.run_test(
+            "Modelli Tributari API",
+            "GET",
+            "modelli-tributari",
+            200
+        )
+        if success:
+            models_count = len(response)
+            print(f"   📊 Found {models_count} tax models")
+            if models_count == 8:
+                print(f"   ✅ Correct number of predefined models: {models_count}")
+                # Check for key models
+                model_codes = [m.get('codice') for m in response]
+                expected_codes = ['Modelo-303', 'Modelo-111', 'IGIC', 'Modelo-200']
+                found_codes = [code for code in expected_codes if code in model_codes]
+                print(f"   📋 Key models found: {found_codes}")
+                return models_count == 8
+            else:
+                print(f"   ❌ Expected 8 models, found {models_count}")
+                return False
+        return False
 
-    def test_user_registration(self, role="cliente"):
-        """Test user registration for different roles"""
-        timestamp = datetime.now().strftime("%H%M%S")
-        test_data = {
-            "email": f"test_{role}_{timestamp}@example.com",
-            "password": "TestPass123!",
-            "full_name": f"Test {role.title()} User",
-            "phone": "+34 123 456 789",
-            "role": role
-        }
-        
-        try:
-            response = requests.post(f"{self.api_url}/auth/register", json=test_data, timeout=10)
-            success = response.status_code == 200
+    def test_deadlines_with_states(self):
+        """Test API scadenze with states (da_fare, in_lavorazione, completata, scaduta)"""
+        success, response = self.run_test(
+            "Deadlines API with States",
+            "GET",
+            "deadlines",
+            200
+        )
+        if success:
+            deadlines_count = len(response)
+            print(f"   📊 Found {deadlines_count} deadlines")
             
-            if success:
-                data = response.json()
-                token = data.get("access_token")
-                user = data.get("user")
-                
-                if role == "cliente":
-                    self.client_token = token
-                    self.client_user = user
-                    self.test_client_id = user.get("id")
+            # Check status distribution
+            status_counts = {}
+            valid_statuses = {"da_fare", "in_lavorazione", "completata", "scaduta"}
+            
+            for deadline in response:
+                status = deadline.get('status')
+                if status in valid_statuses:
+                    status_counts[status] = status_counts.get(status, 0) + 1
                 else:
-                    self.commercialista_token = token
-                    self.commercialista_user = user
+                    print(f"   ⚠️  Invalid status found: {status}")
+            
+            print(f"   📈 Status distribution: {status_counts}")
+            
+            if status_counts:
+                print(f"   ✅ Valid deadline statuses found")
+                return True
+            else:
+                print(f"   ❌ No valid deadline statuses found")
+                return False
+        return False
+
+    def test_stats_api_commercialista(self):
+        """Test stats API for commercialista shows deadline counts by status"""
+        success, response = self.run_test(
+            "Stats API (Commercialista)",
+            "GET",
+            "stats",
+            200
+        )
+        if success:
+            expected_fields = [
+                'deadlines_da_fare', 'deadlines_in_lavorazione', 
+                'deadlines_completate', 'deadlines_scadute'
+            ]
+            
+            found_fields = []
+            for field in expected_fields:
+                if field in response:
+                    found_fields.append(f"{field}: {response[field]}")
                 
-                details = f"User ID: {user.get('id')}, Role: {user.get('role')}"
+            if len(found_fields) == len(expected_fields):
+                print(f"   ✅ All deadline status stats found:")
+                for field_info in found_fields:
+                    print(f"      • {field_info}")
+                return True
             else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test(f"User Registration ({role})", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test(f"User Registration ({role})", False, f"Error: {str(e)}")
-            return False
+                print(f"   ❌ Missing deadline status fields. Found: {found_fields}")
+                return False
+        return False
 
-    def test_user_login(self, role="cliente"):
-        """Test user login"""
-        if role == "cliente" and self.client_user:
-            email = self.client_user["email"]
-        elif role == "commercialista" and self.commercialista_user:
-            email = self.commercialista_user["email"]
-        else:
-            self.log_test(f"User Login ({role})", False, "No user data available for login test")
-            return False
+    def test_api_endpoints_health(self):
+        """Test key API endpoints are accessible"""
+        endpoints = [
+            ("Root API", "", 200),
+            ("Auth Me", "auth/me", 200),
+            ("Clients List", "clients", 200),
+            ("Documents", "documents", 200),
+            ("Payslips", "payslips", 200),
+            ("Notes", "notes", 200),
+            ("Activity Logs", "activity-logs", 200)
+        ]
         
-        login_data = {
-            "email": email,
-            "password": "TestPass123!"
-        }
+        all_passed = True
+        for name, endpoint, expected in endpoints:
+            success, _ = self.run_test(name, "GET", endpoint, expected)
+            if not success:
+                all_passed = False
         
-        try:
-            response = requests.post(f"{self.api_url}/auth/login", json=login_data, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                data = response.json()
-                token = data.get("access_token")
-                user = data.get("user")
-                details = f"Token received, User: {user.get('full_name')}, Role: {user.get('role')}"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test(f"User Login ({role})", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test(f"User Login ({role})", False, f"Error: {str(e)}")
-            return False
-
-    def test_auth_me(self):
-        """Test get current user endpoint"""
-        if not self.client_token:
-            self.log_test("Auth Me Endpoint", False, "No client token available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.client_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/auth/me", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                user = response.json()
-                details = f"User: {user.get('full_name')}, Role: {user.get('role')}"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Auth Me Endpoint", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Auth Me Endpoint", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_clients(self):
-        """Test get clients endpoint (commercialista only)"""
-        if not self.commercialista_token:
-            self.log_test("Get Clients", False, "No commercialista token available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.commercialista_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/clients", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                clients = response.json()
-                details = f"Retrieved {len(clients)} clients"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Get Clients", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Get Clients", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_client_detail(self):
-        """Test get specific client endpoint"""
-        if not self.commercialista_token or not self.test_client_id:
-            self.log_test("Get Client Detail", False, "No commercialista token or client ID available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.commercialista_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/clients/{self.test_client_id}", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                client = response.json()
-                details = f"Client: {client.get('full_name')}, Email: {client.get('email')}"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Get Client Detail", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Get Client Detail", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_deadlines(self):
-        """Test get deadlines endpoint"""
-        if not self.client_token:
-            self.log_test("Get Deadlines", False, "No client token available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.client_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/deadlines", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                deadlines = response.json()
-                details = f"Retrieved {len(deadlines)} deadlines"
-                # Check if default Canary Islands deadlines are created
-                if len(deadlines) >= 10:
-                    details += " (includes default fiscal deadlines)"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Get Deadlines", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Get Deadlines", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_documents(self):
-        """Test get documents endpoint"""
-        if not self.client_token:
-            self.log_test("Get Documents", False, "No client token available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.client_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/documents", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                documents = response.json()
-                details = f"Retrieved {len(documents)} documents"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Get Documents", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Get Documents", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_payslips(self):
-        """Test get payslips endpoint"""
-        if not self.client_token:
-            self.log_test("Get Payslips", False, "No client token available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.client_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/payslips", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                payslips = response.json()
-                details = f"Retrieved {len(payslips)} payslips"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Get Payslips", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Get Payslips", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_notes(self):
-        """Test get notes endpoint"""
-        if not self.client_token:
-            self.log_test("Get Notes", False, "No client token available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.client_token}"}
-        
-        try:
-            response = requests.get(f"{self.api_url}/notes", headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                notes = response.json()
-                details = f"Retrieved {len(notes)} notes"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Get Notes", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Get Notes", False, f"Error: {str(e)}")
-            return False
-
-    def test_get_stats(self):
-        """Test get stats endpoint for both client and commercialista"""
-        # Test client stats
-        if self.client_token:
-            headers = {"Authorization": f"Bearer {self.client_token}"}
-            try:
-                response = requests.get(f"{self.api_url}/stats", headers=headers, timeout=10)
-                success = response.status_code == 200
-                
-                if success:
-                    stats = response.json()
-                    expected_keys = ["documents_count", "payslips_count", "notes_count", "deadlines_count"]
-                    has_keys = all(key in stats for key in expected_keys)
-                    details = f"Client stats: {stats}" if has_keys else f"Missing keys in response: {stats}"
-                else:
-                    details = f"Status: {response.status_code}, Error: {response.text}"
-                
-                self.log_test("Get Stats (Client)", success and has_keys, details)
-                
-            except Exception as e:
-                self.log_test("Get Stats (Client)", False, f"Error: {str(e)}")
-
-        # Test commercialista stats
-        if self.commercialista_token:
-            headers = {"Authorization": f"Bearer {self.commercialista_token}"}
-            try:
-                response = requests.get(f"{self.api_url}/stats", headers=headers, timeout=10)
-                success = response.status_code == 200
-                
-                if success:
-                    stats = response.json()
-                    expected_keys = ["clients_count", "documents_count", "payslips_count", "notes_count"]
-                    has_keys = all(key in stats for key in expected_keys)
-                    details = f"Commercialista stats: {stats}" if has_keys else f"Missing keys in response: {stats}"
-                else:
-                    details = f"Status: {response.status_code}, Error: {response.text}"
-                
-                self.log_test("Get Stats (Commercialista)", success and has_keys, details)
-                
-            except Exception as e:
-                self.log_test("Get Stats (Commercialista)", False, f"Error: {str(e)}")
-
-    def test_create_note(self):
-        """Test creating a note (commercialista only)"""
-        if not self.commercialista_token or not self.test_client_id:
-            self.log_test("Create Note", False, "No commercialista token or client ID available")
-            return False
-            
-        headers = {"Authorization": f"Bearer {self.commercialista_token}"}
-        note_data = {
-            "title": "Test Note",
-            "content": "This is a test note for API testing.",
-            "client_id": self.test_client_id,
-            "is_internal": False
-        }
-        
-        try:
-            response = requests.post(f"{self.api_url}/notes", json=note_data, headers=headers, timeout=10)
-            success = response.status_code == 200
-            
-            if success:
-                note = response.json()
-                details = f"Created note: {note.get('title')}, ID: {note.get('id')}"
-            else:
-                details = f"Status: {response.status_code}, Error: {response.text}"
-            
-            self.log_test("Create Note", success, details)
-            return success
-            
-        except Exception as e:
-            self.log_test("Create Note", False, f"Error: {str(e)}")
-            return False
-
-    def run_all_tests(self):
-        """Run all API tests"""
-        print("🚀 Starting Fiscal Tax Canarie API Tests...")
-        print(f"🌐 Testing API at: {self.api_url}")
-        print("=" * 60)
-        
-        # Basic connectivity
-        if not self.test_health_check():
-            print("❌ API is not accessible. Stopping tests.")
-            return False
-        
-        # User management tests
-        self.test_user_registration("cliente")
-        self.test_user_registration("commercialista")
-        self.test_user_login("cliente")
-        self.test_user_login("commercialista")
-        self.test_auth_me()
-        
-        # Data retrieval tests
-        self.test_get_clients()
-        self.test_get_client_detail()
-        self.test_get_deadlines()
-        self.test_get_documents()
-        self.test_get_payslips()
-        self.test_get_notes()
-        self.test_get_stats()
-        
-        # Data creation tests
-        self.test_create_note()
-        
-        # Print summary
-        print("=" * 60)
-        print(f"📊 Test Summary:")
-        print(f"   Tests run: {self.tests_run}")
-        print(f"   Tests passed: {self.tests_passed}")
-        print(f"   Tests failed: {len(self.failed_tests)}")
-        print(f"   Success rate: {(self.tests_passed/self.tests_run)*100:.1f}%")
-        
-        if self.failed_tests:
-            print("\n❌ Failed tests:")
-            for failure in self.failed_tests:
-                print(f"   - {failure}")
-        
-        # Return success if more than 80% tests pass
-        return (self.tests_passed / self.tests_run) >= 0.8
+        return all_passed
 
 def main():
-    """Main function"""
+    print("🚀 Starting Fiscal Tax Canarie API Testing...")
+    print("=" * 60)
+    
     tester = FiscalTaxCanarieAPITester()
-    success = tester.run_all_tests()
     
-    # Save results for later analysis
-    results = {
-        "timestamp": datetime.now().isoformat(),
-        "total_tests": tester.tests_run,
-        "passed_tests": tester.tests_passed,
-        "failed_tests": len(tester.failed_tests),
-        "success_rate": (tester.tests_passed/tester.tests_run)*100 if tester.tests_run > 0 else 0,
-        "failures": tester.failed_tests,
-        "detailed_results": tester.test_results
-    }
+    # Test sequence
+    tests = [
+        ("Predefined Accountant Login", tester.test_predefined_accountant_login),
+        ("Client Registration Only", tester.test_client_registration_only),
+        ("8 Predefined Tax Models", tester.test_modelli_tributari_api),
+        ("Deadlines with States", tester.test_deadlines_with_states),
+        ("Stats API (Deadline Counts)", tester.test_stats_api_commercialista),
+        ("API Endpoints Health", tester.test_api_endpoints_health),
+    ]
     
-    try:
-        with open('/app/backend_test_results.json', 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"\n💾 Results saved to /app/backend_test_results.json")
-    except Exception as e:
-        print(f"\n⚠️  Could not save results: {e}")
+    for test_name, test_func in tests:
+        try:
+            success = test_func()
+            if not success:
+                print(f"⚠️  {test_name} had issues but continuing...")
+        except Exception as e:
+            print(f"❌ {test_name} failed with error: {str(e)}")
     
-    return 0 if success else 1
+    # Print final results
+    print("\n" + "=" * 60)
+    print(f"📊 BACKEND TEST RESULTS:")
+    print(f"   Tests run: {tester.tests_run}")
+    print(f"   Tests passed: {tester.tests_passed}")
+    print(f"   Success rate: {(tester.tests_passed/tester.tests_run*100):.1f}%")
+    print("=" * 60)
+    
+    return 0 if tester.tests_passed == tester.tests_run else 1
 
 if __name__ == "__main__":
     sys.exit(main())

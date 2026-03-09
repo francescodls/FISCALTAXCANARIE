@@ -28,7 +28,7 @@ code {
         --popover: 0 0% 100%;
         --popover-foreground: 222 47% 11%;
         --primary: 174 48% 45%;
-        --primary-foreground: 222 47% 11%;
+        --primary-foreground: 0 0% 100%;
         --secondary: 210 40% 96%;
         --secondary-foreground: 222 47% 11%;
         --muted: 215 16% 47%;
@@ -109,12 +109,20 @@ code {
     -webkit-backdrop-filter: blur(12px);
 }
 
-/* Gradient text for branding */
-.text-gradient {
-    background: linear-gradient(135deg, #3caca4 0%, #329089 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+/* TEAL BACKGROUND CON TESTO BIANCO */
+.bg-teal-section {
+    background-color: #3caca4;
+    color: white;
+}
+
+.bg-teal-section h1,
+.bg-teal-section h2,
+.bg-teal-section h3,
+.bg-teal-section h4,
+.bg-teal-section p,
+.bg-teal-section span,
+.bg-teal-section a {
+    color: white;
 }
 
 /* Animation keyframes */
@@ -160,3 +168,49 @@ code {
 .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
 .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
 .stagger-children > *:nth-child(6) { animation-delay: 0.6s; }
+
+/* Status badges */
+.status-da_fare {
+    background-color: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fcd34d;
+}
+
+.status-in_lavorazione {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border: 1px solid #93c5fd;
+}
+
+.status-completata {
+    background-color: #d1fae5;
+    color: #047857;
+    border: 1px solid #6ee7b7;
+}
+
+.status-scaduta {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+}
+
+/* Priority badges */
+.priority-bassa {
+    background-color: #f1f5f9;
+    color: #475569;
+}
+
+.priority-normale {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+.priority-alta {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.priority-urgente {
+    background-color: #fee2e2;
+    color: #dc2626;
+}

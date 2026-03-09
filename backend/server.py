@@ -27,6 +27,10 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'fiscal-tax-canarie-secret-key-2024')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
+# Commercialista predefinito
+ADMIN_EMAIL = "info@fiscaltaxcanarie.com"
+ADMIN_PASSWORD = "Triana48+"
+
 app = FastAPI(title="Fiscal Tax Canarie API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
@@ -42,7 +46,10 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
     phone: Optional[str] = None
-    role: str = "cliente"  # cliente or commercialista
+    codice_fiscale: Optional[str] = None
+    indirizzo: Optional[str] = None
+    regime_fiscale: Optional[str] = None
+    tipo_attivita: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -53,7 +60,12 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     phone: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+    indirizzo: Optional[str] = None
+    regime_fiscale: Optional[str] = None
+    tipo_attivita: Optional[str] = None
     role: str
+    stato: str = "attivo"
     created_at: str
 
 class TokenResponse(BaseModel):
@@ -61,10 +73,20 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user: UserResponse
 
+class ClientUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+    indirizzo: Optional[str] = None
+    regime_fiscale: Optional[str] = None
+    tipo_attivita: Optional[str] = None
+    stato: Optional[str] = None
+    note_interne: Optional[str] = None
+
 class DocumentCreate(BaseModel):
     title: str
     description: Optional[str] = None
-    category: str  # atto, imposta, contratto, altro
+    category: str
     client_id: str
 
 class DocumentResponse(BaseModel):
@@ -77,12 +99,8 @@ class DocumentResponse(BaseModel):
     file_data: Optional[str] = None
     uploaded_by: str
     created_at: str
-
-class PayslipCreate(BaseModel):
-    title: str
-    month: str
-    year: int
-    client_id: str
+    ai_description: Optional[str] = None
+    tags: List[str] = []
 
 class PayslipResponse(BaseModel):
     id: str
@@ -99,7 +117,7 @@ class NoteCreate(BaseModel):
     title: str
     content: str
     client_id: str
-    is_internal: bool = False  # True = visible only to commercialista
+    is_internal: bool = False
 
 class NoteResponse(BaseModel):
     id: str
@@ -111,6 +129,18 @@ class NoteResponse(BaseModel):
     created_at: str
     updated_at: str
 
+class DeadlineCreate(BaseModel):
+    title: str
+    description: str
+    due_date: str
+    category: str
+    is_recurring: bool = False
+    applies_to_all: bool = True
+    client_ids: List[str] = []
+    status: str = "da_fare"  # da_fare, in_lavorazione, completata, scaduta
+    priority: str = "normale"  # bassa, normale, alta, urgente
+    modello_tributario_id: Optional[str] = None
+
 class DeadlineResponse(BaseModel):
     id: str
     title: str
@@ -120,16 +150,49 @@ class DeadlineResponse(BaseModel):
     is_recurring: bool
     applies_to_all: bool
     client_ids: List[str]
+    status: str
+    priority: str
+    modello_tributario_id: Optional[str] = None
+    created_at: Optional[str] = None
 
 class ClientListResponse(BaseModel):
     id: str
     email: str
     full_name: str
     phone: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+    stato: str = "attivo"
     created_at: str
     documents_count: int = 0
     payslips_count: int = 0
     notes_count: int = 0
+
+# Modello Tributario
+class ModelloTributarioCreate(BaseModel):
+    codice: str  # es: "Modelo-303", "IGIC"
+    nome: str
+    descrizione: str
+    a_cosa_serve: str
+    chi_deve_presentarlo: str
+    periodicita: str  # trimestrale, mensile, annuale
+    scadenza_tipica: str
+    documenti_necessari: List[str] = []
+    conseguenze_mancata_presentazione: str
+    note_operative: Optional[str] = None
+
+class ModelloTributarioResponse(BaseModel):
+    id: str
+    codice: str
+    nome: str
+    descrizione: str
+    a_cosa_serve: str
+    chi_deve_presentarlo: str
+    periodicita: str
+    scadenza_tipica: str
+    documenti_necessari: List[str]
+    conseguenze_mancata_presentazione: str
+    note_operative: Optional[str] = None
+    created_at: str
 
 # ==================== AUTH HELPERS ====================
 
@@ -165,14 +228,45 @@ async def require_commercialista(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Accesso riservato ai commercialisti")
     return user
 
+# ==================== INIT ADMIN ====================
+
+async def init_admin_user():
+    """Crea l'account commercialista predefinito se non esiste"""
+    existing = await db.users.find_one({"email": ADMIN_EMAIL})
+    if not existing:
+        admin_id = str(uuid.uuid4())
+        admin_doc = {
+            "id": admin_id,
+            "email": ADMIN_EMAIL,
+            "password": hash_password(ADMIN_PASSWORD),
+            "full_name": "Fiscal Tax Canarie",
+            "phone": None,
+            "codice_fiscale": None,
+            "indirizzo": None,
+            "regime_fiscale": None,
+            "tipo_attivita": None,
+            "role": "commercialista",
+            "stato": "attivo",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(admin_doc)
+        logger.info(f"Account commercialista creato: {ADMIN_EMAIL}")
+
+@app.on_event("startup")
+async def startup_event():
+    await init_admin_user()
+    await init_default_modelli_tributari()
+
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
 async def register(user_data: UserCreate):
+    """Registrazione SOLO per clienti"""
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email già registrata")
     
+    # Sempre cliente - nessuna opzione per commercialista
     user_id = str(uuid.uuid4())
     user_doc = {
         "id": user_id,
@@ -180,18 +274,32 @@ async def register(user_data: UserCreate):
         "password": hash_password(user_data.password),
         "full_name": user_data.full_name,
         "phone": user_data.phone,
-        "role": user_data.role,
+        "codice_fiscale": user_data.codice_fiscale,
+        "indirizzo": user_data.indirizzo,
+        "regime_fiscale": user_data.regime_fiscale,
+        "tipo_attivita": user_data.tipo_attivita,
+        "role": "cliente",  # SEMPRE cliente
+        "stato": "attivo",
+        "note_interne": "",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
     
-    token = create_token(user_id, user_data.email, user_data.role)
+    # Log attività
+    await log_activity("registrazione", f"Nuovo cliente registrato: {user_data.email}", user_id)
+    
+    token = create_token(user_id, user_data.email, "cliente")
     user_response = UserResponse(
         id=user_id,
         email=user_data.email,
         full_name=user_data.full_name,
         phone=user_data.phone,
-        role=user_data.role,
+        codice_fiscale=user_data.codice_fiscale,
+        indirizzo=user_data.indirizzo,
+        regime_fiscale=user_data.regime_fiscale,
+        tipo_attivita=user_data.tipo_attivita,
+        role="cliente",
+        stato="attivo",
         created_at=user_doc["created_at"]
     )
     return TokenResponse(access_token=token, user=user_response)
@@ -202,13 +310,21 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     
+    # Log attività
+    await log_activity("login", f"Accesso utente: {credentials.email}", user["id"])
+    
     token = create_token(user["id"], user["email"], user["role"])
     user_response = UserResponse(
         id=user["id"],
         email=user["email"],
         full_name=user["full_name"],
         phone=user.get("phone"),
+        codice_fiscale=user.get("codice_fiscale"),
+        indirizzo=user.get("indirizzo"),
+        regime_fiscale=user.get("regime_fiscale"),
+        tipo_attivita=user.get("tipo_attivita"),
         role=user["role"],
+        stato=user.get("stato", "attivo"),
         created_at=user["created_at"]
     )
     return TokenResponse(access_token=token, user=user_response)
@@ -220,7 +336,12 @@ async def get_me(user: dict = Depends(get_current_user)):
         email=user["email"],
         full_name=user["full_name"],
         phone=user.get("phone"),
+        codice_fiscale=user.get("codice_fiscale"),
+        indirizzo=user.get("indirizzo"),
+        regime_fiscale=user.get("regime_fiscale"),
+        tipo_attivita=user.get("tipo_attivita"),
         role=user["role"],
+        stato=user.get("stato", "attivo"),
         created_at=user["created_at"]
     )
 
@@ -239,6 +360,8 @@ async def get_clients(user: dict = Depends(require_commercialista)):
             email=client["email"],
             full_name=client["full_name"],
             phone=client.get("phone"),
+            codice_fiscale=client.get("codice_fiscale"),
+            stato=client.get("stato", "attivo"),
             created_at=client["created_at"],
             documents_count=docs_count,
             payslips_count=payslips_count,
@@ -246,12 +369,38 @@ async def get_clients(user: dict = Depends(require_commercialista)):
         ))
     return result
 
-@api_router.get("/clients/{client_id}", response_model=UserResponse)
+@api_router.get("/clients/{client_id}")
 async def get_client(client_id: str, user: dict = Depends(require_commercialista)):
     client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0, "password": 0})
     if not client:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
-    return UserResponse(**client)
+    return client
+
+@api_router.put("/clients/{client_id}")
+async def update_client(client_id: str, update_data: ClientUpdate, user: dict = Depends(require_commercialista)):
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
+    
+    result = await db.users.update_one({"id": client_id, "role": "cliente"}, {"$set": update_dict})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    await log_activity("modifica_cliente", f"Cliente {client_id} modificato", user["id"])
+    return {"message": "Cliente aggiornato"}
+
+@api_router.delete("/clients/{client_id}")
+async def delete_client(client_id: str, user: dict = Depends(require_commercialista)):
+    # Archivia invece di eliminare
+    result = await db.users.update_one(
+        {"id": client_id, "role": "cliente"},
+        {"$set": {"stato": "cessato"}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    await log_activity("eliminazione_cliente", f"Cliente {client_id} archiviato", user["id"])
+    return {"message": "Cliente archiviato"}
 
 # ==================== DOCUMENTS ROUTES ====================
 
@@ -278,9 +427,16 @@ async def upload_document(
         "file_data": file_base64,
         "file_type": file.content_type,
         "uploaded_by": user["id"],
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ai_description": None,
+        "tags": [],
+        "version": 1,
+        "versions_history": []
     }
     await db.documents.insert_one(document)
+    
+    await log_activity("caricamento_documento", f"Documento {title} caricato per cliente {client_id}", user["id"])
+    
     return {"id": doc_id, "message": "Documento caricato con successo"}
 
 @api_router.get("/documents", response_model=List[DocumentResponse])
@@ -291,7 +447,7 @@ async def get_documents(client_id: Optional[str] = None, user: dict = Depends(ge
     elif client_id:
         query["client_id"] = client_id
     
-    documents = await db.documents.find(query, {"_id": 0, "file_data": 0}).to_list(1000)
+    documents = await db.documents.find(query, {"_id": 0, "file_data": 0, "versions_history": 0}).to_list(1000)
     return [DocumentResponse(**doc) for doc in documents]
 
 @api_router.get("/documents/{doc_id}")
@@ -310,6 +466,8 @@ async def delete_document(doc_id: str, user: dict = Depends(require_commercialis
     result = await db.documents.delete_one({"id": doc_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    await log_activity("eliminazione_documento", f"Documento {doc_id} eliminato", user["id"])
     return {"message": "Documento eliminato"}
 
 # ==================== PAYSLIPS ROUTES ====================
@@ -340,6 +498,9 @@ async def upload_payslip(
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.payslips.insert_one(payslip)
+    
+    await log_activity("caricamento_busta_paga", f"Busta paga {month}/{year} caricata per cliente {client_id}", user["id"])
+    
     return {"id": payslip_id, "message": "Busta paga caricata con successo"}
 
 @api_router.get("/payslips", response_model=List[PayslipResponse])
@@ -395,7 +556,7 @@ async def get_notes(client_id: Optional[str] = None, user: dict = Depends(get_cu
     query = {}
     if user["role"] == "cliente":
         query["client_id"] = user["id"]
-        query["is_internal"] = False  # Clients can only see public notes
+        query["is_internal"] = False
     elif client_id:
         query["client_id"] = client_id
     
@@ -428,174 +589,72 @@ async def delete_note(note_id: str, user: dict = Depends(require_commercialista)
 
 @api_router.get("/deadlines", response_model=List[DeadlineResponse])
 async def get_deadlines(user: dict = Depends(get_current_user)):
-    # Get all deadlines that apply to all clients or specifically to this client
-    query = {
-        "$or": [
-            {"applies_to_all": True},
-            {"client_ids": user["id"]}
-        ]
-    }
-    if user["role"] == "commercialista":
-        query = {}  # Commercialista sees all deadlines
+    query = {}
+    if user["role"] == "cliente":
+        query = {
+            "$or": [
+                {"applies_to_all": True},
+                {"client_ids": user["id"]}
+            ]
+        }
     
     deadlines = await db.deadlines.find(query, {"_id": 0}).to_list(1000)
     
-    # If no deadlines exist, create default Canary Islands fiscal deadlines
-    if not deadlines:
-        default_deadlines = [
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 303 - IVA Trimestrale",
-                "description": "Dichiarazione trimestrale IVA (Impuesto sobre el Valor Añadido)",
-                "due_date": "2025-01-20",
-                "category": "IVA",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 111 - Ritenute IRPF",
-                "description": "Dichiarazione trimestrale ritenute su redditi da lavoro",
-                "due_date": "2025-01-20",
-                "category": "IRPF",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 130 - Pagamento Frazionato IRPF",
-                "description": "Pagamento frazionato IRPF per autonomi",
-                "due_date": "2025-01-20",
-                "category": "IRPF",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 349 - Operazioni Intracomunitarie",
-                "description": "Dichiarazione riepilogativa operazioni intracomunitarie",
-                "due_date": "2025-01-30",
-                "category": "Intracomunitario",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 390 - Riepilogo Annuale IVA",
-                "description": "Dichiarazione riepilogativa annuale IVA",
-                "due_date": "2025-01-30",
-                "category": "IVA",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 190 - Riepilogo Ritenute",
-                "description": "Riepilogo annuale ritenute e pagamenti a conto",
-                "due_date": "2025-01-31",
-                "category": "IRPF",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "IGIC Trimestrale",
-                "description": "Imposta Generale Indiretta delle Canarie - Dichiarazione trimestrale",
-                "due_date": "2025-01-20",
-                "category": "IGIC",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Impuesto sobre Sociedades",
-                "description": "Dichiarazione annuale imposta sulle società",
-                "due_date": "2025-07-25",
-                "category": "Società",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "IRPF - Dichiarazione Annuale",
-                "description": "Dichiarazione dei redditi annuale persone fisiche",
-                "due_date": "2025-06-30",
-                "category": "IRPF",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 347 - Operazioni con Terzi",
-                "description": "Dichiarazione annuale operazioni con terzi superiori a 3.005,06€",
-                "due_date": "2025-02-28",
-                "category": "Informativa",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 115 - Ritenute Affitti",
-                "description": "Dichiarazione trimestrale ritenute su affitti immobili urbani",
-                "due_date": "2025-04-20",
-                "category": "Affitti",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "title": "Modelo 200 - Imposta Società",
-                "description": "Dichiarazione annuale imposta sulle società",
-                "due_date": "2025-07-25",
-                "category": "Società",
-                "is_recurring": True,
-                "applies_to_all": True,
-                "client_ids": []
-            }
-        ]
-        for deadline in default_deadlines:
-            await db.deadlines.insert_one(deadline)
-        deadlines = default_deadlines
+    # Aggiorna stato scadenze scadute
+    now = datetime.now(timezone.utc).date()
+    for deadline in deadlines:
+        due_date = datetime.fromisoformat(deadline["due_date"]).date() if isinstance(deadline["due_date"], str) else deadline["due_date"]
+        if due_date < now and deadline.get("status") not in ["completata", "scaduta"]:
+            deadline["status"] = "scaduta"
+            await db.deadlines.update_one({"id": deadline["id"]}, {"$set": {"status": "scaduta"}})
     
     return [DeadlineResponse(**d) for d in deadlines]
 
 @api_router.post("/deadlines", response_model=DeadlineResponse)
-async def create_deadline(
-    title: str = Form(...),
-    description: str = Form(...),
-    due_date: str = Form(...),
-    category: str = Form(...),
-    is_recurring: bool = Form(False),
-    applies_to_all: bool = Form(True),
-    client_ids: str = Form(""),
-    user: dict = Depends(require_commercialista)
-):
+async def create_deadline(deadline_data: DeadlineCreate, user: dict = Depends(require_commercialista)):
     deadline_id = str(uuid.uuid4())
-    client_ids_list = [cid.strip() for cid in client_ids.split(",") if cid.strip()] if client_ids else []
-    
     deadline = {
         "id": deadline_id,
-        "title": title,
-        "description": description,
-        "due_date": due_date,
-        "category": category,
-        "is_recurring": is_recurring,
-        "applies_to_all": applies_to_all,
-        "client_ids": client_ids_list
+        "title": deadline_data.title,
+        "description": deadline_data.description,
+        "due_date": deadline_data.due_date,
+        "category": deadline_data.category,
+        "is_recurring": deadline_data.is_recurring,
+        "applies_to_all": deadline_data.applies_to_all,
+        "client_ids": deadline_data.client_ids,
+        "status": deadline_data.status,
+        "priority": deadline_data.priority,
+        "modello_tributario_id": deadline_data.modello_tributario_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.deadlines.insert_one(deadline)
+    
+    await log_activity("creazione_scadenza", f"Scadenza {deadline_data.title} creata", user["id"])
+    
     return DeadlineResponse(**deadline)
+
+@api_router.put("/deadlines/{deadline_id}", response_model=DeadlineResponse)
+async def update_deadline(deadline_id: str, deadline_data: DeadlineCreate, user: dict = Depends(require_commercialista)):
+    update_dict = deadline_data.model_dump()
+    result = await db.deadlines.update_one({"id": deadline_id}, {"$set": update_dict})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Scadenza non trovata")
+    
+    deadline = await db.deadlines.find_one({"id": deadline_id}, {"_id": 0})
+    return DeadlineResponse(**deadline)
+
+@api_router.patch("/deadlines/{deadline_id}/status")
+async def update_deadline_status(deadline_id: str, status: str = Form(...), user: dict = Depends(get_current_user)):
+    if status not in ["da_fare", "in_lavorazione", "completata", "scaduta"]:
+        raise HTTPException(status_code=400, detail="Stato non valido")
+    
+    result = await db.deadlines.update_one({"id": deadline_id}, {"$set": {"status": status}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Scadenza non trovata")
+    
+    await log_activity("modifica_stato_scadenza", f"Scadenza {deadline_id} stato cambiato a {status}", user["id"])
+    
+    return {"message": "Stato aggiornato"}
 
 @api_router.delete("/deadlines/{deadline_id}")
 async def delete_deadline(deadline_id: str, user: dict = Depends(require_commercialista)):
@@ -604,33 +663,276 @@ async def delete_deadline(deadline_id: str, user: dict = Depends(require_commerc
         raise HTTPException(status_code=404, detail="Scadenza non trovata")
     return {"message": "Scadenza eliminata"}
 
+# ==================== MODELLI TRIBUTARI ROUTES ====================
+
+async def init_default_modelli_tributari():
+    """Inizializza i modelli tributari predefiniti"""
+    count = await db.modelli_tributari.count_documents({})
+    if count > 0:
+        return
+    
+    modelli = [
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "Modelo-303",
+            "nome": "Dichiarazione IVA Trimestrale",
+            "descrizione": "Modello per la dichiarazione trimestrale dell'IVA (Impuesto sobre el Valor Añadido)",
+            "a_cosa_serve": "Dichiarare l'IVA a debito o a credito del trimestre. Permette di calcolare la differenza tra IVA incassata e IVA pagata.",
+            "chi_deve_presentarlo": "Tutti i soggetti passivi IVA: imprenditori, professionisti e società che realizzano operazioni soggette ad IVA.",
+            "periodicita": "Trimestrale",
+            "scadenza_tipica": "20 aprile, 20 luglio, 20 ottobre, 30 gennaio",
+            "documenti_necessari": ["Fatture emesse", "Fatture ricevute", "Libro IVA vendite", "Libro IVA acquisti"],
+            "conseguenze_mancata_presentazione": "Sanzioni dal 50% al 150% dell'importo non dichiarato. Interessi di mora. Possibili controlli fiscali.",
+            "note_operative": "Verificare sempre la corrispondenza tra registri IVA e dichiarazione.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "Modelo-111",
+            "nome": "Ritenute IRPF su Lavoro",
+            "descrizione": "Dichiarazione trimestrale delle ritenute effettuate su redditi da lavoro dipendente e autonomo.",
+            "a_cosa_serve": "Dichiarare e versare le ritenute IRPF effettuate su stipendi, compensi professionali e altri redditi.",
+            "chi_deve_presentarlo": "Datori di lavoro, imprese e professionisti che effettuano pagamenti soggetti a ritenuta.",
+            "periodicita": "Trimestrale",
+            "scadenza_tipica": "20 aprile, 20 luglio, 20 ottobre, 20 gennaio",
+            "documenti_necessari": ["Buste paga", "Fatture professionisti", "Registro ritenute"],
+            "conseguenze_mancata_presentazione": "Sanzioni dal 50% al 150% delle ritenute non dichiarate. Responsabilità solidale.",
+            "note_operative": "Conservare tutta la documentazione relativa ai pagamenti effettuati.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "Modelo-130",
+            "nome": "Pagamento Frazionato IRPF",
+            "descrizione": "Pagamento frazionato dell'IRPF per autonomi in regime di stima diretta.",
+            "a_cosa_serve": "Anticipare trimestralmente l'IRPF dovuto sui redditi da attività economica.",
+            "chi_deve_presentarlo": "Lavoratori autonomi e professionisti in regime di stima diretta (normale o semplificata).",
+            "periodicita": "Trimestrale",
+            "scadenza_tipica": "20 aprile, 20 luglio, 20 ottobre, 30 gennaio",
+            "documenti_necessari": ["Libro entrate e uscite", "Fatture emesse", "Fatture ricevute"],
+            "conseguenze_mancata_presentazione": "Sanzioni per mancato pagamento. Interessi di mora. Maggiori controlli nella dichiarazione annuale.",
+            "note_operative": "Il 20% del rendimento netto trimestrale, con deduzione delle ritenute subite.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "IGIC",
+            "nome": "Imposta Generale Indiretta Canarie",
+            "descrizione": "Imposta indiretta delle Isole Canarie equivalente all'IVA peninsulare.",
+            "a_cosa_serve": "Dichiarare l'IGIC a debito o credito. Le Canarie hanno un regime fiscale speciale con aliquote ridotte.",
+            "chi_deve_presentarlo": "Tutti i soggetti passivi IGIC che operano nelle Isole Canarie.",
+            "periodicita": "Trimestrale/Mensile",
+            "scadenza_tipica": "20 del mese successivo al periodo",
+            "documenti_necessari": ["Fatture con IGIC", "Registri IGIC", "Documenti import/export"],
+            "conseguenze_mancata_presentazione": "Sanzioni equivalenti a quelle IVA. Perdita benefici fiscali canari.",
+            "note_operative": "Aliquota generale 7%. Aliquote ridotte 0%, 3%. Verificare esenzioni specifiche Canarie.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "Modelo-390",
+            "nome": "Riepilogo Annuale IVA",
+            "descrizione": "Dichiarazione riepilogativa annuale delle operazioni IVA.",
+            "a_cosa_serve": "Riepilogare tutte le operazioni IVA dell'anno. Confronto con le dichiarazioni trimestrali.",
+            "chi_deve_presentarlo": "Tutti i soggetti passivi IVA obbligati a presentare il Modelo 303.",
+            "periodicita": "Annuale",
+            "scadenza_tipica": "30 gennaio dell'anno successivo",
+            "documenti_necessari": ["Modelli 303 trimestrali", "Libri IVA completi", "Fatture annuali"],
+            "conseguenze_mancata_presentazione": "Sanzioni fisse e proporzionali. Impossibilità di ottenere certificati fiscali.",
+            "note_operative": "Deve coincidere con la somma dei quattro trimestri. Verificare operazioni intracomunitarie.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "Modelo-200",
+            "nome": "Imposta sulle Società",
+            "descrizione": "Dichiarazione annuale dell'Imposta sulle Società.",
+            "a_cosa_serve": "Dichiarare il risultato fiscale della società e calcolare l'imposta dovuta.",
+            "chi_deve_presentarlo": "Tutte le società e entità giuridiche residenti in Spagna.",
+            "periodicita": "Annuale",
+            "scadenza_tipica": "25 luglio (esercizio coincidente con anno solare)",
+            "documenti_necessari": ["Bilancio", "Conto economico", "Libri contabili", "Documentazione fiscale"],
+            "conseguenze_mancata_presentazione": "Sanzioni dal 50% al 150% della quota non dichiarata. Responsabilità amministratori.",
+            "note_operative": "Aliquota generale 25%. Verificare incentivi ZEC per Canarie.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "Modelo-347",
+            "nome": "Operazioni con Terzi",
+            "descrizione": "Dichiarazione annuale delle operazioni con terzi superiori a 3.005,06€.",
+            "a_cosa_serve": "Informare l'Agenzia delle Entrate delle operazioni significative con clienti e fornitori.",
+            "chi_deve_presentarlo": "Tutti i soggetti che hanno realizzato operazioni superiori a 3.005,06€ con un singolo cliente/fornitore.",
+            "periodicita": "Annuale",
+            "scadenza_tipica": "28 febbraio",
+            "documenti_necessari": ["Elenco clienti/fornitori", "Fatture superiori alla soglia", "NIF delle controparti"],
+            "conseguenze_mancata_presentazione": "Sanzioni da 20€ per dato omesso fino a 20.000€. Controlli incrociati.",
+            "note_operative": "Include operazioni in contanti superiori a 6.000€. Escluse operazioni intracomunitarie.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "codice": "IRPF-Renta",
+            "nome": "Dichiarazione Redditi Persone Fisiche",
+            "descrizione": "Dichiarazione annuale dei redditi delle persone fisiche (IRPF).",
+            "a_cosa_serve": "Dichiarare tutti i redditi percepiti nell'anno e calcolare l'imposta definitiva.",
+            "chi_deve_presentarlo": "Persone fisiche residenti con redditi superiori alle soglie di esenzione.",
+            "periodicita": "Annuale",
+            "scadenza_tipica": "30 giugno",
+            "documenti_necessari": ["Certificati ritenute", "Dati immobiliari", "Spese deducibili", "Dati familiari"],
+            "conseguenze_mancata_presentazione": "Sanzioni dal 50% al 150%. Perdita deduzioni. Maggiorazione interessi.",
+            "note_operative": "Verificare sempre residenza fiscale. Deduzioni per investimenti Canarie.",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    for modello in modelli:
+        await db.modelli_tributari.insert_one(modello)
+    
+    # Crea anche le scadenze predefinite
+    await init_default_deadlines()
+
+async def init_default_deadlines():
+    """Inizializza le scadenze predefinite"""
+    count = await db.deadlines.count_documents({})
+    if count > 0:
+        return
+    
+    deadlines = [
+        {"title": "Modelo 303 - IVA Trimestrale Q1", "description": "Dichiarazione trimestrale IVA primo trimestre", "due_date": "2025-04-20", "category": "IVA", "status": "da_fare", "priority": "alta"},
+        {"title": "Modelo 111 - Ritenute IRPF Q1", "description": "Dichiarazione trimestrale ritenute primo trimestre", "due_date": "2025-04-20", "category": "IRPF", "status": "da_fare", "priority": "alta"},
+        {"title": "Modelo 130 - Pagamento Frazionato Q1", "description": "Pagamento frazionato IRPF primo trimestre", "due_date": "2025-04-20", "category": "IRPF", "status": "da_fare", "priority": "normale"},
+        {"title": "IGIC Trimestrale Q1", "description": "Dichiarazione IGIC primo trimestre", "due_date": "2025-04-20", "category": "IGIC", "status": "da_fare", "priority": "alta"},
+        {"title": "Modelo 303 - IVA Trimestrale Q2", "description": "Dichiarazione trimestrale IVA secondo trimestre", "due_date": "2025-07-20", "category": "IVA", "status": "da_fare", "priority": "alta"},
+        {"title": "Modelo 200 - Imposta Società", "description": "Dichiarazione annuale imposta sulle società", "due_date": "2025-07-25", "category": "Società", "status": "da_fare", "priority": "urgente"},
+        {"title": "IRPF - Dichiarazione Annuale", "description": "Dichiarazione dei redditi persone fisiche", "due_date": "2025-06-30", "category": "IRPF", "status": "da_fare", "priority": "urgente"},
+        {"title": "Modelo 347 - Operazioni con Terzi", "description": "Dichiarazione annuale operazioni con terzi", "due_date": "2025-02-28", "category": "Informativa", "status": "da_fare", "priority": "normale"},
+        {"title": "Modelo 390 - Riepilogo Annuale IVA", "description": "Dichiarazione riepilogativa annuale IVA", "due_date": "2025-01-30", "category": "IVA", "status": "da_fare", "priority": "alta"},
+    ]
+    
+    for d in deadlines:
+        deadline = {
+            "id": str(uuid.uuid4()),
+            "title": d["title"],
+            "description": d["description"],
+            "due_date": d["due_date"],
+            "category": d["category"],
+            "is_recurring": True,
+            "applies_to_all": True,
+            "client_ids": [],
+            "status": d["status"],
+            "priority": d["priority"],
+            "modello_tributario_id": None,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.deadlines.insert_one(deadline)
+
+@api_router.get("/modelli-tributari", response_model=List[ModelloTributarioResponse])
+async def get_modelli_tributari(user: dict = Depends(get_current_user)):
+    modelli = await db.modelli_tributari.find({}, {"_id": 0}).to_list(100)
+    return [ModelloTributarioResponse(**m) for m in modelli]
+
+@api_router.get("/modelli-tributari/{modello_id}", response_model=ModelloTributarioResponse)
+async def get_modello_tributario(modello_id: str, user: dict = Depends(get_current_user)):
+    modello = await db.modelli_tributari.find_one({"id": modello_id}, {"_id": 0})
+    if not modello:
+        raise HTTPException(status_code=404, detail="Modello tributario non trovato")
+    return ModelloTributarioResponse(**modello)
+
+@api_router.post("/modelli-tributari", response_model=ModelloTributarioResponse)
+async def create_modello_tributario(modello_data: ModelloTributarioCreate, user: dict = Depends(require_commercialista)):
+    modello_id = str(uuid.uuid4())
+    modello = {
+        "id": modello_id,
+        **modello_data.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.modelli_tributari.insert_one(modello)
+    return ModelloTributarioResponse(**modello)
+
+@api_router.put("/modelli-tributari/{modello_id}", response_model=ModelloTributarioResponse)
+async def update_modello_tributario(modello_id: str, modello_data: ModelloTributarioCreate, user: dict = Depends(require_commercialista)):
+    update_dict = modello_data.model_dump()
+    result = await db.modelli_tributari.update_one({"id": modello_id}, {"$set": update_dict})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Modello tributario non trovato")
+    
+    modello = await db.modelli_tributari.find_one({"id": modello_id}, {"_id": 0})
+    return ModelloTributarioResponse(**modello)
+
+@api_router.delete("/modelli-tributari/{modello_id}")
+async def delete_modello_tributario(modello_id: str, user: dict = Depends(require_commercialista)):
+    result = await db.modelli_tributari.delete_one({"id": modello_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Modello tributario non trovato")
+    return {"message": "Modello tributario eliminato"}
+
+# ==================== ACTIVITY LOG ====================
+
+async def log_activity(action: str, description: str, user_id: str):
+    """Registra un'attività nel log"""
+    log_entry = {
+        "id": str(uuid.uuid4()),
+        "action": action,
+        "description": description,
+        "user_id": user_id,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await db.activity_logs.insert_one(log_entry)
+
+@api_router.get("/activity-logs")
+async def get_activity_logs(limit: int = 50, user: dict = Depends(require_commercialista)):
+    logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(limit)
+    return logs
+
 # ==================== STATS ROUTES ====================
 
 @api_router.get("/stats")
 async def get_stats(user: dict = Depends(get_current_user)):
     if user["role"] == "commercialista":
         clients_count = await db.users.count_documents({"role": "cliente"})
+        clients_active = await db.users.count_documents({"role": "cliente", "stato": "attivo"})
         documents_count = await db.documents.count_documents({})
         payslips_count = await db.payslips.count_documents({})
         notes_count = await db.notes.count_documents({})
+        
+        # Scadenze per stato
+        deadlines_da_fare = await db.deadlines.count_documents({"status": "da_fare"})
+        deadlines_in_lavorazione = await db.deadlines.count_documents({"status": "in_lavorazione"})
+        deadlines_completate = await db.deadlines.count_documents({"status": "completata"})
+        deadlines_scadute = await db.deadlines.count_documents({"status": "scaduta"})
+        
+        # Documenti da verificare (senza AI description)
+        docs_da_verificare = await db.documents.count_documents({"ai_description": None})
+        
         return {
             "clients_count": clients_count,
+            "clients_active": clients_active,
             "documents_count": documents_count,
             "payslips_count": payslips_count,
-            "notes_count": notes_count
+            "notes_count": notes_count,
+            "deadlines_da_fare": deadlines_da_fare,
+            "deadlines_in_lavorazione": deadlines_in_lavorazione,
+            "deadlines_completate": deadlines_completate,
+            "deadlines_scadute": deadlines_scadute,
+            "docs_da_verificare": docs_da_verificare
         }
     else:
         documents_count = await db.documents.count_documents({"client_id": user["id"]})
         payslips_count = await db.payslips.count_documents({"client_id": user["id"]})
         notes_count = await db.notes.count_documents({"client_id": user["id"], "is_internal": False})
-        deadlines_count = await db.deadlines.count_documents({
-            "$or": [{"applies_to_all": True}, {"client_ids": user["id"]}]
-        })
+        
+        # Scadenze del cliente
+        deadlines_query = {"$or": [{"applies_to_all": True}, {"client_ids": user["id"]}]}
+        deadlines_da_fare = await db.deadlines.count_documents({**deadlines_query, "status": "da_fare"})
+        deadlines_completate = await db.deadlines.count_documents({**deadlines_query, "status": "completata"})
+        
         return {
             "documents_count": documents_count,
             "payslips_count": payslips_count,
             "notes_count": notes_count,
-            "deadlines_count": deadlines_count
+            "deadlines_da_fare": deadlines_da_fare,
+            "deadlines_completate": deadlines_completate
         }
 
 @api_router.get("/")

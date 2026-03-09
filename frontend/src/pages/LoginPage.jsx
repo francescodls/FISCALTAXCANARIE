@@ -109,12 +109,12 @@ const LoginPage = () => {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold h-12 rounded-lg btn-press"
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold h-12 rounded-lg btn-press"
                   data-testid="login-submit-btn"
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-900 border-t-transparent"></div>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       Accesso in corso...
                     </div>
                   ) : (

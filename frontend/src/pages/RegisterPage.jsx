@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 const RegisterPage = () => {
@@ -16,7 +15,7 @@ const RegisterPage = () => {
     password: "",
     full_name: "",
     phone: "",
-    role: "cliente"
+    codice_fiscale: ""
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -29,8 +28,8 @@ const RegisterPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const user = await register(formData);
-      navigate(user.role === "commercialista" ? "/admin" : "/dashboard");
+      await register(formData);
+      navigate("/dashboard");
     } catch (error) {
       console.error("Register error:", error);
     } finally {
@@ -67,23 +66,23 @@ const RegisterPage = () => {
           <Card className="bg-white border border-slate-200 shadow-xl rounded-2xl">
             <CardHeader className="space-y-2 pb-6">
               <CardTitle className="font-heading text-2xl font-bold text-slate-900">
-                Crea il tuo account
+                Registrati come Cliente
               </CardTitle>
               <CardDescription className="text-slate-600">
-                Registrati per accedere all'Area Clienti
+                Crea il tuo account per accedere all'Area Clienti
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <Label htmlFor="full_name" className="text-slate-700 font-medium">
-                    Nome Completo
+                    Nome Completo / Ragione Sociale *
                   </Label>
                   <Input
                     id="full_name"
                     name="full_name"
                     type="text"
-                    placeholder="Mario Rossi"
+                    placeholder="Mario Rossi o Azienda S.L."
                     value={formData.full_name}
                     onChange={handleChange}
                     required
@@ -94,7 +93,7 @@ const RegisterPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-slate-700 font-medium">
-                    Email
+                    Email *
                   </Label>
                   <Input
                     id="email"
@@ -111,7 +110,7 @@ const RegisterPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="text-slate-700 font-medium">
-                    Telefono (opzionale)
+                    Telefono
                   </Label>
                   <Input
                     id="phone"
@@ -126,8 +125,24 @@ const RegisterPage = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="codice_fiscale" className="text-slate-700 font-medium">
+                    Codice Fiscale / NIE / CIF / NIF
+                  </Label>
+                  <Input
+                    id="codice_fiscale"
+                    name="codice_fiscale"
+                    type="text"
+                    placeholder="Es: X1234567A"
+                    value={formData.codice_fiscale}
+                    onChange={handleChange}
+                    className="h-12 px-4 border-slate-200 focus:border-teal-500 focus:ring-teal-500/20"
+                    data-testid="register-cf-input"
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="password" className="text-slate-700 font-medium">
-                    Password
+                    Password *
                   </Label>
                   <div className="relative">
                     <Input
@@ -152,36 +167,22 @@ const RegisterPage = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-medium">
-                    Tipo di Account
-                  </Label>
-                  <Select 
-                    value={formData.role} 
-                    onValueChange={(value) => setFormData({ ...formData, role: value })}
-                  >
-                    <SelectTrigger 
-                      className="h-12 px-4 border-slate-200 focus:border-teal-500 focus:ring-teal-500/20"
-                      data-testid="register-role-select"
-                    >
-                      <SelectValue placeholder="Seleziona tipo account" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cliente">Cliente</SelectItem>
-                      <SelectItem value="commercialista">Commercialista</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
+                  <p className="text-sm text-teal-800">
+                    Registrandoti accetti i termini di servizio e la nostra politica sulla privacy. 
+                    I tuoi dati saranno trattati in conformità al GDPR.
+                  </p>
                 </div>
 
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-slate-900 font-bold h-12 rounded-lg btn-press"
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold h-12 rounded-lg btn-press"
                   data-testid="register-submit-btn"
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-900 border-t-transparent"></div>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                       Registrazione...
                     </div>
                   ) : (
