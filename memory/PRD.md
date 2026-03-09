@@ -3,117 +3,127 @@
 ## Problem Statement
 App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. Gestione clienti, documenti fiscali, scadenze tributarie e comunicazioni.
 
-## User Personas
-1. **Cliente**: Accede alla propria area per documenti, scadenze, modifica anagrafica
-2. **Commercialista/Admin**: Account unico con accesso completo
-
 ## What's Been Implemented
 
-### Fase 1-4 - COMPLETATE ✅
+### Fase 1-6 - COMPLETATE ✅
 (vedere changelog precedente)
 
-### Fase 5 - COMPLETATA ✅
-- [x] Anagrafica cliente estesa (NIE, NIF, CIF, IBAN, indirizzo)
-- [x] Liste clienti personalizzate
-- [x] Upload globale documenti multipli con AI
-- [x] Eliminazione/archiviazione clienti
+### Fase 7 (9 Marzo 2026) - COMPLETATA ✅
 
-### Fase 6 (9 Marzo 2026) - COMPLETATA ✅
+**Scadenze Ricorrenti con Promemoria Automatici**
 
-**1. Cliente può modificare propria anagrafica**
-- Tab "I Miei Dati" nella dashboard cliente
-- Campi modificabili: nome, telefono, NIE, NIF, CIF, codice fiscale, indirizzo completo, IBAN
-- Email non modificabile (readonly)
-- Endpoint: `PUT /api/auth/me`
+1. **Scadenze ricorrenti**
+   - Frequenze: mensile, trimestrale, annuale
+   - Data fine ricorrenza opzionale
+   - Calcolo automatico `next_occurrence` basato su frequenza
+   - Rigenerazione automatica dopo completamento
 
-**2. Classificazione automatica clienti in liste**
-- Quando il commercialista imposta `tipo_cliente` (autonomo/società/privato)
-- Il cliente viene automaticamente aggiunto alla lista corrispondente
-- Le liste vengono create automaticamente se non esistono
-- Rimozione automatica da altre liste di tipo
+2. **Assegnazione a liste di clienti**
+   - Campo `list_ids` per assegnare a multiple liste
+   - Selezione multipla con checkbox
+   - Email inviate a tutti i clienti delle liste selezionate
 
-**3. Modelli tributari con video YouTube**
-- Pagina gestione modelli: `/admin/models`
-- Campo `video_youtube` per URL video
-- Thumbnail automatica da YouTube (img.youtube.com/vi/{id}/mqdefault.jpg)
-- Anteprima video nel dialog con pulsante play rosso
+3. **Promemoria automatici**
+   - Default: 7, 3, 1 giorni prima + giorno stesso
+   - Campo `reminder_days` personalizzabile
+   - `last_reminder_sent` per evitare duplicati
+   - Endpoint `POST /api/deadlines/send-reminders` per invio manuale
 
-**4. Rimossa sezione "Conseguenze mancata presentazione"**
-- Campo rimosso dal modello `ModelloTributarioResponse`
-- Sezione non più visibile nel frontend
-- UI più rassicurante per i clienti
+4. **Pagina dedicata `/admin/deadlines`**
+   - Creazione scadenze per liste
+   - Pulsante "Invia Promemoria Ora"
+   - Visualizzazione scadenze assegnate a liste
+   - Badge "ricorrente" con frequenza
+
+5. **Form scadenza aggiornato in ClientDetail**
+   - Switch "Scadenza ricorrente"
+   - Dropdown frequenza (mensile/trimestrale/annuale)
+   - Data fine ricorrenza opzionale
+   - Switch "Promemoria automatici"
+   - Switch "Invia notifica email immediata"
+   - Pulsante dinamico "Crea Scadenza Ricorrente"
 
 ## Account Predefiniti
 - **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
 
-## API Endpoints Principali
+## API Endpoints Scadenze (Aggiornati)
 
-### Profilo Cliente
-- `GET /api/auth/me` - Info profilo con campi estesi
-- `PUT /api/auth/me` - Cliente modifica propria anagrafica
+```
+POST /api/deadlines
+Body:
+{
+  "title": "Dichiarazione IGIC Q1",
+  "description": "...",
+  "due_date": "2025-04-20",
+  "category": "IGIC",
+  "priority": "alta",
+  "is_recurring": true,
+  "recurrence_type": "trimestrale",  // mensile | trimestrale | annuale
+  "recurrence_end_date": "2026-12-31",  // opzionale
+  "list_ids": ["list-uuid-1", "list-uuid-2"],
+  "client_ids": [],
+  "send_reminders": true,
+  "reminder_days": [7, 3, 1, 0],
+  "send_notification": true
+}
 
-### Modelli Tributari
-- `GET /api/modelli-tributari` - Lista con video_thumbnail
-- `POST /api/modelli-tributari` - Crea (solo commercialista)
-- `PUT /api/modelli-tributari/{id}` - Modifica con video YouTube
-- `DELETE /api/modelli-tributari/{id}` - Elimina
-
-### Clienti
-- `PUT /api/clients/{id}` - Modifica con auto-classificazione in lista
-
-## Database Schema Aggiornato
-
-**users (clienti)**:
-```json
+Response:
 {
   "id": "uuid",
-  "email": "string",
-  "full_name": "string",
-  "phone": "string",
-  "codice_fiscale": "string",
-  "nie": "string",
-  "nif": "string", 
-  "cif": "string",
-  "indirizzo": "string",
-  "citta": "string",
-  "cap": "string",
-  "provincia": "string",
-  "iban": "string",
-  "tipo_cliente": "autonomo|societa|privato",
-  "lists": ["list_id_1", "list_id_2"],
-  "role": "cliente|commercialista",
-  "stato": "attivo|sospeso|cessato"
+  "title": "...",
+  "is_recurring": true,
+  "recurrence_type": "trimestrale",
+  "next_occurrence": "2025-07-20",  // auto-calcolato
+  "last_reminder_sent": null,
+  ...
+}
+
+POST /api/deadlines/send-reminders
+Response:
+{
+  "success": true,
+  "reminders_sent": 15,
+  "deadlines_processed": 5,
+  "errors": null
 }
 ```
 
-**modelli_tributari**:
+## Database Schema Deadline
+
 ```json
 {
   "id": "uuid",
-  "codice": "Modelo-303",
-  "nome": "IGIC Trimestrale",
-  "descrizione": "string",
-  "a_cosa_serve": "string",
-  "chi_deve_presentarlo": "string",
-  "periodicita": "mensile|trimestrale|annuale",
-  "scadenza_tipica": "string",
-  "documenti_necessari": ["doc1", "doc2"],
-  "note_operative": "string",
-  "video_youtube": "https://youtube.com/watch?v=...",
-  "video_thumbnail": "https://img.youtube.com/vi/.../hqdefault.jpg"
+  "title": "string",
+  "description": "string",
+  "due_date": "YYYY-MM-DD",
+  "category": "string",
+  "priority": "bassa|normale|alta|urgente",
+  "status": "da_fare|in_lavorazione|completata|scaduta",
+  "is_recurring": true,
+  "recurrence_type": "mensile|trimestrale|annuale",
+  "recurrence_end_date": "YYYY-MM-DD",
+  "client_ids": ["uuid"],
+  "list_ids": ["uuid"],
+  "send_reminders": true,
+  "reminder_days": [7, 3, 1, 0],
+  "last_reminder_sent": "ISO datetime",
+  "next_occurrence": "YYYY-MM-DD",
+  "parent_deadline_id": "uuid",  // per scadenze rigenerate
+  "created_at": "ISO datetime"
 }
 ```
 
 ## Integrazioni
 - **OpenAI GPT-4o-mini**: Chatbot, analisi documenti, ricerca semantica
-- **Brevo**: Email transazionali
+- **Brevo**: Email transazionali e promemoria
 
 ## Next Tasks
-1. **P2**: Scadenze ricorrenti con promemoria automatici
-2. **P2**: Versioning documenti con storico
-3. **P3**: Report esportabili (PDF/Excel)
+1. **P2**: Versioning documenti con storico modifiche
+2. **P3**: Report esportabili (PDF/Excel)
+3. **P3**: Sistema di audit trail completo
 
 ## Future Tasks
 - Firma elettronica
 - WhatsApp Business
 - Multilingua (IT/ES)
+- Promemoria automatici schedulati (cron job)
