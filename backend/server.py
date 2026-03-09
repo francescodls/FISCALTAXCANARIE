@@ -224,8 +224,8 @@ class ModelloTributarioCreate(BaseModel):
     periodicita: str  # trimestrale, mensile, annuale
     scadenza_tipica: str
     documenti_necessari: List[str] = []
-    conseguenze_mancata_presentazione: str
     note_operative: Optional[str] = None
+    video_youtube: Optional[str] = None  # URL video YouTube
 
 class ModelloTributarioResponse(BaseModel):
     id: str
@@ -237,8 +237,9 @@ class ModelloTributarioResponse(BaseModel):
     periodicita: str
     scadenza_tipica: str
     documenti_necessari: List[str]
-    conseguenze_mancata_presentazione: str
     note_operative: Optional[str] = None
+    video_youtube: Optional[str] = None
+    video_thumbnail: Optional[str] = None  # Thumbnail calcolata
     created_at: str
 
 # ==================== AUTH HELPERS ====================
@@ -390,13 +391,50 @@ async def get_me(user: dict = Depends(get_current_user)):
         full_name=user["full_name"],
         phone=user.get("phone"),
         codice_fiscale=user.get("codice_fiscale"),
+        nie=user.get("nie"),
+        nif=user.get("nif"),
+        cif=user.get("cif"),
         indirizzo=user.get("indirizzo"),
+        citta=user.get("citta"),
+        cap=user.get("cap"),
+        provincia=user.get("provincia"),
+        iban=user.get("iban"),
         regime_fiscale=user.get("regime_fiscale"),
         tipo_attivita=user.get("tipo_attivita"),
+        tipo_cliente=user.get("tipo_cliente", "autonomo"),
         role=user["role"],
         stato=user.get("stato", "attivo"),
         created_at=user["created_at"]
     )
+
+class ClientSelfUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None
+    nif: Optional[str] = None
+    cif: Optional[str] = None
+    indirizzo: Optional[str] = None
+    citta: Optional[str] = None
+    cap: Optional[str] = None
+    provincia: Optional[str] = None
+    iban: Optional[str] = None
+
+@api_router.put("/auth/me")
+async def update_my_profile(update_data: ClientSelfUpdate, user: dict = Depends(get_current_user)):
+    """Permette al cliente di modificare la propria anagrafica"""
+    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
+    
+    await db.users.update_one({"id": user["id"]}, {"$set": update_dict})
+    
+    await log_activity("aggiornamento_profilo", f"Profilo aggiornato da {user['full_name']}", user["id"])
+    
+    # Restituisci i dati aggiornati
+    updated_user = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+    return {"message": "Profilo aggiornato", "user": updated_user}
 
 # ==================== CLIENTS ROUTES (COMMERCIALISTA) ====================
 
@@ -449,6 +487,51 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
     update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
     if not update_dict:
         raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
+    
+    # Se viene cambiato il tipo_cliente, aggiorna automaticamente le liste
+    if "tipo_cliente" in update_dict:
+        tipo_cliente = update_dict["tipo_cliente"]
+        
+        # Trova o crea la lista corrispondente
+        list_name_map = {
+            "autonomo": "Autonomi",
+            "societa": "Società", 
+            "privato": "Privati"
+        }
+        
+        list_name = list_name_map.get(tipo_cliente)
+        if list_name:
+            # Cerca la lista esistente
+            existing_list = await db.client_lists.find_one({"name": list_name})
+            
+            if not existing_list:
+                # Crea la lista automaticamente
+                list_colors = {"Autonomi": "#3b82f6", "Società": "#8b5cf6", "Privati": "#10b981"}
+                new_list_id = str(uuid.uuid4())
+                await db.client_lists.insert_one({
+                    "id": new_list_id,
+                    "name": list_name,
+                    "description": f"Lista automatica per clienti {tipo_cliente}",
+                    "color": list_colors.get(list_name, "#3caca4"),
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                existing_list = {"id": new_list_id}
+            
+            # Rimuovi il cliente da altre liste di tipo (autonomi, società, privati)
+            all_type_lists = await db.client_lists.find(
+                {"name": {"$in": list(list_name_map.values())}}
+            ).to_list(10)
+            for lst in all_type_lists:
+                await db.users.update_one(
+                    {"id": client_id},
+                    {"$pull": {"lists": lst["id"]}}
+                )
+            
+            # Aggiungi il cliente alla lista corretta
+            await db.users.update_one(
+                {"id": client_id},
+                {"$addToSet": {"lists": existing_list["id"]}}
+            )
     
     result = await db.users.update_one({"id": client_id, "role": "cliente"}, {"$set": update_dict})
     if result.matched_count == 0:
@@ -1419,16 +1502,45 @@ async def init_default_deadlines():
         }
         await db.deadlines.insert_one(deadline)
 
+def get_youtube_thumbnail(video_url: Optional[str]) -> Optional[str]:
+    """Estrae l'ID del video YouTube e restituisce l'URL della thumbnail"""
+    if not video_url:
+        return None
+    
+    import re
+    # Pattern per diversi formati URL YouTube
+    patterns = [
+        r'(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/v/([a-zA-Z0-9_-]{11})',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, video_url)
+        if match:
+            video_id = match.group(1)
+            return f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+    
+    return None
+
 @api_router.get("/modelli-tributari", response_model=List[ModelloTributarioResponse])
 async def get_modelli_tributari(user: dict = Depends(get_current_user)):
     modelli = await db.modelli_tributari.find({}, {"_id": 0}).to_list(100)
-    return [ModelloTributarioResponse(**m) for m in modelli]
+    result = []
+    for m in modelli:
+        # Aggiungi thumbnail per video YouTube
+        m["video_thumbnail"] = get_youtube_thumbnail(m.get("video_youtube"))
+        # Rimuovi campo obsoleto se presente
+        m.pop("conseguenze_mancata_presentazione", None)
+        result.append(ModelloTributarioResponse(**m))
+    return result
 
 @api_router.get("/modelli-tributari/{modello_id}", response_model=ModelloTributarioResponse)
 async def get_modello_tributario(modello_id: str, user: dict = Depends(get_current_user)):
     modello = await db.modelli_tributari.find_one({"id": modello_id}, {"_id": 0})
     if not modello:
         raise HTTPException(status_code=404, detail="Modello tributario non trovato")
+    modello["video_thumbnail"] = get_youtube_thumbnail(modello.get("video_youtube"))
+    modello.pop("conseguenze_mancata_presentazione", None)
     return ModelloTributarioResponse(**modello)
 
 @api_router.post("/modelli-tributari", response_model=ModelloTributarioResponse)
@@ -1440,6 +1552,7 @@ async def create_modello_tributario(modello_data: ModelloTributarioCreate, user:
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.modelli_tributari.insert_one(modello)
+    modello["video_thumbnail"] = get_youtube_thumbnail(modello.get("video_youtube"))
     return ModelloTributarioResponse(**modello)
 
 @api_router.put("/modelli-tributari/{modello_id}", response_model=ModelloTributarioResponse)
@@ -1450,6 +1563,8 @@ async def update_modello_tributario(modello_id: str, modello_data: ModelloTribut
         raise HTTPException(status_code=404, detail="Modello tributario non trovato")
     
     modello = await db.modelli_tributari.find_one({"id": modello_id}, {"_id": 0})
+    modello["video_thumbnail"] = get_youtube_thumbnail(modello.get("video_youtube"))
+    modello.pop("conseguenze_mancata_presentazione", None)
     return ModelloTributarioResponse(**modello)
 
 @api_router.delete("/modelli-tributari/{modello_id}")

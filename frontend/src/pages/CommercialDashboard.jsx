@@ -182,7 +182,16 @@ const CommercialDashboard = () => {
               data-testid="manage-lists-btn"
             >
               <Users className="h-4 w-4 mr-2" />
-              Gestione Liste
+              Liste
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => navigate("/admin/models")}
+              className="border-teal-200 text-teal-600 hover:bg-teal-50"
+              data-testid="manage-models-btn"
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Modelli
             </Button>
             <div className="flex items-center gap-2 text-slate-600">
               <User className="h-5 w-5" />

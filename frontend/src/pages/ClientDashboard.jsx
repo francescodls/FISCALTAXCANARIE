@@ -29,10 +29,13 @@ import {
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Edit, Save } from "lucide-react";
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
-  const { user, token, logout } = useAuth();
+  const { user, token, logout, setUser } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [stats, setStats] = useState({});
   const [deadlines, setDeadlines] = useState([]);
@@ -43,12 +46,33 @@ const ClientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedModello, setSelectedModello] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Anagrafica state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     fetchData();
-  }, []);
+    // Inizializza form anagrafica
+    if (user) {
+      setProfileForm({
+        full_name: user.full_name || "",
+        phone: user.phone || "",
+        codice_fiscale: user.codice_fiscale || "",
+        nie: user.nie || "",
+        nif: user.nif || "",
+        cif: user.cif || "",
+        indirizzo: user.indirizzo || "",
+        citta: user.citta || "",
+        cap: user.cap || "",
+        provincia: user.provincia || "",
+        iban: user.iban || ""
+      });
+    }
+  }, [user]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -71,6 +95,25 @@ const ClientDashboard = () => {
       toast.error("Errore nel caricamento dei dati");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    
+    try {
+      const response = await axios.put(`${API}/auth/me`, profileForm, { headers });
+      toast.success("Profilo aggiornato con successo!");
+      setEditingProfile(false);
+      // Aggiorna l'utente nel context se necessario
+      if (response.data.user && setUser) {
+        setUser(response.data.user);
+      }
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento del profilo");
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -224,6 +267,14 @@ const ClientDashboard = () => {
               data-testid="tab-modelli"
             >
               Guida Modelli
+            </TabsTrigger>
+            <TabsTrigger 
+              value="profile" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-profile"
+            >
+              <User className="h-4 w-4 mr-2" />
+              I Miei Dati
             </TabsTrigger>
           </TabsList>
 
@@ -637,13 +688,33 @@ const ClientDashboard = () => {
                                 ))}
                               </ul>
                             </div>
-                            <div className="bg-red-50 p-4 rounded-lg border border-red-100">
-                              <h5 className="font-semibold text-red-800 mb-2">⚠️ Conseguenze mancata presentazione</h5>
-                              <p className="text-red-700 text-sm">{modello.conseguenze_mancata_presentazione}</p>
-                            </div>
+                            {modello.video_thumbnail && modello.video_youtube && (
+                              <div>
+                                <h5 className="font-semibold text-slate-900 mb-2">Video esplicativo</h5>
+                                <a 
+                                  href={modello.video_youtube} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="block relative group"
+                                >
+                                  <img 
+                                    src={modello.video_thumbnail} 
+                                    alt={`Video ${modello.nome}`}
+                                    className="w-full rounded-lg border border-slate-200 group-hover:opacity-90 transition-opacity"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                      <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M8 5v14l11-7z"/>
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </a>
+                              </div>
+                            )}
                             {modello.note_operative && (
                               <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
-                                <h5 className="font-semibold text-teal-800 mb-2">📝 Note operative</h5>
+                                <h5 className="font-semibold text-teal-800 mb-2">Note operative</h5>
                                 <p className="text-teal-700 text-sm">{modello.note_operative}</p>
                               </div>
                             )}
@@ -658,6 +729,212 @@ const ClientDashboard = () => {
                     <p className="text-slate-500">Nessun modello tributario disponibile</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Profile Tab */}
+          <TabsContent value="profile" className="space-y-6">
+            <Card className="bg-white border border-slate-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-heading text-xl flex items-center gap-2">
+                  <User className="h-5 w-5 text-teal-500" />
+                  I Miei Dati Anagrafici
+                </CardTitle>
+                {!editingProfile ? (
+                  <Button
+                    onClick={() => setEditingProfile(true)}
+                    className="bg-teal-500 hover:bg-teal-600 text-white"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Modifica
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingProfile(false);
+                      // Reset form
+                      setProfileForm({
+                        full_name: user?.full_name || "",
+                        phone: user?.phone || "",
+                        codice_fiscale: user?.codice_fiscale || "",
+                        nie: user?.nie || "",
+                        nif: user?.nif || "",
+                        cif: user?.cif || "",
+                        indirizzo: user?.indirizzo || "",
+                        citta: user?.citta || "",
+                        cap: user?.cap || "",
+                        provincia: user?.provincia || "",
+                        iban: user?.iban || ""
+                      });
+                    }}
+                  >
+                    Annulla
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSaveProfile} className="space-y-6">
+                  {/* Dati Personali */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Dati Personali</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome Completo</Label>
+                        <Input
+                          value={profileForm.full_name || ""}
+                          onChange={(e) => setProfileForm({...profileForm, full_name: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Email</Label>
+                        <Input
+                          value={user?.email || ""}
+                          disabled={true}
+                          className="border-slate-200 bg-slate-50"
+                        />
+                        <p className="text-xs text-slate-400">L'email non può essere modificata</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Telefono</Label>
+                        <Input
+                          value={profileForm.phone || ""}
+                          onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="+34 612 345 678"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documenti di Identità Fiscale */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Identificazione Fiscale</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>NIE <span className="text-xs text-slate-400">(Stranieri)</span></Label>
+                        <Input
+                          value={profileForm.nie || ""}
+                          onChange={(e) => setProfileForm({...profileForm, nie: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="X-1234567-A"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>NIF <span className="text-xs text-slate-400">(Persone fisiche)</span></Label>
+                        <Input
+                          value={profileForm.nif || ""}
+                          onChange={(e) => setProfileForm({...profileForm, nif: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="12345678A"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CIF <span className="text-xs text-slate-400">(Società)</span></Label>
+                        <Input
+                          value={profileForm.cif || ""}
+                          onChange={(e) => setProfileForm({...profileForm, cif: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="B12345678"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Codice Fiscale IT</Label>
+                        <Input
+                          value={profileForm.codice_fiscale || ""}
+                          onChange={(e) => setProfileForm({...profileForm, codice_fiscale: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="RSSMRA80A01H501Z"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Indirizzo */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Indirizzo</h3>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2 lg:col-span-2">
+                        <Label>Indirizzo</Label>
+                        <Input
+                          value={profileForm.indirizzo || ""}
+                          onChange={(e) => setProfileForm({...profileForm, indirizzo: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="Calle Principal, 123"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Città</Label>
+                        <Input
+                          value={profileForm.citta || ""}
+                          onChange={(e) => setProfileForm({...profileForm, citta: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="Las Palmas"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Provincia</Label>
+                        <Input
+                          value={profileForm.provincia || ""}
+                          onChange={(e) => setProfileForm({...profileForm, provincia: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="Las Palmas"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CAP</Label>
+                        <Input
+                          value={profileForm.cap || ""}
+                          onChange={(e) => setProfileForm({...profileForm, cap: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="35001"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dati Bancari */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700 mb-4 pb-2 border-b">Dati Bancari</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>IBAN</Label>
+                        <Input
+                          value={profileForm.iban || ""}
+                          onChange={(e) => setProfileForm({...profileForm, iban: e.target.value})}
+                          disabled={!editingProfile}
+                          className="border-slate-200"
+                          placeholder="ES12 1234 5678 9012 3456 7890"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {editingProfile && (
+                    <div className="flex justify-end pt-4 border-t">
+                      <Button
+                        type="submit"
+                        disabled={savingProfile}
+                        className="bg-teal-500 hover:bg-teal-600 text-white"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        {savingProfile ? "Salvataggio..." : "Salva Modifiche"}
+                      </Button>
+                    </div>
+                  )}
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
