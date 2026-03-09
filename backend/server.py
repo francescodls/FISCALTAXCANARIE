@@ -177,11 +177,16 @@ class DeadlineCreate(BaseModel):
     due_date: str
     category: str
     is_recurring: bool = False
-    applies_to_all: bool = True
+    recurrence_type: Optional[str] = None  # mensile, trimestrale, annuale
+    recurrence_end_date: Optional[str] = None  # Data fine ricorrenza
+    applies_to_all: bool = False
     client_ids: List[str] = []
+    list_ids: List[str] = []  # Assegna a liste di clienti
     status: str = "da_fare"  # da_fare, in_lavorazione, completata, scaduta
     priority: str = "normale"  # bassa, normale, alta, urgente
     modello_tributario_id: Optional[str] = None
+    send_reminders: bool = True  # Invia promemoria automatici
+    reminder_days: List[int] = [7, 3, 1, 0]  # Giorni prima della scadenza
 
 class DeadlineResponse(BaseModel):
     id: str
@@ -190,11 +195,18 @@ class DeadlineResponse(BaseModel):
     due_date: str
     category: str
     is_recurring: bool
+    recurrence_type: Optional[str] = None
+    recurrence_end_date: Optional[str] = None
     applies_to_all: bool
     client_ids: List[str]
+    list_ids: List[str] = []
     status: str
     priority: str
     modello_tributario_id: Optional[str] = None
+    send_reminders: bool = True
+    reminder_days: List[int] = [7, 3, 1, 0]
+    last_reminder_sent: Optional[str] = None
+    next_occurrence: Optional[str] = None
     created_at: Optional[str] = None
 
 class ClientInListResponse(BaseModel):
@@ -1269,9 +1281,57 @@ async def get_deadlines(user: dict = Depends(get_current_user)):
 class DeadlineCreateWithNotify(DeadlineCreate):
     send_notification: bool = False
 
+async def get_clients_for_deadline(client_ids: List[str], list_ids: List[str]) -> List[dict]:
+    """Ottieni tutti i clienti associati a una scadenza (da ID diretti e liste)"""
+    all_client_ids = set(client_ids)
+    
+    # Aggiungi clienti dalle liste
+    if list_ids:
+        for list_id in list_ids:
+            clients_in_list = await db.users.find(
+                {"lists": list_id, "role": "cliente", "stato": "attivo"},
+                {"id": 1, "_id": 0}
+            ).to_list(1000)
+            for c in clients_in_list:
+                all_client_ids.add(c["id"])
+    
+    # Ottieni dettagli clienti
+    clients = []
+    for cid in all_client_ids:
+        client = await db.users.find_one({"id": cid, "stato": "attivo"}, {"_id": 0, "password": 0})
+        if client:
+            clients.append(client)
+    
+    return clients
+
+def calculate_next_occurrence(current_date: str, recurrence_type: str) -> str:
+    """Calcola la prossima occorrenza di una scadenza ricorrente"""
+    from dateutil.relativedelta import relativedelta
+    
+    current = datetime.fromisoformat(current_date.replace('Z', '+00:00') if 'Z' in current_date else current_date)
+    if isinstance(current, str):
+        current = datetime.strptime(current[:10], "%Y-%m-%d")
+    
+    if recurrence_type == "mensile":
+        next_date = current + relativedelta(months=1)
+    elif recurrence_type == "trimestrale":
+        next_date = current + relativedelta(months=3)
+    elif recurrence_type == "annuale":
+        next_date = current + relativedelta(years=1)
+    else:
+        return current_date
+    
+    return next_date.strftime("%Y-%m-%d")
+
 @api_router.post("/deadlines", response_model=DeadlineResponse)
 async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = Depends(require_commercialista)):
     deadline_id = str(uuid.uuid4())
+    
+    # Calcola prossima occorrenza se ricorrente
+    next_occurrence = None
+    if deadline_data.is_recurring and deadline_data.recurrence_type:
+        next_occurrence = calculate_next_occurrence(deadline_data.due_date, deadline_data.recurrence_type)
+    
     deadline = {
         "id": deadline_id,
         "title": deadline_data.title,
@@ -1279,11 +1339,18 @@ async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = 
         "due_date": deadline_data.due_date,
         "category": deadline_data.category,
         "is_recurring": deadline_data.is_recurring,
+        "recurrence_type": deadline_data.recurrence_type,
+        "recurrence_end_date": deadline_data.recurrence_end_date,
         "applies_to_all": deadline_data.applies_to_all,
         "client_ids": deadline_data.client_ids,
+        "list_ids": deadline_data.list_ids,
         "status": deadline_data.status,
         "priority": deadline_data.priority,
         "modello_tributario_id": deadline_data.modello_tributario_id,
+        "send_reminders": deadline_data.send_reminders,
+        "reminder_days": deadline_data.reminder_days,
+        "last_reminder_sent": None,
+        "next_occurrence": next_occurrence,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.deadlines.insert_one(deadline)
@@ -1291,11 +1358,11 @@ async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = 
     await log_activity("creazione_scadenza", f"Scadenza {deadline_data.title} creata", user["id"])
     
     # Invia notifica email ai clienti assegnati (se richiesto)
-    if deadline_data.send_notification and deadline_data.client_ids:
-        for cid in deadline_data.client_ids:
+    if deadline_data.send_notification:
+        clients = await get_clients_for_deadline(deadline_data.client_ids, deadline_data.list_ids)
+        for client_data in clients:
             try:
-                client_data = await db.users.find_one({"id": cid}, {"_id": 0})
-                if client_data and client_data.get("email"):
+                if client_data.get("email"):
                     await notify_deadline_reminder(
                         client_email=client_data["email"],
                         client_name=client_data["full_name"],
@@ -1305,9 +1372,150 @@ async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = 
                     )
                     logger.info(f"Email notifica scadenza inviata a {client_data['email']}")
             except Exception as e:
-                logger.error(f"Errore invio email notifica scadenza a {cid}: {e}")
+                logger.error(f"Errore invio email notifica scadenza: {e}")
     
     return DeadlineResponse(**deadline)
+
+@api_router.post("/deadlines/send-reminders")
+async def trigger_deadline_reminders(user: dict = Depends(require_commercialista)):
+    """Invia manualmente i promemoria per le scadenze imminenti"""
+    result = await send_deadline_reminders_batch()
+    return result
+
+async def send_deadline_reminders_batch():
+    """Task per inviare promemoria automatici delle scadenze"""
+    today = datetime.now(timezone.utc).date()
+    sent_count = 0
+    errors = []
+    
+    # Trova tutte le scadenze attive con promemoria abilitati
+    deadlines = await db.deadlines.find({
+        "status": {"$in": ["da_fare", "in_lavorazione"]},
+        "send_reminders": True
+    }, {"_id": 0}).to_list(1000)
+    
+    for deadline in deadlines:
+        try:
+            due_date = datetime.strptime(deadline["due_date"][:10], "%Y-%m-%d").date()
+            days_until = (due_date - today).days
+            reminder_days = deadline.get("reminder_days", [7, 3, 1, 0])
+            
+            # Controlla se oggi è un giorno di promemoria
+            if days_until in reminder_days and days_until >= 0:
+                # Controlla se già inviato oggi
+                last_sent = deadline.get("last_reminder_sent")
+                if last_sent:
+                    last_sent_date = datetime.fromisoformat(last_sent.replace('Z', '+00:00')).date()
+                    if last_sent_date == today:
+                        continue
+                
+                # Ottieni clienti associati
+                clients = await get_clients_for_deadline(
+                    deadline.get("client_ids", []),
+                    deadline.get("list_ids", [])
+                )
+                
+                # Invia promemoria a tutti i clienti
+                for client in clients:
+                    try:
+                        if client.get("email"):
+                            days_text = "oggi" if days_until == 0 else f"tra {days_until} giorni"
+                            await notify_deadline_reminder(
+                                client_email=client["email"],
+                                client_name=client["full_name"],
+                                deadline_title=f"[PROMEMORIA] {deadline['title']}",
+                                deadline_date=deadline["due_date"],
+                                deadline_description=f"La scadenza è {days_text}. {deadline.get('description', '')}"
+                            )
+                            sent_count += 1
+                    except Exception as e:
+                        errors.append(f"{client.get('email')}: {str(e)}")
+                
+                # Aggiorna last_reminder_sent
+                await db.deadlines.update_one(
+                    {"id": deadline["id"]},
+                    {"$set": {"last_reminder_sent": datetime.now(timezone.utc).isoformat()}}
+                )
+                
+        except Exception as e:
+            logger.error(f"Errore elaborazione scadenza {deadline.get('id')}: {e}")
+            errors.append(str(e))
+    
+    # Gestisci scadenze ricorrenti - crea nuove occorrenze
+    await handle_recurring_deadlines()
+    
+    return {
+        "success": True,
+        "reminders_sent": sent_count,
+        "deadlines_processed": len(deadlines),
+        "errors": errors if errors else None
+    }
+
+async def handle_recurring_deadlines():
+    """Gestisce la creazione di nuove occorrenze per scadenze ricorrenti"""
+    today = datetime.now(timezone.utc).date()
+    
+    # Trova scadenze ricorrenti completate che devono essere rigenerate
+    recurring_deadlines = await db.deadlines.find({
+        "is_recurring": True,
+        "status": "completata",
+        "next_occurrence": {"$ne": None}
+    }, {"_id": 0}).to_list(100)
+    
+    for deadline in recurring_deadlines:
+        try:
+            # Verifica se c'è una data di fine ricorrenza
+            if deadline.get("recurrence_end_date"):
+                end_date = datetime.strptime(deadline["recurrence_end_date"][:10], "%Y-%m-%d").date()
+                if today > end_date:
+                    continue
+            
+            next_date = deadline.get("next_occurrence")
+            if not next_date:
+                continue
+            
+            next_occurrence_date = datetime.strptime(next_date[:10], "%Y-%m-%d").date()
+            
+            # Se la prossima occorrenza è passata o oggi, crea la nuova scadenza
+            if next_occurrence_date <= today:
+                new_deadline_id = str(uuid.uuid4())
+                new_next = calculate_next_occurrence(next_date, deadline.get("recurrence_type", "mensile"))
+                
+                new_deadline = {
+                    "id": new_deadline_id,
+                    "title": deadline["title"],
+                    "description": deadline.get("description", ""),
+                    "due_date": next_date,
+                    "category": deadline.get("category", "altro"),
+                    "is_recurring": True,
+                    "recurrence_type": deadline.get("recurrence_type"),
+                    "recurrence_end_date": deadline.get("recurrence_end_date"),
+                    "applies_to_all": deadline.get("applies_to_all", False),
+                    "client_ids": deadline.get("client_ids", []),
+                    "list_ids": deadline.get("list_ids", []),
+                    "status": "da_fare",
+                    "priority": deadline.get("priority", "normale"),
+                    "modello_tributario_id": deadline.get("modello_tributario_id"),
+                    "send_reminders": deadline.get("send_reminders", True),
+                    "reminder_days": deadline.get("reminder_days", [7, 3, 1, 0]),
+                    "last_reminder_sent": None,
+                    "next_occurrence": new_next,
+                    "parent_deadline_id": deadline["id"],
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                await db.deadlines.insert_one(new_deadline)
+                
+                # Aggiorna la scadenza originale
+                await db.deadlines.update_one(
+                    {"id": deadline["id"]},
+                    {"$set": {"next_occurrence": new_next}}
+                )
+                
+                logger.info(f"Creata nuova occorrenza scadenza ricorrente: {deadline['title']}")
+                
+        except Exception as e:
+            logger.error(f"Errore gestione scadenza ricorrente {deadline.get('id')}: {e}")
 
 @api_router.put("/deadlines/{deadline_id}", response_model=DeadlineResponse)
 async def update_deadline(deadline_id: str, deadline_data: DeadlineCreate, user: dict = Depends(require_commercialista)):

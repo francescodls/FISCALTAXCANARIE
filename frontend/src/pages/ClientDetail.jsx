@@ -98,7 +98,12 @@ const ClientDetail = () => {
     category: "IRPF",
     priority: "normale",
     status: "da_fare",
-    send_notification: false
+    send_notification: false,
+    is_recurring: false,
+    recurrence_type: "mensile",
+    recurrence_end_date: "",
+    send_reminders: true,
+    reminder_days: [7, 3, 1, 0]
   });
   const [savingDeadline, setSavingDeadline] = useState(false);
   
@@ -389,11 +394,21 @@ const ClientDetail = () => {
         ...deadlineForm,
         applies_to_all: false,
         client_ids: [clientId],
-        is_recurring: false
+        list_ids: [],
+        is_recurring: deadlineForm.is_recurring,
+        recurrence_type: deadlineForm.is_recurring ? deadlineForm.recurrence_type : null,
+        recurrence_end_date: deadlineForm.is_recurring && deadlineForm.recurrence_end_date ? deadlineForm.recurrence_end_date : null,
+        send_reminders: deadlineForm.send_reminders,
+        reminder_days: deadlineForm.reminder_days
       };
       
       await axios.post(`${API}/deadlines`, deadlineData, { headers });
-      toast.success(deadlineForm.send_notification ? "Scadenza creata e notifica inviata!" : "Scadenza creata");
+      
+      let message = "Scadenza creata";
+      if (deadlineForm.is_recurring) message += ` (ricorrente ${deadlineForm.recurrence_type})`;
+      if (deadlineForm.send_notification) message += " e notifica inviata!";
+      toast.success(message);
+      
       setDeadlineForm({
         title: "",
         description: "",
@@ -401,7 +416,12 @@ const ClientDetail = () => {
         category: "IRPF",
         priority: "normale",
         status: "da_fare",
-        send_notification: false
+        send_notification: false,
+        is_recurring: false,
+        recurrence_type: "mensile",
+        recurrence_end_date: "",
+        send_reminders: true,
+        reminder_days: [7, 3, 1, 0]
       });
       fetchData();
     } catch (error) {
@@ -1306,22 +1326,81 @@ const ClientDetail = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={deadlineForm.send_notification}
-                      onCheckedChange={(v) => setDeadlineForm({ ...deadlineForm, send_notification: v })}
-                      id="send-notification"
-                    />
-                    <Label htmlFor="send-notification" className="text-sm text-slate-600">
-                      Invia notifica email al cliente
-                    </Label>
+                  
+                  {/* Opzioni Ricorrenza */}
+                  <div className="border border-slate-200 rounded-lg p-4 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={deadlineForm.is_recurring}
+                        onCheckedChange={(v) => setDeadlineForm({ ...deadlineForm, is_recurring: v })}
+                        id="is-recurring"
+                      />
+                      <Label htmlFor="is-recurring" className="text-sm font-medium text-slate-700">
+                        Scadenza ricorrente
+                      </Label>
+                    </div>
+                    
+                    {deadlineForm.is_recurring && (
+                      <div className="grid md:grid-cols-2 gap-4 pt-2">
+                        <div className="space-y-2">
+                          <Label>Frequenza</Label>
+                          <Select 
+                            value={deadlineForm.recurrence_type} 
+                            onValueChange={(v) => setDeadlineForm({ ...deadlineForm, recurrence_type: v })}
+                          >
+                            <SelectTrigger className="border-slate-200">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="mensile">Mensile</SelectItem>
+                              <SelectItem value="trimestrale">Trimestrale</SelectItem>
+                              <SelectItem value="annuale">Annuale</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Data fine ricorrenza (opzionale)</Label>
+                          <Input
+                            type="date"
+                            value={deadlineForm.recurrence_end_date}
+                            onChange={(e) => setDeadlineForm({ ...deadlineForm, recurrence_end_date: e.target.value })}
+                            className="border-slate-200"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Opzioni Notifiche */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={deadlineForm.send_reminders}
+                        onCheckedChange={(v) => setDeadlineForm({ ...deadlineForm, send_reminders: v })}
+                        id="send-reminders"
+                      />
+                      <Label htmlFor="send-reminders" className="text-sm text-slate-600">
+                        Promemoria automatici (7, 3, 1 giorni prima)
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={deadlineForm.send_notification}
+                        onCheckedChange={(v) => setDeadlineForm({ ...deadlineForm, send_notification: v })}
+                        id="send-notification"
+                      />
+                      <Label htmlFor="send-notification" className="text-sm text-slate-600">
+                        Invia notifica email immediata al cliente
+                      </Label>
+                    </div>
+                  </div>
+                  
                   <Button
                     type="submit"
                     disabled={savingDeadline}
                     className="bg-teal-500 hover:bg-teal-600 text-white font-semibold"
                   >
-                    {savingDeadline ? "Salvataggio..." : "Crea Scadenza"}
+                    {savingDeadline ? "Salvataggio..." : (deadlineForm.is_recurring ? "Crea Scadenza Ricorrente" : "Crea Scadenza")}
                   </Button>
                 </form>
               </CardContent>
@@ -1348,7 +1427,14 @@ const ClientDetail = () => {
                             'bg-amber-500'
                           }`}></div>
                           <div>
-                            <p className="font-medium text-slate-900">{deadline.title}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-slate-900">{deadline.title}</p>
+                              {deadline.is_recurring && (
+                                <Badge className="bg-purple-50 text-purple-700 text-xs">
+                                  {deadline.recurrence_type}
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-sm text-slate-500">{deadline.description}</p>
                           </div>
                         </div>

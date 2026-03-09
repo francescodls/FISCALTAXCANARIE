@@ -186,6 +186,15 @@ const CommercialDashboard = () => {
             </Button>
             <Button 
               variant="outline"
+              onClick={() => navigate("/admin/deadlines")}
+              className="border-amber-200 text-amber-600 hover:bg-amber-50"
+              data-testid="manage-deadlines-btn"
+            >
+              <Clock className="h-4 w-4 mr-2" />
+              Scadenze
+            </Button>
+            <Button 
+              variant="outline"
               onClick={() => navigate("/admin/models")}
               className="border-teal-200 text-teal-600 hover:bg-teal-50"
               data-testid="manage-models-btn"

@@ -14,6 +14,7 @@ import CommercialDashboard from "@/pages/CommercialDashboard";
 import ClientDetail from "@/pages/ClientDetail";
 import ClientLists from "@/pages/ClientLists";
 import ModelsManagement from "@/pages/ModelsManagement";
+import DeadlinesManagement from "@/pages/DeadlinesManagement";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -179,6 +180,11 @@ function AppRoutes() {
       <Route path="/admin/models" element={
         <ProtectedRoute requiredRole="commercialista">
           <ModelsManagement />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/deadlines" element={
+        <ProtectedRoute requiredRole="commercialista">
+          <DeadlinesManagement />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
