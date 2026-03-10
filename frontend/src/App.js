@@ -11,6 +11,8 @@ import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
 import CompleteRegistration from "@/pages/CompleteRegistration";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import ClientDashboard from "@/pages/ClientDashboard";
 import CommercialDashboard from "@/pages/CommercialDashboard";
 import ConsulenteDashboard from "@/pages/ConsulenteDashboard";
@@ -187,6 +189,8 @@ function AppRoutes() {
         </PublicRoute>
       } />
       <Route path="/complete-registration" element={<CompleteRegistration />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/client" element={
         <ProtectedRoute requiredRole="cliente">
           <ClientDashboard />

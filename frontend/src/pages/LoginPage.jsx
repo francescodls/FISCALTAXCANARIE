@@ -127,6 +127,16 @@ const LoginPage = () => {
                 </Button>
               </form>
 
+              <div className="mt-4 text-center">
+                <Link 
+                  to="/forgot-password" 
+                  className="text-sm text-slate-500 hover:text-teal-600 transition-colors"
+                  data-testid="login-forgot-password-link"
+                >
+                  Password dimenticata?
+                </Link>
+              </div>
+
               <div className="mt-6 text-center">
                 <p className="text-slate-600">
                   {t("auth.noAccount")}{" "}

@@ -8,6 +8,38 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 18 (10 Marzo 2026) - COMPLETATA ✅
+
+**Recupero Password per Clienti**
+
+Flusso completo implementato:
+1. **Richiesta reset**: Cliente inserisce email → riceve link via email
+2. **Verifica token**: Sistema verifica validità del link (scade dopo 1 ora)
+3. **Nuova password**: Cliente imposta nuova password con validazione
+
+Backend:
+- `POST /auth/forgot-password`: Invia email con link di reset
+- `GET /auth/verify-reset-token`: Verifica validità token
+- `POST /auth/reset-password`: Salva nuova password
+
+Frontend:
+- `/forgot-password`: Pagina richiesta recupero password
+- `/reset-password?token=xxx`: Pagina impostazione nuova password
+- Link "Password dimenticata?" nella pagina login
+
+Sicurezza:
+- Token singolo uso
+- Scadenza token: 1 ora
+- Non rivela se l'email esiste nel sistema
+- Password minimo 6 caratteri
+
+File creati/modificati:
+- `/app/backend/server.py`: Endpoints password reset
+- `/app/frontend/src/pages/ForgotPassword.jsx`: Nuova pagina
+- `/app/frontend/src/pages/ResetPassword.jsx`: Nuova pagina
+- `/app/frontend/src/pages/LoginPage.jsx`: Link "Password dimenticata?"
+- `/app/frontend/src/App.js`: Routes nuove pagine
+
 ### Fase 17 (10 Marzo 2026) - COMPLETATA ✅
 
 **Cronologia Comunicazioni nella Dashboard Cliente**

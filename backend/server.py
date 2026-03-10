@@ -604,6 +604,120 @@ async def update_my_profile(update_data: ClientSelfUpdate, user: dict = Depends(
     updated_user = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
     return {"message": "Profilo aggiornato", "user": updated_user}
 
+# ==================== PASSWORD RESET ====================
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: PasswordResetRequest):
+    """Richiesta di reset password - invia email con link"""
+    user = await db.users.find_one({"email": request.email.lower()}, {"_id": 0})
+    
+    # Non rivelare se l'email esiste o meno per sicurezza
+    if not user:
+        return {"message": "Se l'email esiste nel sistema, riceverai un link per reimpostare la password"}
+    
+    # Genera token di reset (valido 1 ora)
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    
+    # Salva il token nel database
+    await db.password_resets.delete_many({"user_id": user["id"]})  # Rimuovi token precedenti
+    await db.password_resets.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "email": user["email"],
+        "token": reset_token,
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Invia email con link di reset
+    reset_link = f"https://app.fiscaltaxcanarie.com/reset-password?token={reset_token}"
+    
+    try:
+        email_subject = "Recupero Password - Fiscal Tax Canarie"
+        email_content = f"""
+        <h2>Richiesta di Recupero Password</h2>
+        <p>Ciao {user.get('full_name', '')},</p>
+        <p>Hai richiesto di reimpostare la password del tuo account Fiscal Tax Canarie.</p>
+        <p>Clicca sul link seguente per creare una nuova password:</p>
+        <p><a href="{reset_link}" style="display: inline-block; background-color: #3caca4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Reimposta Password</a></p>
+        <p>Oppure copia e incolla questo link nel browser:</p>
+        <p>{reset_link}</p>
+        <hr>
+        <p><strong>Importante:</strong> Questo link è valido per 1 ora.</p>
+        <p>Se non hai richiesto tu il reset della password, ignora questa email.</p>
+        <br>
+        <p>Fiscal Tax Canarie</p>
+        """
+        send_generic_email(user["email"], email_subject, email_content)
+    except Exception as e:
+        logger.error(f"Errore invio email reset password: {e}")
+    
+    return {"message": "Se l'email esiste nel sistema, riceverai un link per reimpostare la password"}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: PasswordResetConfirm):
+    """Conferma reset password con token"""
+    # Trova il token
+    reset_record = await db.password_resets.find_one({
+        "token": request.token,
+        "used": False
+    }, {"_id": 0})
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Link non valido o già utilizzato")
+    
+    # Verifica scadenza
+    expires_at = datetime.fromisoformat(reset_record["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Il link è scaduto. Richiedi un nuovo reset")
+    
+    # Valida la nuova password
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="La password deve essere di almeno 6 caratteri")
+    
+    # Aggiorna la password
+    hashed_password = bcrypt.hashpw(request.new_password.encode('utf-8'), bcrypt.gensalt())
+    await db.users.update_one(
+        {"id": reset_record["user_id"]},
+        {"$set": {"password": hashed_password.decode('utf-8')}}
+    )
+    
+    # Marca il token come usato
+    await db.password_resets.update_one(
+        {"token": request.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    await log_activity("reset_password", f"Password reimpostata per {reset_record['email']}", reset_record["user_id"])
+    
+    return {"message": "Password reimpostata con successo. Ora puoi accedere con la nuova password"}
+
+@api_router.get("/auth/verify-reset-token")
+async def verify_reset_token(token: str):
+    """Verifica se un token di reset è valido"""
+    reset_record = await db.password_resets.find_one({
+        "token": token,
+        "used": False
+    }, {"_id": 0})
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Link non valido o già utilizzato")
+    
+    expires_at = datetime.fromisoformat(reset_record["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Il link è scaduto")
+    
+    return {"valid": True, "email": reset_record["email"]}
+
 # ==================== CLIENTS ROUTES (COMMERCIALISTA) ====================
 
 @api_router.get("/clients", response_model=List[ClientInListResponse])
