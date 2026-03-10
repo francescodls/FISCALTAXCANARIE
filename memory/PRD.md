@@ -8,6 +8,50 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 20 (10 Marzo 2026) - COMPLETATA ✅
+
+**Sistema Organizzazione Documentale Smart con Cartelle**
+
+Implementata struttura cartelle per organizzazione intelligente documenti:
+
+Categorie Predefinite (7):
+- 📄 Documenti (grigio #6b7280)
+- 🏛️ Agencia Tributaria (rosso #dc2626)
+- 👥 Seguridad Social (blu #2563eb)
+- 🏢 Ayuntamiento (verde #16a34a)
+- 📝 Contratti (viola #9333ea)
+- ⚖️ Atti (giallo #ca8a04)
+- 📋 Registro Mercantil (ciano #0891b2)
+
+Funzionalità:
+1. **AI Auto-classificazione**: L'AI analizza il documento e suggerisce automaticamente la categoria cartella corretta
+2. **Estrazione Anno**: L'AI estrae l'anno dal contenuto del documento
+3. **Categorie Personalizzate**: Admin può creare nuove categorie globali (visibili per tutti i clienti)
+4. **Vista Cartelle**: Browser cartelle con espansione/collasso e conteggio documenti
+5. **Filtro per Anno**: Dropdown per filtrare documenti per anno specifico
+6. **Modifica Categoria**: Admin e cliente possono spostare documenti tra cartelle
+7. **Toggle Vista**: Switch tra vista "Cartelle" e "Lista" tradizionale
+
+Backend:
+- `GET /api/folder-categories`: Lista tutte le categorie (predefinite + personalizzate)
+- `POST /api/folder-categories`: Crea categoria personalizzata
+- `DELETE /api/folder-categories/{id}`: Elimina categoria (solo personalizzate)
+- `GET /api/clients/{id}/documents/by-folder`: Documenti organizzati per cartella con filtro anno
+- `PUT /api/documents/{id}/category`: Aggiorna folder_category e document_year
+
+Frontend:
+- `DocumentFolderBrowser.jsx`: Nuovo componente per navigazione cartelle
+- `ClientDetail.jsx`: Integrato toggle Cartelle/Lista nella sezione Documenti
+
+AI Service:
+- Aggiornato prompt per classificare in `folder_category` e estrarre `anno_documento`
+
+File modificati:
+- `/app/backend/server.py`: Nuovi endpoint e modelli FolderCategory
+- `/app/backend/ai_service.py`: Prompt aggiornato con categorie cartella
+- `/app/frontend/src/components/DocumentFolderBrowser.jsx`: NUOVO
+- `/app/frontend/src/pages/ClientDetail.jsx`: Toggle vista e integrazione
+
 ### Fase 19 (10 Marzo 2026) - COMPLETATA ✅
 
 **Sistema Invito Consulente del Lavoro via Email**
