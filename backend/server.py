@@ -3907,6 +3907,77 @@ async def create_employee_notification(
     
     return notification_id
 
+@api_router.get("/employee-notifications")
+async def get_employee_notifications(
+    unread_only: bool = False,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Ottiene le notifiche relative ai dipendenti per l'admin.
+    Mostra richieste di assunzione, licenziamento e documenti caricati.
+    """
+    query = {}
+    if unread_only:
+        query["is_read"] = False
+    
+    notifications = await db.employee_notifications.find(
+        query, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Arricchisci con info cliente e dipendente
+    for notif in notifications:
+        if notif.get("client_id"):
+            client = await db.users.find_one(
+                {"id": notif["client_id"]}, 
+                {"_id": 0, "full_name": 1, "email": 1}
+            )
+            notif["client_name"] = client.get("full_name") if client else "N/A"
+        if notif.get("employee_id"):
+            employee = await db.employees.find_one(
+                {"id": notif["employee_id"]}, 
+                {"_id": 0, "full_name": 1, "status": 1}
+            )
+            notif["employee_name"] = employee.get("full_name") if employee else "N/A"
+            notif["employee_status"] = employee.get("status") if employee else "N/A"
+    
+    return notifications
+
+@api_router.get("/employee-notifications/count")
+async def get_employee_notifications_count(user: dict = Depends(require_commercialista)):
+    """Conta le notifiche non lette relative ai dipendenti"""
+    count = await db.employee_notifications.count_documents({"is_read": False})
+    return {"unread_count": count}
+
+@api_router.put("/employee-notifications/{notification_id}/read")
+async def mark_employee_notification_read(
+    notification_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """Segna una notifica come letta"""
+    result = await db.employee_notifications.update_one(
+        {"id": notification_id},
+        {
+            "$set": {"is_read": True},
+            "$addToSet": {"read_by": user["id"]}
+        }
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notifica non trovata")
+    return {"success": True}
+
+@api_router.put("/employee-notifications/read-all")
+async def mark_all_employee_notifications_read(user: dict = Depends(require_commercialista)):
+    """Segna tutte le notifiche come lette"""
+    result = await db.employee_notifications.update_many(
+        {"is_read": False},
+        {
+            "$set": {"is_read": True},
+            "$addToSet": {"read_by": user["id"]}
+        }
+    )
+    return {"success": True, "marked_count": result.modified_count}
+
 @api_router.post("/employees/hire-request")
 async def request_employee_hire(
     hire_data: EmployeeHireRequest,
@@ -4081,6 +4152,30 @@ async def upload_employee_document(
             f"Il cliente {client_name} ha caricato un documento ({doc_type_names.get(document_type, document_type)}) per il dipendente {employee['full_name']}.",
             user["id"],
             employee_id
+        )
+    
+    # Notifica se caricato dal consulente del lavoro (notifica all'admin)
+    if user["role"] == "consulente_lavoro":
+        consulente_name = user.get("full_name", user.get("email"))
+        # Trova il nome del cliente proprietario del dipendente
+        client = await db.users.find_one({"id": employee["client_id"]}, {"_id": 0, "full_name": 1})
+        client_name = client.get("full_name") if client else "N/A"
+        
+        doc_type_names = {
+            "id_document": "Documento di identità",
+            "nie": "NIE",
+            "contract": "Contratto",
+            "timesheet": "Registro orario",
+            "payslip": "Busta paga",
+            "other": "Documento"
+        }
+        await create_employee_notification(
+            "consulente_document_upload",
+            "Documento caricato dal Consulente",
+            f"Il consulente {consulente_name} ha caricato un documento ({doc_type_names.get(document_type, document_type)}) per il dipendente {employee['full_name']} (Cliente: {client_name}).",
+            employee["client_id"],
+            employee_id,
+            send_email=False  # L'admin vedrà la notifica in dashboard
         )
     
     return {"success": True, "document_id": doc_id}

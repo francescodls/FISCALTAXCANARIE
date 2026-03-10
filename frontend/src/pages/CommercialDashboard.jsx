@@ -75,12 +75,15 @@ const CommercialDashboard = () => {
   const [tipoClienteFilter, setTipoClienteFilter] = useState("all"); // Filtro per tipo cliente
   const [clientLists, setClientLists] = useState([]); // Liste/Categorie clienti
   const [showGlobalUpload, setShowGlobalUpload] = useState(false); // Dialog caricamento globale
+  const [employeeNotifications, setEmployeeNotifications] = useState([]); // Notifiche dipendenti
+  const [employeeNotifCount, setEmployeeNotifCount] = useState(0); // Conteggio notifiche non lette
 
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     fetchData();
     fetchClientLists();
+    fetchEmployeeNotifications();
   }, []);
 
   const fetchClientLists = async () => {
@@ -89,6 +92,38 @@ const CommercialDashboard = () => {
       setClientLists(response.data);
     } catch (error) {
       console.error("Errore nel caricamento categorie:", error);
+    }
+  };
+
+  const fetchEmployeeNotifications = async () => {
+    try {
+      const [countRes, notifsRes] = await Promise.all([
+        axios.get(`${API}/employee-notifications/count`, { headers }),
+        axios.get(`${API}/employee-notifications?unread_only=false`, { headers })
+      ]);
+      setEmployeeNotifCount(countRes.data.unread_count);
+      setEmployeeNotifications(notifsRes.data);
+    } catch (error) {
+      console.error("Errore nel caricamento notifiche dipendenti:", error);
+    }
+  };
+
+  const markEmployeeNotificationRead = async (notificationId) => {
+    try {
+      await axios.put(`${API}/employee-notifications/${notificationId}/read`, {}, { headers });
+      fetchEmployeeNotifications();
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento della notifica");
+    }
+  };
+
+  const markAllEmployeeNotificationsRead = async () => {
+    try {
+      await axios.put(`${API}/employee-notifications/read-all`, {}, { headers });
+      fetchEmployeeNotifications();
+      toast.success("Tutte le notifiche segnate come lette");
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento delle notifiche");
     }
   };
 
@@ -483,11 +518,16 @@ const CommercialDashboard = () => {
             </TabsTrigger>
             <TabsTrigger 
               value="employees" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4 relative"
               data-testid="tab-employees"
             >
               <Users className="h-4 w-4 mr-2" />
               {t("employees.title")}
+              {employeeNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                  {employeeNotifCount > 9 ? '9+' : employeeNotifCount}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger 
               value="activity" 
@@ -1103,7 +1143,94 @@ const CommercialDashboard = () => {
           </TabsContent>
 
           {/* Employees Tab */}
-          <TabsContent value="employees">
+          <TabsContent value="employees" className="space-y-6">
+            {/* Notifiche Dipendenti */}
+            {employeeNotifications.length > 0 && (
+              <Card className={`border ${employeeNotifCount > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="font-heading text-lg flex items-center gap-2">
+                      {employeeNotifCount > 0 && (
+                        <span className="relative flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </span>
+                      )}
+                      Notifiche Dipendenti
+                      {employeeNotifCount > 0 && (
+                        <Badge className="bg-red-500 text-white ml-2">{employeeNotifCount} non lette</Badge>
+                      )}
+                    </CardTitle>
+                    {employeeNotifCount > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={markAllEmployeeNotificationsRead}
+                        className="border-red-200 text-red-600 hover:bg-red-100"
+                      >
+                        Segna tutte come lette
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {employeeNotifications.slice(0, 10).map((notif) => (
+                      <div 
+                        key={notif.id}
+                        className={`p-3 rounded-lg border transition-colors ${
+                          notif.is_read 
+                            ? 'bg-white border-slate-100' 
+                            : 'bg-amber-50 border-amber-200'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {!notif.is_read && (
+                                <span className="h-2 w-2 bg-red-500 rounded-full flex-shrink-0"></span>
+                              )}
+                              <p className={`font-medium ${notif.is_read ? 'text-slate-700' : 'text-slate-900'}`}>
+                                {notif.title}
+                              </p>
+                              <Badge variant="outline" className="text-xs">
+                                {notif.notification_type === 'hire_request' ? 'Assunzione' : 
+                                 notif.notification_type === 'termination_request' ? 'Licenziamento' : 
+                                 notif.notification_type === 'document_upload' ? 'Documento' :
+                                 notif.notification_type === 'consulente_document_upload' ? 'Doc. Consulente' :
+                                 notif.notification_type}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-slate-600">{notif.message}</p>
+                            <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+                              {notif.client_name && (
+                                <span>Cliente: {notif.client_name}</span>
+                              )}
+                              {notif.employee_name && (
+                                <span>Dipendente: {notif.employee_name}</span>
+                              )}
+                              <span>{new Date(notif.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                          </div>
+                          {!notif.is_read && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => markEmployeeNotificationRead(notif.id)}
+                              className="text-slate-500 hover:text-slate-700"
+                            >
+                              Segna letta
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Gestione Dipendenti */}
             <EmployeeManagementAdmin token={token} userRole="commercialista" />
           </TabsContent>
         </Tabs>

@@ -8,6 +8,43 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 23 (10 Marzo 2026) - COMPLETATA ✅
+
+**Sistema Notifiche Dipendenti con Badge Rosso**
+
+1. **Badge Notifica nella Dashboard Admin:**
+   - Badge rosso con numero animato (pulse) sul tab "Dipendenti"
+   - Mostra conteggio notifiche non lette (es. "5", "9+")
+   - Visibile dalla dashboard principale
+
+2. **Pannello Notifiche nella Sezione Dipendenti:**
+   - Card notifiche in evidenza (sfondo rosso se ci sono non lette)
+   - Indicatore animato "pallino rosso" prima del titolo
+   - Badge tipo notifica: "Assunzione", "Licenziamento", "Documento", "Doc. Consulente"
+   - Dettagli: cliente, dipendente, data
+   - Pulsante "Segna letta" per ogni notifica
+   - Pulsante "Segna tutte come lette" per azione bulk
+
+3. **Tipi di Notifica:**
+   - `hire_request`: Cliente richiede assunzione dipendente
+   - `termination_request`: Cliente richiede licenziamento
+   - `document_upload`: Cliente carica documento dipendente
+   - `consulente_document_upload`: Consulente carica documento dipendente
+
+4. **Notifiche al Consulente del Lavoro (già implementate):**
+   - Email automatica per richieste assunzione/licenziamento
+   - Notifica in-app nel pannello del consulente
+
+Backend API:
+- `GET /api/employee-notifications`: Lista notifiche
+- `GET /api/employee-notifications/count`: Conteggio non lette
+- `PUT /api/employee-notifications/{id}/read`: Segna letta
+- `PUT /api/employee-notifications/read-all`: Segna tutte lette
+
+File modificati:
+- `/app/backend/server.py`: Nuovi endpoint notifiche
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Badge + pannello notifiche
+
 ### Fase 22 (10 Marzo 2026) - COMPLETATA ✅
 
 **Rename Sezione Dipendenti + Migrazione Storage B2**
