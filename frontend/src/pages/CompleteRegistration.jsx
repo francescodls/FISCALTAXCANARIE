@@ -78,10 +78,11 @@ const CompleteRegistration = () => {
       const errorDetail = err.response?.data?.detail || "Errore durante la registrazione";
       
       // Messaggi più chiari per errori comuni
-      if (errorDetail.includes("non valido") || errorDetail.includes("scaduto")) {
-        setError("Il link di invito non è valido o è scaduto. Possibili cause:\n• Il link è stato copiato in modo incompleto\n• L'invito è scaduto (valido per 7 giorni)\n• Hai già completato la registrazione\n\nRichiedi un nuovo invito al tuo commercialista.");
-      } else if (errorDetail.includes("già completata")) {
-        setError("Hai già completato la registrazione! Puoi accedere dalla pagina di login.");
+      if (errorDetail.includes("già utilizzato") || errorDetail.includes("già completata") || errorDetail.includes("Login")) {
+        setError("Hai già completato la registrazione con questo link!\n\nPuoi accedere direttamente dalla pagina di Login.");
+        setSuccess(false);
+      } else if (errorDetail.includes("non valido") || errorDetail.includes("scaduto")) {
+        setError("Il link di invito non è valido o è scaduto. Possibili cause:\n• Il link è stato copiato in modo incompleto\n• L'invito è scaduto (valido per 7 giorni)\n\nRichiedi un nuovo invito al tuo commercialista.");
       } else {
         setError(errorDetail);
       }

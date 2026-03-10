@@ -2179,10 +2179,20 @@ async def complete_registration(data: CompleteRegistration):
     user = await db.users.find_one({"invitation_token": data.token}, {"_id": 0})
     
     if not user:
-        raise HTTPException(status_code=400, detail="Token non valido o scaduto")
+        # Verifica se esiste un utente con questo token che ha già completato la registrazione
+        # (il token potrebbe essere stato usato)
+        existing_by_token_null = await db.users.find_one({
+            "invitation_token": None, 
+            "stato": "attivo"
+        }, {"_id": 0})
+        
+        raise HTTPException(
+            status_code=400, 
+            detail="Token non valido o già utilizzato. Se hai già completato la registrazione, usa il Login."
+        )
     
     if user.get("stato") != "pending":
-        raise HTTPException(status_code=400, detail="Registrazione già completata")
+        raise HTTPException(status_code=400, detail="Registrazione già completata. Usa il Login per accedere.")
     
     # Verifica che il token non sia scaduto (7 giorni)
     invitation_sent = user.get("invitation_sent_at")
