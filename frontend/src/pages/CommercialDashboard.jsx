@@ -1201,39 +1201,28 @@ const PendingDocCard = ({ doc, clients, onVerify, verifying }) => {
 // Componente per caricamento globale documenti
 const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadMode, setUploadMode] = useState("all"); // all, category, selected
-  const [selectedClients, setSelectedClients] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [documentTitle, setDocumentTitle] = useState("");
-  const [documentCategory, setDocumentCategory] = useState("fiscale");
+  const [selectedClient, setSelectedClient] = useState(""); // Cliente singolo opzionale
   const [uploading, setUploading] = useState(false);
   const [notifyClients, setNotifyClients] = useState(true);
 
   const headers = { Authorization: `Bearer ${token}` };
+
+  const activeClients = clients.filter(c => c.status === "active");
 
   const handleUpload = async () => {
     if (!selectedFile) {
       toast.error("Seleziona un file da caricare");
       return;
     }
-    if (!documentTitle) {
-      toast.error("Inserisci un titolo per il documento");
-      return;
-    }
 
-    let targetClients = [];
-    
-    if (uploadMode === "all") {
-      targetClients = clients.filter(c => c.status === "active").map(c => c.id);
-    } else if (uploadMode === "category" && selectedCategory) {
-      const category = clientLists.find(l => l.id === selectedCategory);
-      targetClients = category?.clients || [];
-    } else if (uploadMode === "selected") {
-      targetClients = selectedClients;
-    }
+    // Se è selezionato un cliente specifico, carica solo a lui
+    // Altrimenti carica a tutti i clienti attivi
+    const targetClients = selectedClient 
+      ? [selectedClient] 
+      : activeClients.map(c => c.id);
 
     if (targetClients.length === 0) {
-      toast.error("Nessun cliente selezionato");
+      toast.error("Nessun cliente disponibile");
       return;
     }
 
@@ -1245,8 +1234,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
       try {
         const formData = new FormData();
         formData.append("file", selectedFile);
-        formData.append("title", documentTitle);
-        formData.append("category", documentCategory);
+        formData.append("auto_classify", "true"); // L'AI classificherà automaticamente
         formData.append("notify_client", notifyClients);
 
         await axios.post(`${API}/clients/${clientId}/documents`, formData, {
@@ -1262,9 +1250,12 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
     setUploading(false);
     
     if (errorCount === 0) {
-      toast.success(`Documento caricato con successo a ${successCount} clienti`);
+      const clientText = selectedClient 
+        ? "al cliente selezionato" 
+        : `a ${successCount} clienti`;
+      toast.success(`Documento caricato con successo ${clientText}`);
       setSelectedFile(null);
-      setDocumentTitle("");
+      setSelectedClient("");
       if (onClose) onClose();
     } else {
       toast.warning(`Caricato a ${successCount} clienti, ${errorCount} errori`);
@@ -1274,220 +1265,130 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-500">
-        Carica un documento a più clienti contemporaneamente
+        Carica un documento. L'intelligenza artificiale lo rinominerà e classificherà automaticamente.
       </p>
       
-      {/* Selezione modalità */}
-      <div className="space-y-3">
-        <Label className="text-slate-700 font-medium">Destinatari</Label>
-        <div className="grid grid-cols-3 gap-3">
-          <Card 
-            className={`p-4 cursor-pointer transition-all ${uploadMode === "all" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
-            onClick={() => setUploadMode("all")}
-          >
-            <div className="flex items-center gap-2">
-              <Users className={`h-5 w-5 ${uploadMode === "all" ? "text-teal-600" : "text-slate-400"}`} />
-              <span className={`font-medium ${uploadMode === "all" ? "text-teal-700" : "text-slate-600"}`}>
-                Tutti i Clienti
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-                {clients.filter(c => c.status === "active").length} clienti attivi
-              </p>
-            </Card>
-            <Card 
-              className={`p-4 cursor-pointer transition-all ${uploadMode === "category" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
-              onClick={() => setUploadMode("category")}
-            >
-              <div className="flex items-center gap-2">
-                <FileText className={`h-5 w-5 ${uploadMode === "category" ? "text-teal-600" : "text-slate-400"}`} />
-                <span className={`font-medium ${uploadMode === "category" ? "text-teal-700" : "text-slate-600"}`}>
-                  Per Categoria
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {clientLists.length} categorie disponibili
-              </p>
-            </Card>
-            <Card 
-              className={`p-4 cursor-pointer transition-all ${uploadMode === "selected" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
-              onClick={() => setUploadMode("selected")}
-            >
-              <div className="flex items-center gap-2">
-                <Check className={`h-5 w-5 ${uploadMode === "selected" ? "text-teal-600" : "text-slate-400"}`} />
-                <span className={`font-medium ${uploadMode === "selected" ? "text-teal-700" : "text-slate-600"}`}>
-                  Selezione Manuale
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Scegli singoli clienti
-              </p>
-            </Card>
-          </div>
-        </div>
+      {/* Selezione cliente opzionale */}
+      <div className="space-y-2">
+        <Label className="text-slate-700 font-medium">Destinatario (opzionale)</Label>
+        <Select value={selectedClient} onValueChange={setSelectedClient}>
+          <SelectTrigger className="border-slate-200">
+            <SelectValue placeholder="Tutti i clienti attivi" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Tutti i clienti attivi ({activeClients.length})</SelectItem>
+            {activeClients.map(client => (
+              <SelectItem key={client.id} value={client.id}>
+                {client.full_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-slate-500">
+          {selectedClient 
+            ? "Il documento verrà caricato solo al cliente selezionato" 
+            : `Il documento verrà caricato a tutti i ${activeClients.length} clienti attivi`}
+        </p>
+      </div>
 
-        {/* Selezione categoria */}
-        {uploadMode === "category" && (
-          <div className="space-y-2">
-            <Label>Seleziona Categoria</Label>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="border-slate-200">
-                <SelectValue placeholder="Scegli una categoria..." />
-              </SelectTrigger>
-              <SelectContent>
-                {clientLists.map(list => (
-                  <SelectItem key={list.id} value={list.id}>
-                    {list.name} ({list.clients?.length || 0} clienti)
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Selezione clienti manuale */}
-        {uploadMode === "selected" && (
-          <div className="space-y-2">
-            <Label>Seleziona Clienti</Label>
-            <ScrollArea className="h-48 border border-slate-200 rounded-lg p-2">
-              {clients.filter(c => c.status === "active").map(client => (
-                <div 
-                  key={client.id}
-                  className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
-                  onClick={() => {
-                    if (selectedClients.includes(client.id)) {
-                      setSelectedClients(selectedClients.filter(id => id !== client.id));
-                    } else {
-                      setSelectedClients([...selectedClients, client.id]);
-                    }
-                  }}
-                >
-                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedClients.includes(client.id) ? "bg-teal-500 border-teal-500" : "border-slate-300"}`}>
-                    {selectedClients.includes(client.id) && <Check className="h-3 w-3 text-white" />}
-                  </div>
-                  <span className="text-sm">{client.full_name}</span>
-                  <span className="text-xs text-slate-400">{client.email}</span>
-                </div>
-              ))}
-            </ScrollArea>
-            <p className="text-xs text-slate-500">{selectedClients.length} clienti selezionati</p>
-          </div>
-        )}
-
-        {/* Info documento */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Titolo Documento *</Label>
-            <Input
-              value={documentTitle}
-              onChange={(e) => setDocumentTitle(e.target.value)}
-              placeholder="Es: Modello F24 Febbraio 2024"
-              className="border-slate-200"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Categoria</Label>
-            <Select value={documentCategory} onValueChange={setDocumentCategory}>
-              <SelectTrigger className="border-slate-200">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fiscale">Fiscale</SelectItem>
-                <SelectItem value="contabile">Contabile</SelectItem>
-                <SelectItem value="legale">Legale</SelectItem>
-                <SelectItem value="comunicazione">Comunicazione</SelectItem>
-                <SelectItem value="buste_paga">Buste Paga</SelectItem>
-                <SelectItem value="altro">Altro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Upload file con drag & drop */}
-        <div className="space-y-2">
-          <Label>File da caricare *</Label>
-          <div 
-            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-              selectedFile ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-400'
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              e.currentTarget.classList.add('border-teal-500', 'bg-teal-50');
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!selectedFile) {
-                e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
-              }
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
+      {/* Upload file con drag & drop */}
+      <div className="space-y-2">
+        <Label>File da caricare *</Label>
+        <div 
+          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+            selectedFile ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-400'
+          }`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.add('border-teal-500', 'bg-teal-50');
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!selectedFile) {
               e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
-              const files = e.dataTransfer.files;
-              if (files && files.length > 0) {
-                setSelectedFile(files[0]);
-              }
-            }}
-          >
-            <input
-              type="file"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              className="hidden"
-              id="global-upload-input"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-            />
-            <label htmlFor="global-upload-input" className="cursor-pointer block">
-              <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-              {selectedFile ? (
-                <div>
-                  <p className="text-sm font-medium text-teal-600">{selectedFile.name}</p>
-                  <p className="text-xs text-slate-500 mt-1">Clicca per cambiare file</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="text-sm text-slate-600 font-medium">Trascina qui il file</p>
-                  <p className="text-xs text-slate-400 mt-1">oppure clicca per selezionare</p>
-                </div>
-              )}
-            </label>
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
+            const files = e.dataTransfer.files;
+            if (files && files.length > 0) {
+              setSelectedFile(files[0]);
+            }
+          }}
+        >
+          <input
+            type="file"
+            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            className="hidden"
+            id="global-upload-input"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+          />
+          <label htmlFor="global-upload-input" className="cursor-pointer block">
+            <Upload className="h-10 w-10 text-slate-400 mx-auto mb-3" />
+            {selectedFile ? (
+              <div>
+                <p className="text-sm font-medium text-teal-600">{selectedFile.name}</p>
+                <p className="text-xs text-slate-500 mt-1">Clicca per cambiare file</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-slate-600 font-medium">Trascina qui il file</p>
+                <p className="text-xs text-slate-400 mt-1">oppure clicca per selezionare</p>
+              </div>
+            )}
+          </label>
+        </div>
+      </div>
+
+      {/* Info AI */}
+      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <div className="flex items-start gap-2">
+          <Sparkles className="h-5 w-5 text-blue-500 mt-0.5" />
+          <div>
+            <p className="text-sm text-blue-800 font-medium">Classificazione Intelligente</p>
+            <p className="text-xs text-blue-700 mt-1">
+              L'AI analizzerà il documento e lo classificherà automaticamente nella categoria corretta
+            </p>
           </div>
         </div>
+      </div>
 
-        {/* Opzione notifica */}
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="notify-clients"
-            checked={notifyClients}
-            onChange={(e) => setNotifyClients(e.target.checked)}
-            className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
-          />
-          <Label htmlFor="notify-clients" className="text-sm cursor-pointer">
-            Notifica i clienti via email del nuovo documento
-          </Label>
-        </div>
+      {/* Opzione notifica */}
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="notify-clients"
+          checked={notifyClients}
+          onChange={(e) => setNotifyClients(e.target.checked)}
+          className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
+        />
+        <Label htmlFor="notify-clients" className="text-sm cursor-pointer">
+          Notifica {selectedClient ? "il cliente" : "i clienti"} via email del nuovo documento
+        </Label>
+      </div>
 
-        {/* Pulsante upload */}
-        <Button
-          onClick={handleUpload}
-          disabled={uploading || !selectedFile || !documentTitle}
-          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold h-12"
-        >
-          {uploading ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-              Caricamento in corso...
-            </>
-          ) : (
-            <>
-              <Upload className="h-4 w-4 mr-2" />
-              Carica Documento
-            </>
-          )}
-        </Button>
+      {/* Pulsante upload */}
+      <Button
+        onClick={handleUpload}
+        disabled={uploading || !selectedFile}
+        className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold h-12"
+      >
+        {uploading ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+            Caricamento in corso...
+          </>
+        ) : (
+          <>
+            <Upload className="h-4 w-4 mr-2" />
+            Carica Documento
+          </>
+        )}
+      </Button>
       </div>
   );
 };
