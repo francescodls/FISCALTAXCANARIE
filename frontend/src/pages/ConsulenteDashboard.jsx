@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+import LanguageSelector from "@/components/LanguageSelector";
 
 const ConsulenteDashboard = () => {
   const navigate = useNavigate();
@@ -167,6 +168,7 @@ const ConsulenteDashboard = () => {
               <span className="font-medium">{user?.full_name}</span>
               <Badge className="bg-indigo-500 text-white ml-2">Consulente</Badge>
             </div>
+            <LanguageSelector variant="flags-only" />
             <Button 
               variant="outline" 
               onClick={handleLogout}

@@ -15,6 +15,7 @@ import {
   MapPin,
   BookOpen
 } from "lucide-react";
+import LanguageSelector from "@/components/LanguageSelector";
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -73,6 +74,7 @@ const LandingPage = () => {
             <span className="font-heading font-bold text-xl text-slate-900">Fiscal Tax Canarie</span>
           </div>
           <div className="flex items-center gap-4">
+            <LanguageSelector variant="flags-only" />
             <Button 
               variant="ghost" 
               onClick={() => navigate("/login")}

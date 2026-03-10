@@ -2230,8 +2230,8 @@ async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_
     }
     await db.invitations.insert_one(invite_doc)
     
-    # Genera link di invito
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://tribute-models-docs.preview.emergentagent.com')
+    # Genera link di invito - usa dominio produzione
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')
     invitation_link = f"{frontend_url}/complete-registration?token={invitation_token}"
     
     # Invia email di invito
@@ -2385,8 +2385,8 @@ async def resend_invitation(invite_id: str, user: dict = Depends(require_commerc
         }}
     )
     
-    # Genera link e invia email
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://tribute-models-docs.preview.emergentagent.com')
+    # Genera link e invia email - usa dominio produzione
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')
     invitation_link = f"{frontend_url}/complete-registration?token={new_token}"
     
     try:

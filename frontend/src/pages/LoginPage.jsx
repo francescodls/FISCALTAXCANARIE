@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import LanguageSelector from "@/components/LanguageSelector";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -32,13 +33,14 @@ const LoginPage = () => {
     <div className="min-h-screen bg-stone-50 flex flex-col">
       {/* Header */}
       <header className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 w-fit">
             <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg font-heading">FT</span>
             </div>
             <span className="font-heading font-bold text-xl text-slate-900">Fiscal Tax Canarie</span>
           </Link>
+          <LanguageSelector variant="flags-only" />
         </div>
       </header>
 

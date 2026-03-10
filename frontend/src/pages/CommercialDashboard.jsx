@@ -44,6 +44,7 @@ import { it } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import ConsulentiManagement from "@/components/ConsulentiManagement";
+import LanguageSelector from "@/components/LanguageSelector";
 
 const CommercialDashboard = () => {
   const navigate = useNavigate();
@@ -312,6 +313,7 @@ const CommercialDashboard = () => {
               <span className="font-medium">{user?.full_name}</span>
               <Badge className="bg-teal-500 text-white ml-2">Commercialista</Badge>
             </div>
+            <LanguageSelector variant="flags-only" />
             <Button 
               variant="outline" 
               onClick={handleLogout}

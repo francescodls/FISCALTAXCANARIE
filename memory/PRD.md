@@ -8,6 +8,24 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 12 (10 Marzo 2026) - COMPLETATA ✅
+
+**Miglioramenti UI e Multilingua**
+
+1. **Link Invito Aggiornato**
+   - I link di invito ora puntano a `https://app.fiscaltaxcanarie.com/complete-registration?token=...`
+   - Variabile `FRONTEND_URL` configurabile in `.env`
+
+2. **Badge Emergent Rimosso**
+   - Rimosso il badge "Made with Emergent" da `index.html`
+
+3. **Sistema Multilingua (Infrastruttura)**
+   - Creato file traduzioni: `/app/frontend/src/i18n/translations.js` (IT, EN, ES)
+   - Creato `LanguageContext` per gestione lingua globale
+   - Creato `LanguageSelector` con bandierine (🇮🇹 🇬🇧 🇪🇸)
+   - Lingua salvata in localStorage (persistente)
+   - Bandierine aggiunte in: LandingPage, LoginPage, CommercialDashboard, ClientDashboard, ConsulenteDashboard
+
 ### Fase 11 (10 Marzo 2026) - COMPLETATA ✅
 
 **5 Nuove Funzionalità Richieste**
@@ -228,9 +246,10 @@ Response:
 - **consulente_lavoro**: Dashboard limitata, solo clienti assegnati, solo buste paga
 
 ## Next Tasks
-1. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
-2. **P2**: Refactoring `server.py` (~3100 righe) in moduli separati (`routers/auth.py`, `routers/clients.py`, etc.)
-3. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
+1. **P1**: Completare traduzione testi UI usando `t()` function (IT/EN/ES)
+2. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
+3. **P2**: Refactoring `server.py` (~3100 righe) in moduli separati
+4. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
 4. **P2**: Versioning documenti con storico modifiche
 5. **P3**: Report esportabili (PDF/Excel)
 

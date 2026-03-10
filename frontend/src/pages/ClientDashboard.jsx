@@ -32,6 +32,7 @@ import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Edit, Save } from "lucide-react";
+import LanguageSelector from "@/components/LanguageSelector";
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
@@ -202,6 +203,7 @@ const ClientDashboard = () => {
               <User className="h-5 w-5" />
               <span className="font-medium">{user?.full_name}</span>
             </div>
+            <LanguageSelector variant="flags-only" />
             <Button 
               variant="outline" 
               onClick={handleLogout}
