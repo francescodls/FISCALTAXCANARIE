@@ -12,6 +12,7 @@ import RegisterPage from "@/pages/RegisterPage";
 import CompleteRegistration from "@/pages/CompleteRegistration";
 import ClientDashboard from "@/pages/ClientDashboard";
 import CommercialDashboard from "@/pages/CommercialDashboard";
+import ConsulenteDashboard from "@/pages/ConsulenteDashboard";
 import ClientDetail from "@/pages/ClientDetail";
 import ClientLists from "@/pages/ClientLists";
 import ModelsManagement from "@/pages/ModelsManagement";
@@ -131,7 +132,14 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   }
 
   if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to={user?.role === "commercialista" ? "/admin" : "/dashboard"} replace />;
+    // Redirect based on role
+    if (user?.role === "commercialista") {
+      return <Navigate to="/admin" replace />;
+    } else if (user?.role === "consulente_lavoro") {
+      return <Navigate to="/consulente" replace />;
+    } else {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return children;
@@ -150,7 +158,14 @@ const PublicRoute = ({ children }) => {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={user?.role === "commercialista" ? "/admin" : "/dashboard"} replace />;
+    // Redirect based on role
+    if (user?.role === "commercialista") {
+      return <Navigate to="/admin" replace />;
+    } else if (user?.role === "consulente_lavoro") {
+      return <Navigate to="/consulente" replace />;
+    } else {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return children;
@@ -214,6 +229,11 @@ function AppRoutes() {
       <Route path="/admin/backup" element={
         <ProtectedRoute requiredRole="commercialista">
           <BackupPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/consulente" element={
+        <ProtectedRoute requiredRole="consulente_lavoro">
+          <ConsulenteDashboard />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -83,6 +83,9 @@ LISTA CLIENTI DISPONIBILI:
 Rispondi SOLO con un JSON valido (senza markdown, senza ```json) con questa struttura:
 {{
     "tipo_documento": "string - tipo documento (fattura, dichiarazione, contratto, busta_paga, modello_fiscale, comunicazione, altro)",
+    "is_busta_paga": "boolean - true se il documento è una busta paga/cedolino/payslip/nómina, false altrimenti",
+    "mese_busta_paga": "string o null - se è una busta paga, indica il mese (Gennaio, Febbraio, etc.)",
+    "anno_busta_paga": "integer o null - se è una busta paga, indica l'anno (es: 2025)",
     "modello_tributario": "string o null - se è un modello fiscale, indica quale (es: Modelo-303, Modelo-111, IGIC, etc.)",
     "descrizione": "string - breve descrizione del documento (max 100 caratteri)",
     "descrizione_estesa": "string - spiegazione più dettagliata per il cliente (max 200 caratteri)",

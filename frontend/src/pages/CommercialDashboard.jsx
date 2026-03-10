@@ -36,12 +36,14 @@ import {
   Mail,
   Send,
   RefreshCw,
-  HardDrive
+  HardDrive,
+  Briefcase
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import ConsulentiManagement from "@/components/ConsulentiManagement";
 
 const CommercialDashboard = () => {
   const navigate = useNavigate();
@@ -60,10 +62,11 @@ const CommercialDashboard = () => {
   
   // Invite client state
   const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ email: "", full_name: "" });
+  const [inviteForm, setInviteForm] = useState({ email: "", full_name: "", tipo_cliente: "autonomo" });
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteResult, setInviteResult] = useState(null); // Per mostrare il link dopo l'invio
   const [pendingInvitations, setPendingInvitations] = useState([]); // Inviti pendenti
+  const [tipoClienteFilter, setTipoClienteFilter] = useState("all"); // Filtro per tipo cliente
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -93,11 +96,17 @@ const CommercialDashboard = () => {
     }
   };
 
-  const filteredClients = clients.filter(client =>
-    client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (client.codice_fiscale && client.codice_fiscale.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredClients = clients.filter(client => {
+    // Filtro per ricerca testuale
+    const matchesSearch = client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.codice_fiscale && client.codice_fiscale.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Filtro per tipo cliente
+    const matchesTipo = tipoClienteFilter === "all" || client.tipo_cliente === tipoClienteFilter;
+    
+    return matchesSearch && matchesTipo;
+  });
 
   const handleLogout = () => {
     logout();
@@ -116,6 +125,19 @@ const CommercialDashboard = () => {
         return <Badge className="bg-purple-50 text-purple-700 border border-purple-100">In attesa</Badge>;
       default:
         return <Badge className="bg-slate-100 text-slate-600 border border-slate-200">{stato}</Badge>;
+    }
+  };
+
+  const getTipoClienteBadge = (tipo) => {
+    switch (tipo) {
+      case "autonomo":
+        return <Badge className="bg-blue-50 text-blue-700 border border-blue-100">Autonomo</Badge>;
+      case "societa":
+        return <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100">Società</Badge>;
+      case "privato":
+        return <Badge className="bg-slate-50 text-slate-700 border border-slate-100">Privato</Badge>;
+      default:
+        return <Badge className="bg-slate-100 text-slate-600 border border-slate-200">{tipo || "N/D"}</Badge>;
     }
   };
 
@@ -139,7 +161,7 @@ const CommercialDashboard = () => {
         link: response.data.invitation_link
       });
       
-      setInviteForm({ email: "", full_name: "" });
+      setInviteForm({ email: "", full_name: "", tipo_cliente: "autonomo" });
       fetchData(); // Ricarica la lista clienti
     } catch (error) {
       toast.error(error.response?.data?.detail || "Errore nell'invio dell'invito");
@@ -412,6 +434,14 @@ const CommercialDashboard = () => {
               Statistiche
             </TabsTrigger>
             <TabsTrigger 
+              value="consulenti" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-consulenti"
+            >
+              <Briefcase className="h-4 w-4 mr-2" />
+              Consulenti
+            </TabsTrigger>
+            <TabsTrigger 
               value="activity" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-activity"
@@ -437,6 +467,17 @@ const CommercialDashboard = () => {
                       data-testid="search-clients-input"
                     />
                   </div>
+                  <Select value={tipoClienteFilter} onValueChange={setTipoClienteFilter}>
+                    <SelectTrigger className="w-40 border-slate-200" data-testid="filter-tipo-cliente">
+                      <SelectValue placeholder="Filtra tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tutti i tipi</SelectItem>
+                      <SelectItem value="autonomo">Autonomo</SelectItem>
+                      <SelectItem value="societa">Società</SelectItem>
+                      <SelectItem value="privato">Privato</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Dialog open={showInviteDialog} onOpenChange={(open) => {
                     if (open) {
                       setShowInviteDialog(true);
@@ -530,6 +571,22 @@ const CommercialDashboard = () => {
                               data-testid="invite-name-input"
                             />
                           </div>
+                          <div className="space-y-2">
+                            <Label>Tipo Cliente</Label>
+                            <Select
+                              value={inviteForm.tipo_cliente}
+                              onValueChange={(v) => setInviteForm({ ...inviteForm, tipo_cliente: v })}
+                            >
+                              <SelectTrigger className="border-slate-200" data-testid="invite-tipo-select">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="autonomo">Autonomo</SelectItem>
+                                <SelectItem value="societa">Società</SelectItem>
+                                <SelectItem value="privato">Privato</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                           <DialogFooter>
                             <Button type="button" variant="outline" onClick={closeInviteDialog}>
                               Annulla
@@ -622,6 +679,7 @@ const CommercialDashboard = () => {
                             <div className="flex items-center gap-2">
                               <p className="font-medium text-slate-900">{client.full_name || "In attesa di registrazione"}</p>
                               {getStatusBadge(client.stato)}
+                              {getTipoClienteBadge(client.tipo_cliente)}
                             </div>
                             <p className="text-sm text-slate-500">{client.email}</p>
                             {client.codice_fiscale && (
@@ -989,6 +1047,11 @@ const CommercialDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Consulenti Tab */}
+          <TabsContent value="consulenti">
+            <ConsulentiManagement token={token} />
           </TabsContent>
         </Tabs>
       </main>

@@ -39,7 +39,10 @@ import {
   Send,
   Euro,
   FileSignature,
-  Shield
+  Shield,
+  Key,
+  Building2,
+  X
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -136,6 +139,21 @@ const ClientDetail = () => {
   });
   const [signing, setSigning] = useState(false);
 
+  // Bank credentials state
+  const [bankCredentials, setBankCredentials] = useState([]);
+  const [bankEntities, setBankEntities] = useState([]);
+  const [showBankDialog, setShowBankDialog] = useState(false);
+  const [bankForm, setBankForm] = useState({ bank_entity_id: "", username: "", password: "" });
+  const [savingBank, setSavingBank] = useState(false);
+  const [showBankPassword, setShowBankPassword] = useState({});
+  const [newBankName, setNewBankName] = useState("");
+  const [creatingBank, setCreatingBank] = useState(false);
+
+  // Additional emails state
+  const [additionalEmails, setAdditionalEmails] = useState([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [addingEmail, setAddingEmail] = useState(false);
+
   const headers = { Authorization: `Bearer ${token}` };
 
   const months = [
@@ -153,6 +171,7 @@ const ClientDetail = () => {
   useEffect(() => {
     fetchData();
     fetchCertificates();
+    fetchBankData();
   }, [clientId]);
 
   const fetchData = async () => {
@@ -193,6 +212,8 @@ const ClientDetail = () => {
         tipo_cliente: clientRes.data.tipo_cliente || "autonomo",
         stato: clientRes.data.stato || "attivo"
       });
+      // Set additional emails
+      setAdditionalEmails(clientRes.data.additional_emails || []);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
       if (error.response?.status === 404) {
@@ -200,6 +221,102 @@ const ClientDetail = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch bank entities and credentials
+  const fetchBankData = async () => {
+    try {
+      const [entitiesRes, credentialsRes] = await Promise.all([
+        axios.get(`${API}/bank-entities`, { headers }),
+        axios.get(`${API}/clients/${clientId}/bank-credentials`, { headers })
+      ]);
+      setBankEntities(entitiesRes.data);
+      setBankCredentials(credentialsRes.data);
+    } catch (error) {
+      console.error("Errore nel caricamento dati bancari:", error);
+    }
+  };
+
+  // Bank credentials functions
+  const handleAddBankCredential = async (e) => {
+    e.preventDefault();
+    if (!bankForm.bank_entity_id || !bankForm.username || !bankForm.password) {
+      toast.error("Compila tutti i campi");
+      return;
+    }
+    setSavingBank(true);
+    try {
+      await axios.post(`${API}/clients/${clientId}/bank-credentials`, bankForm, { headers });
+      toast.success("Credenziale bancaria aggiunta");
+      setBankForm({ bank_entity_id: "", username: "", password: "" });
+      setShowBankDialog(false);
+      fetchBankData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'aggiunta della credenziale");
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
+  const handleDeleteBankCredential = async (credId) => {
+    if (!confirm("Sei sicuro di voler eliminare questa credenziale?")) return;
+    try {
+      await axios.delete(`${API}/clients/${clientId}/bank-credentials/${credId}`, { headers });
+      toast.success("Credenziale eliminata");
+      fetchBankData();
+    } catch (error) {
+      toast.error("Errore nell'eliminazione");
+    }
+  };
+
+  const handleCreateBankEntity = async () => {
+    if (!newBankName.trim()) {
+      toast.error("Inserisci il nome della banca");
+      return;
+    }
+    setCreatingBank(true);
+    try {
+      const res = await axios.post(`${API}/bank-entities`, { name: newBankName }, { headers });
+      toast.success(`Banca "${newBankName}" aggiunta`);
+      setNewBankName("");
+      setBankForm({ ...bankForm, bank_entity_id: res.data.id });
+      fetchBankData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nella creazione");
+    } finally {
+      setCreatingBank(false);
+    }
+  };
+
+  // Email functions
+  const handleAddEmail = async () => {
+    if (!newEmail || !newEmail.includes("@")) {
+      toast.error("Inserisci un'email valida");
+      return;
+    }
+    setAddingEmail(true);
+    try {
+      const formData = new FormData();
+      formData.append("email", newEmail);
+      await axios.post(`${API}/clients/${clientId}/emails`, formData, { headers });
+      toast.success("Email aggiunta");
+      setNewEmail("");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'aggiunta dell'email");
+    } finally {
+      setAddingEmail(false);
+    }
+  };
+
+  const handleDeleteEmail = async (email) => {
+    try {
+      await axios.delete(`${API}/clients/${clientId}/emails/${encodeURIComponent(email)}`, { headers });
+      toast.success("Email rimossa");
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nella rimozione dell'email");
     }
   };
 
@@ -1999,6 +2116,227 @@ const ClientDetail = () => {
                     </div>
                   )}
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* Email Aggiuntive Card */}
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-teal-500" />
+                  Email Aggiuntive
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Gestisci gli indirizzi email aggiuntivi associati a questo cliente.
+                </p>
+                
+                {/* Email principale */}
+                <div className="p-3 bg-teal-50 rounded-lg border border-teal-100">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-teal-600" />
+                    <span className="font-medium text-teal-800">{client?.email}</span>
+                    <Badge className="bg-teal-100 text-teal-700 text-xs">Principale</Badge>
+                  </div>
+                </div>
+
+                {/* Email aggiuntive */}
+                {additionalEmails.length > 0 && (
+                  <div className="space-y-2">
+                    {additionalEmails.map((email, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-slate-500" />
+                          <span className="text-slate-700">{email}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteEmail(email)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Aggiungi email */}
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="nuova@email.com"
+                    className="border-slate-200"
+                    data-testid="new-email-input"
+                  />
+                  <Button
+                    onClick={handleAddEmail}
+                    disabled={addingEmail}
+                    className="bg-teal-500 hover:bg-teal-600 text-white"
+                    data-testid="add-email-btn"
+                  >
+                    {addingEmail ? "..." : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chiavi Consultive Bancarie Card */}
+            <Card className="bg-white border border-slate-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Key className="h-5 w-5 text-amber-500" />
+                  Chiavi Consultive Bancarie
+                </CardTitle>
+                <Dialog open={showBankDialog} onOpenChange={setShowBankDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-amber-500 hover:bg-amber-600 text-white" data-testid="add-bank-btn">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Aggiungi
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-amber-500" />
+                        Aggiungi Credenziale Bancaria
+                      </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleAddBankCredential} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Banca *</Label>
+                        <Select
+                          value={bankForm.bank_entity_id}
+                          onValueChange={(v) => setBankForm({ ...bankForm, bank_entity_id: v })}
+                        >
+                          <SelectTrigger className="border-slate-200" data-testid="bank-select">
+                            <SelectValue placeholder="Seleziona banca" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bankEntities.map((bank) => (
+                              <SelectItem key={bank.id} value={bank.id}>{bank.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Aggiungi nuova banca */}
+                      <div className="border-t pt-3">
+                        <Label className="text-xs text-slate-500">Oppure crea una nuova banca:</Label>
+                        <div className="flex gap-2 mt-2">
+                          <Input
+                            value={newBankName}
+                            onChange={(e) => setNewBankName(e.target.value)}
+                            placeholder="Nome nuova banca"
+                            className="border-slate-200"
+                            data-testid="new-bank-name"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleCreateBankEntity}
+                            disabled={creatingBank}
+                            className="shrink-0"
+                          >
+                            {creatingBank ? "..." : "Crea"}
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Nome Utente *</Label>
+                        <Input
+                          value={bankForm.username}
+                          onChange={(e) => setBankForm({ ...bankForm, username: e.target.value })}
+                          placeholder="Username/Email accesso"
+                          className="border-slate-200"
+                          data-testid="bank-username"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Password *</Label>
+                        <Input
+                          type="password"
+                          value={bankForm.password}
+                          onChange={(e) => setBankForm({ ...bankForm, password: e.target.value })}
+                          placeholder="Password accesso"
+                          className="border-slate-200"
+                          data-testid="bank-password"
+                          required
+                        />
+                      </div>
+
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setShowBankDialog(false)}>
+                          Annulla
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={savingBank}
+                          className="bg-amber-500 hover:bg-amber-600 text-white"
+                        >
+                          {savingBank ? "Salvataggio..." : "Salva Credenziale"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {bankCredentials.length > 0 ? (
+                  <div className="space-y-3">
+                    {bankCredentials.map((cred) => (
+                      <div key={cred.id} className="p-4 bg-amber-50 rounded-lg border border-amber-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-5 w-5 text-amber-600" />
+                            <span className="font-semibold text-slate-900">{cred.bank_name}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteBankCredential(cred.id)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-slate-500">Username:</span>
+                            <span className="ml-2 font-medium text-slate-700">{cred.username}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500">Password:</span>
+                            <span className="font-medium text-slate-700">
+                              {showBankPassword[cred.id] ? cred.password : "••••••••"}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowBankPassword({...showBankPassword, [cred.id]: !showBankPassword[cred.id]})}
+                              className="p-1 h-auto"
+                            >
+                              {showBankPassword[cred.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <Key className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                    <p>Nessuna credenziale bancaria registrata</p>
+                    <p className="text-sm">Clicca "Aggiungi" per inserire le chiavi consultive</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 

@@ -115,6 +115,8 @@ class ClientUpdate(BaseModel):
     tipo_cliente: Optional[str] = None
     stato: Optional[str] = None
     note_interne: Optional[str] = None
+    additional_emails: Optional[List[str]] = None  # Email aggiuntive
+    bank_credentials: Optional[List[dict]] = None  # Credenziali bancarie
 
 class ClientListCreate(BaseModel):
     name: str
@@ -291,12 +293,38 @@ class FeeResponse(BaseModel):
 class ClientInvite(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
+    tipo_cliente: Optional[str] = "autonomo"  # autonomo, societa, privato
 
 class CompleteRegistration(BaseModel):
     token: str
     email: EmailStr  # Email scelta dal cliente per l'account
     password: str
     full_name: Optional[str] = None
+
+# ==================== BANK CREDENTIALS MODELS ====================
+
+class BankCredential(BaseModel):
+    bank_entity_id: str  # ID dell'entità bancaria
+    username: str
+    password: str
+
+class BankCredentialUpdate(BaseModel):
+    bank_entity_id: Optional[str] = None
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+class BankEntity(BaseModel):
+    name: str  # Nome banca (Revolut, Caixa, etc.)
+
+# ==================== CONSULENTE LAVORO MODELS ====================
+
+class ConsulenteCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
+class ClientAssignment(BaseModel):
+    client_ids: List[str]  # Lista di ID clienti da assegnare
 
 # ==================== AUTH HELPERS ====================
 
@@ -332,6 +360,29 @@ async def require_commercialista(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Accesso riservato ai commercialisti")
     return user
 
+async def require_commercialista_or_consulente(user: dict = Depends(get_current_user)):
+    """Permette accesso a commercialista o consulente del lavoro"""
+    if user["role"] not in ["commercialista", "consulente_lavoro"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    return user
+
+async def require_consulente_lavoro(user: dict = Depends(get_current_user)):
+    """Solo per consulenti del lavoro"""
+    if user["role"] != "consulente_lavoro":
+        raise HTTPException(status_code=403, detail="Accesso riservato ai consulenti del lavoro")
+    return user
+
+async def get_accessible_clients(user: dict) -> List[str]:
+    """Restituisce la lista di ID clienti accessibili per l'utente"""
+    if user["role"] == "commercialista":
+        # Commercialista vede tutti i clienti
+        clients = await db.users.find({"role": "cliente"}, {"id": 1, "_id": 0}).to_list(10000)
+        return [c["id"] for c in clients]
+    elif user["role"] == "consulente_lavoro":
+        # Consulente vede solo i clienti assegnati
+        return user.get("assigned_clients", [])
+    return []
+
 # ==================== INIT ADMIN ====================
 
 async def init_admin_user():
@@ -356,10 +407,25 @@ async def init_admin_user():
         await db.users.insert_one(admin_doc)
         logger.info(f"Account commercialista creato: {ADMIN_EMAIL}")
 
+async def init_default_bank_entities():
+    """Crea le entità bancarie predefinite se non esistono"""
+    default_banks = ["Revolut", "Caixa", "Santander", "BBVA", "Cajamar"]
+    for bank_name in default_banks:
+        existing = await db.bank_entities.find_one({"name": bank_name})
+        if not existing:
+            await db.bank_entities.insert_one({
+                "id": str(uuid.uuid4()),
+                "name": bank_name,
+                "is_default": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    logger.info("Entità bancarie predefinite inizializzate")
+
 @app.on_event("startup")
 async def startup_event():
     await init_admin_user()
     await init_default_modelli_tributari()
+    await init_default_bank_entities()
 
 # ==================== AUTH ROUTES ====================
 
@@ -935,6 +1001,50 @@ async def upload_document_with_ai(
     category = "altro"
     if ai_result.get("success") and ai_result.get("categoria_suggerita"):
         category = ai_result["categoria_suggerita"]
+    
+    # Verifica se è una busta paga - se sì, salvala nella collection payslips
+    is_payslip = ai_result.get("success") and ai_result.get("is_busta_paga", False)
+    
+    if is_payslip and final_client_id:
+        # Crea record busta paga invece di documento
+        payslip_id = str(uuid.uuid4())
+        
+        # Determina mese e anno dalla risposta AI
+        mese = ai_result.get("mese_busta_paga", "Non specificato")
+        anno = ai_result.get("anno_busta_paga", datetime.now().year)
+        
+        payslip = {
+            "id": payslip_id,
+            "title": ai_result.get("descrizione", file.filename),
+            "month": mese,
+            "year": anno,
+            "client_id": final_client_id,
+            "file_name": standardized_filename,
+            "file_name_original": file.filename,
+            "file_data": file_base64,
+            "file_type": file.content_type,
+            "uploaded_by": user["id"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "auto_classified": True,  # Indica che è stato classificato automaticamente dall'AI
+            "ai_analysis": ai_result
+        }
+        await db.payslips.insert_one(payslip)
+        
+        await log_activity(
+            "caricamento_busta_paga_ai", 
+            f"Busta paga {file.filename} riconosciuta e archiviata automaticamente. Mese: {mese} {anno}",
+            user["id"]
+        )
+        
+        return {
+            "id": payslip_id,
+            "message": "Busta paga riconosciuta e archiviata automaticamente nella sezione Buste Paga",
+            "document_type": "payslip",
+            "ai_analysis": ai_result,
+            "client_id": final_client_id,
+            "month": mese,
+            "year": anno
+        }
     
     # Crea documento con nome file rinominato
     doc_id = str(uuid.uuid4())
@@ -2111,6 +2221,7 @@ async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_
         "id": invite_id,
         "notification_email": invite_data.email,  # Email per inviare notifica
         "suggested_name": invite_data.full_name or "",  # Nome suggerito
+        "tipo_cliente": invite_data.tipo_cliente or "autonomo",  # Tipo cliente
         "invitation_token": invitation_token,
         "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
         "invited_by": user["id"],
@@ -2186,6 +2297,7 @@ async def complete_registration(data: CompleteRegistration):
         "id": user_id,
         "email": data.email,  # Email scelta dal cliente per l'account
         "email_notifica": invitation.get("notification_email"),  # Email originale per notifiche
+        "additional_emails": [],  # Email aggiuntive
         "password": hash_password(data.password),
         "full_name": data.full_name or invitation.get("suggested_name", ""),
         "phone": None,
@@ -2200,12 +2312,13 @@ async def complete_registration(data: CompleteRegistration):
         "iban": None,
         "regime_fiscale": None,
         "tipo_attivita": None,
-        "tipo_cliente": "autonomo",
+        "tipo_cliente": invitation.get("tipo_cliente", "autonomo"),  # Usa tipo dall'invito
         "role": "cliente",
         "stato": "attivo",
         "invited_by": invitation.get("invited_by"),
         "note_interne": "",
         "lists": [],
+        "bank_credentials": [],  # Credenziali bancarie
         "created_at": datetime.now(timezone.utc).isoformat(),
         "registration_completed_at": datetime.now(timezone.utc).isoformat()
     }
@@ -2804,6 +2917,283 @@ async def migrate_to_cloud(
             "payslips": payslips_to_migrate,
             "total": docs_to_migrate + payslips_to_migrate
         }
+    }
+
+# ==================== BANK ENTITIES ENDPOINTS ====================
+
+@api_router.get("/bank-entities")
+async def get_bank_entities(user: dict = Depends(require_commercialista)):
+    """Lista tutte le entità bancarie disponibili"""
+    entities = await db.bank_entities.find({}, {"_id": 0}).sort("name", 1).to_list(100)
+    return entities
+
+@api_router.post("/bank-entities")
+async def create_bank_entity(entity: BankEntity, user: dict = Depends(require_commercialista)):
+    """Crea una nuova entità bancaria personalizzata"""
+    # Verifica che non esista già
+    existing = await db.bank_entities.find_one({"name": {"$regex": f"^{entity.name}$", "$options": "i"}})
+    if existing:
+        raise HTTPException(status_code=400, detail="Entità bancaria già esistente")
+    
+    entity_id = str(uuid.uuid4())
+    entity_doc = {
+        "id": entity_id,
+        "name": entity.name,
+        "is_default": False,
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.bank_entities.insert_one(entity_doc)
+    
+    return {"success": True, "id": entity_id, "name": entity.name}
+
+@api_router.delete("/bank-entities/{entity_id}")
+async def delete_bank_entity(entity_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina un'entità bancaria (solo quelle non predefinite)"""
+    entity = await db.bank_entities.find_one({"id": entity_id}, {"_id": 0})
+    if not entity:
+        raise HTTPException(status_code=404, detail="Entità bancaria non trovata")
+    
+    if entity.get("is_default"):
+        raise HTTPException(status_code=400, detail="Non puoi eliminare un'entità bancaria predefinita")
+    
+    await db.bank_entities.delete_one({"id": entity_id})
+    return {"success": True, "message": "Entità bancaria eliminata"}
+
+# ==================== CLIENT BANK CREDENTIALS ENDPOINTS ====================
+
+@api_router.get("/clients/{client_id}/bank-credentials")
+async def get_client_bank_credentials(client_id: str, user: dict = Depends(require_commercialista)):
+    """Ottiene le credenziali bancarie di un cliente"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    credentials = client.get("bank_credentials", [])
+    
+    # Arricchisci con i nomi delle banche
+    enriched = []
+    for cred in credentials:
+        bank = await db.bank_entities.find_one({"id": cred.get("bank_entity_id")}, {"_id": 0, "name": 1})
+        enriched.append({
+            **cred,
+            "bank_name": bank["name"] if bank else "Sconosciuta"
+        })
+    
+    return enriched
+
+@api_router.post("/clients/{client_id}/bank-credentials")
+async def add_client_bank_credential(
+    client_id: str, 
+    credential: BankCredential, 
+    user: dict = Depends(require_commercialista)
+):
+    """Aggiunge una credenziale bancaria a un cliente"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    # Verifica che l'entità bancaria esista
+    bank = await db.bank_entities.find_one({"id": credential.bank_entity_id}, {"_id": 0})
+    if not bank:
+        raise HTTPException(status_code=400, detail="Entità bancaria non valida")
+    
+    cred_id = str(uuid.uuid4())
+    new_credential = {
+        "id": cred_id,
+        "bank_entity_id": credential.bank_entity_id,
+        "username": credential.username,
+        "password": credential.password,  # In produzione: cifrare!
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": client_id},
+        {"$push": {"bank_credentials": new_credential}}
+    )
+    
+    return {"success": True, "id": cred_id, "bank_name": bank["name"]}
+
+@api_router.put("/clients/{client_id}/bank-credentials/{cred_id}")
+async def update_client_bank_credential(
+    client_id: str,
+    cred_id: str,
+    credential: BankCredentialUpdate,
+    user: dict = Depends(require_commercialista)
+):
+    """Aggiorna una credenziale bancaria"""
+    update_fields = {k: v for k, v in credential.dict().items() if v is not None}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="Nessun campo da aggiornare")
+    
+    # Aggiorna la credenziale specifica nell'array
+    update_query = {f"bank_credentials.$.{k}": v for k, v in update_fields.items()}
+    
+    result = await db.users.update_one(
+        {"id": client_id, "bank_credentials.id": cred_id},
+        {"$set": update_query}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Credenziale non trovata")
+    
+    return {"success": True, "message": "Credenziale aggiornata"}
+
+@api_router.delete("/clients/{client_id}/bank-credentials/{cred_id}")
+async def delete_client_bank_credential(
+    client_id: str,
+    cred_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """Elimina una credenziale bancaria"""
+    result = await db.users.update_one(
+        {"id": client_id},
+        {"$pull": {"bank_credentials": {"id": cred_id}}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Credenziale non trovata")
+    
+    return {"success": True, "message": "Credenziale eliminata"}
+
+# ==================== CLIENT ADDITIONAL EMAILS ====================
+
+@api_router.post("/clients/{client_id}/emails")
+async def add_client_email(client_id: str, email: EmailStr = Form(...), user: dict = Depends(require_commercialista)):
+    """Aggiunge un'email aggiuntiva a un cliente"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    current_emails = client.get("additional_emails", [])
+    if email in current_emails or email == client.get("email"):
+        raise HTTPException(status_code=400, detail="Email già presente")
+    
+    await db.users.update_one(
+        {"id": client_id},
+        {"$push": {"additional_emails": email}}
+    )
+    
+    return {"success": True, "email": email}
+
+@api_router.delete("/clients/{client_id}/emails/{email}")
+async def delete_client_email(client_id: str, email: str, user: dict = Depends(require_commercialista)):
+    """Rimuove un'email aggiuntiva"""
+    result = await db.users.update_one(
+        {"id": client_id},
+        {"$pull": {"additional_emails": email}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Email non trovata")
+    
+    return {"success": True, "message": "Email rimossa"}
+
+# ==================== CONSULENTE LAVORO ENDPOINTS ====================
+
+@api_router.post("/consulenti")
+async def create_consulente(consulente: ConsulenteCreate, user: dict = Depends(require_commercialista)):
+    """Crea un nuovo consulente del lavoro (solo commercialista)"""
+    existing = await db.users.find_one({"email": consulente.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email già registrata")
+    
+    consulente_id = str(uuid.uuid4())
+    consulente_doc = {
+        "id": consulente_id,
+        "email": consulente.email,
+        "password": hash_password(consulente.password),
+        "full_name": consulente.full_name,
+        "role": "consulente_lavoro",
+        "stato": "attivo",
+        "assigned_clients": [],  # Clienti assegnati
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(consulente_doc)
+    
+    await log_activity(
+        "consulente_creato",
+        f"Creato consulente del lavoro: {consulente.full_name}",
+        user["id"]
+    )
+    
+    return {"success": True, "id": consulente_id, "email": consulente.email}
+
+@api_router.get("/consulenti")
+async def get_consulenti(user: dict = Depends(require_commercialista)):
+    """Lista tutti i consulenti del lavoro"""
+    consulenti = await db.users.find(
+        {"role": "consulente_lavoro"},
+        {"_id": 0, "password": 0}
+    ).to_list(100)
+    return consulenti
+
+@api_router.delete("/consulenti/{consulente_id}")
+async def delete_consulente(consulente_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina un consulente del lavoro"""
+    consulente = await db.users.find_one({"id": consulente_id, "role": "consulente_lavoro"}, {"_id": 0})
+    if not consulente:
+        raise HTTPException(status_code=404, detail="Consulente non trovato")
+    
+    await db.users.delete_one({"id": consulente_id})
+    
+    return {"success": True, "message": "Consulente eliminato"}
+
+@api_router.post("/consulenti/{consulente_id}/assign-clients")
+async def assign_clients_to_consulente(
+    consulente_id: str,
+    assignment: ClientAssignment,
+    user: dict = Depends(require_commercialista)
+):
+    """Assegna clienti a un consulente del lavoro"""
+    consulente = await db.users.find_one({"id": consulente_id, "role": "consulente_lavoro"}, {"_id": 0})
+    if not consulente:
+        raise HTTPException(status_code=404, detail="Consulente non trovato")
+    
+    # Verifica che tutti i client_ids esistano
+    for cid in assignment.client_ids:
+        client = await db.users.find_one({"id": cid, "role": "cliente"})
+        if not client:
+            raise HTTPException(status_code=400, detail=f"Cliente {cid} non trovato")
+    
+    await db.users.update_one(
+        {"id": consulente_id},
+        {"$set": {"assigned_clients": assignment.client_ids}}
+    )
+    
+    return {"success": True, "assigned_count": len(assignment.client_ids)}
+
+@api_router.get("/consulente/clients")
+async def get_consulente_clients(user: dict = Depends(require_consulente_lavoro)):
+    """Ottiene la lista dei clienti assegnati al consulente"""
+    assigned_ids = user.get("assigned_clients", [])
+    if not assigned_ids:
+        return []
+    
+    clients = await db.users.find(
+        {"id": {"$in": assigned_ids}, "role": "cliente"},
+        {"_id": 0, "password": 0}
+    ).to_list(1000)
+    
+    # Aggiungi conteggi
+    for client in clients:
+        client["payslips_count"] = await db.payslips.count_documents({"client_id": client["id"]})
+    
+    return clients
+
+@api_router.get("/consulente/stats")
+async def get_consulente_stats(user: dict = Depends(require_consulente_lavoro)):
+    """Statistiche per la dashboard del consulente del lavoro"""
+    assigned_ids = user.get("assigned_clients", [])
+    
+    total_payslips = 0
+    if assigned_ids:
+        total_payslips = await db.payslips.count_documents({"client_id": {"$in": assigned_ids}})
+    
+    return {
+        "clients_assigned": len(assigned_ids),
+        "total_payslips": total_payslips
     }
 
 # Include router and middleware
