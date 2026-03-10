@@ -32,13 +32,17 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # JWT Settings
-JWT_SECRET = os.environ.get('JWT_SECRET', 'fiscal-tax-canarie-secret-key-2024')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET must be set in environment variables")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
-# Commercialista predefinito
-ADMIN_EMAIL = "info@fiscaltaxcanarie.com"
-ADMIN_PASSWORD = "Triana48+"
+# Commercialista predefinito (da env)
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+if not ADMIN_PASSWORD:
+    raise ValueError("ADMIN_PASSWORD must be set in environment variables")
 
 # Categorie cartelle predefinite per l'organizzazione documenti
 DEFAULT_FOLDER_CATEGORIES = [
