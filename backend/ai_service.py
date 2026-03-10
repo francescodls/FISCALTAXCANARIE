@@ -80,6 +80,15 @@ CONTENUTO DOCUMENTO:
 LISTA CLIENTI DISPONIBILI:
 {clients_info}
 
+CATEGORIE CARTELLA DISPONIBILI:
+- documenti: Documenti generici
+- agencia_tributaria: Documenti dell'Agencia Tributaria (modelli fiscali, dichiarazioni IVA/IGIC, etc.)
+- seguridad_social: Documenti della Seguridad Social (contributi, certificati, buste paga)
+- ayuntamiento: Documenti comunali (licenze, permessi, tasse locali)
+- contratti: Contratti di qualsiasi tipo
+- atti: Atti notarili, legali, ufficiali
+- registro_mercantil: Documenti del Registro Mercantile (visure, certificati camerali)
+
 Rispondi SOLO con un JSON valido (senza markdown, senza ```json) con questa struttura:
 {{
     "tipo_documento": "string - tipo documento (fattura, dichiarazione, contratto, busta_paga, modello_fiscale, comunicazione, altro)",
@@ -90,6 +99,7 @@ Rispondi SOLO con un JSON valido (senza markdown, senza ```json) con questa stru
     "descrizione": "string - breve descrizione del documento (max 100 caratteri)",
     "descrizione_estesa": "string - spiegazione più dettagliata per il cliente (max 200 caratteri)",
     "data_documento": "string o null - data del documento se presente (formato YYYY-MM-DD)",
+    "anno_documento": "integer - anno del documento (estratto dalla data o dal contenuto, es: 2025)",
     "periodo_riferimento": "string o null - periodo fiscale (es: Q1 2025, Gennaio 2025, Anno 2024)",
     "importo_principale": "string o null - importo principale se presente",
     "cliente_identificato": {{
@@ -98,6 +108,7 @@ Rispondi SOLO con un JSON valido (senza markdown, senza ```json) con questa stru
         "motivo": "string - perché hai associato questo cliente"
     }},
     "categoria_suggerita": "string - atto, imposta, contratto, busta_paga, comunicazione, altro",
+    "folder_category": "string - una delle categorie cartella: documenti, agencia_tributaria, seguridad_social, ayuntamiento, contratti, atti, registro_mercantil",
     "tags": ["array di string - tag utili per la ricerca"],
     "nome_file_suggerito": "string - nome file standardizzato formato: YYYY-MM-DD_TipoDoc_NomeCliente_Riferimento"
 }}"""

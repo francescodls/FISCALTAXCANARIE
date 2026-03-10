@@ -44,7 +44,8 @@ import {
   Key,
   Building2,
   X,
-  Briefcase
+  Briefcase,
+  Folder
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -52,6 +53,7 @@ import FeeManagement from "@/components/FeeManagement";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
 import SignatureManagement from "@/components/SignatureManagement";
+import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -64,6 +66,7 @@ const ClientDetail = () => {
   const [deadlines, setDeadlines] = useState([]);
   const [activeTab, setActiveTab] = useState("documents");
   const [loading, setLoading] = useState(true);
+  const [documentViewMode, setDocumentViewMode] = useState("folders"); // "folders" o "list"
   
   // Upload states
   const [uploadingDoc, setUploadingDoc] = useState(false);
@@ -1097,81 +1100,127 @@ const ClientDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Documents List */}
+            {/* Archivio Documenti con Vista Cartelle */}
             <Card className="bg-white border border-slate-200">
               <CardHeader>
-                <CardTitle className="font-heading text-lg">Documenti Caricati</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="font-heading text-lg">Archivio Documenti</CardTitle>
+                  <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDocumentViewMode("folders")}
+                      className={documentViewMode === "folders" 
+                        ? "bg-white shadow-sm text-teal-600" 
+                        : "text-slate-500 hover:text-slate-700"}
+                    >
+                      <Folder className="h-4 w-4 mr-1" />
+                      Cartelle
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDocumentViewMode("list")}
+                      className={documentViewMode === "list" 
+                        ? "bg-white shadow-sm text-teal-600" 
+                        : "text-slate-500 hover:text-slate-700"}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      Lista
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
-                {documents.length > 0 ? (
-                  <div className="space-y-3">
-                    {documents.map((doc) => (
-                      <div 
-                        key={doc.id} 
-                        className="flex items-center justify-between p-4 bg-stone-50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-                            <FileText className="h-6 w-6 text-blue-600" />
+                {documentViewMode === "folders" ? (
+                  <DocumentFolderBrowser 
+                    clientId={clientId}
+                    token={token}
+                    userRole={user?.role || "commercialista"}
+                    onDocumentView={(doc) => downloadFile("documents", doc.id, doc.file_name)}
+                  />
+                ) : (
+                  /* Vista Lista Tradizionale */
+                  documents.length > 0 ? (
+                    <div className="space-y-3">
+                      {documents.map((doc) => (
+                        <div 
+                          key={doc.id} 
+                          className="flex items-center justify-between p-4 bg-stone-50 rounded-lg"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
+                              <FileText className="h-6 w-6 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">{doc.title}</p>
+                              <p className="text-sm text-slate-500">{doc.file_name}</p>
+                              {doc.description && (
+                                <p className="text-xs text-slate-400 mt-1">{doc.description}</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-slate-900">{doc.title}</p>
-                            <p className="text-sm text-slate-500">{doc.file_name}</p>
-                            {doc.description && (
-                              <p className="text-xs text-slate-400 mt-1">{doc.description}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className="bg-slate-100 text-slate-600 border border-slate-200">
-                            {doc.category}
-                          </Badge>
-                          {doc.signed && (
-                            <Badge className="bg-green-100 text-green-700 border border-green-200">
-                              Firmato
+                          <div className="flex items-center gap-3">
+                            <Badge className="bg-slate-100 text-slate-600 border border-slate-200">
+                              {doc.category}
                             </Badge>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => downloadFile("documents", doc.id, doc.file_name)}
-                            className="border-slate-200"
-                            title="Scarica"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          {doc.file_name?.endsWith('.pdf') && !doc.signed && (
+                            {doc.folder_category && doc.folder_category !== "documenti" && (
+                              <Badge className="bg-teal-100 text-teal-600 border border-teal-200">
+                                {doc.folder_category}
+                              </Badge>
+                            )}
+                            {doc.document_year && (
+                              <Badge variant="outline" className="text-slate-500">
+                                {doc.document_year}
+                              </Badge>
+                            )}
+                            {doc.signed && (
+                              <Badge className="bg-green-100 text-green-700 border border-green-200">
+                                Firmato
+                              </Badge>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                setSigningDoc(doc);
-                                setShowSignDialog(true);
-                              }}
-                              className="border-teal-200 text-teal-600 hover:bg-teal-50"
-                              title="Firma digitalmente"
+                              onClick={() => downloadFile("documents", doc.id, doc.file_name)}
+                              className="border-slate-200"
+                              title="Scarica"
                             >
-                              <FileSignature className="h-4 w-4" />
+                              <Download className="h-4 w-4" />
                             </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteDocument(doc.id)}
-                            className="border-red-200 text-red-600 hover:bg-red-50"
-                            title="Elimina"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                            {doc.file_name?.endsWith('.pdf') && !doc.signed && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSigningDoc(doc);
+                                  setShowSignDialog(true);
+                                }}
+                                className="border-teal-200 text-teal-600 hover:bg-teal-50"
+                                title="Firma digitalmente"
+                              >
+                                <FileSignature className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteDocument(doc.id)}
+                              className="border-red-200 text-red-600 hover:bg-red-50"
+                              title="Elimina"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nessun documento caricato</p>
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-12">
+                      <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                      <p className="text-slate-500">Nessun documento caricato</p>
+                    </div>
+                  )
                 )}
               </CardContent>
             </Card>

@@ -40,6 +40,17 @@ JWT_EXPIRATION_HOURS = 24
 ADMIN_EMAIL = "info@fiscaltaxcanarie.com"
 ADMIN_PASSWORD = "Triana48+"
 
+# Categorie cartelle predefinite per l'organizzazione documenti
+DEFAULT_FOLDER_CATEGORIES = [
+    {"id": "documenti", "name": "Documenti", "icon": "file-text", "color": "#6b7280", "is_default": True, "order": 1},
+    {"id": "agencia_tributaria", "name": "Agencia Tributaria", "icon": "landmark", "color": "#dc2626", "is_default": True, "order": 2},
+    {"id": "seguridad_social", "name": "Seguridad Social", "icon": "users", "color": "#2563eb", "is_default": True, "order": 3},
+    {"id": "ayuntamiento", "name": "Ayuntamiento", "icon": "building-2", "color": "#16a34a", "is_default": True, "order": 4},
+    {"id": "contratti", "name": "Contratti", "icon": "file-signature", "color": "#9333ea", "is_default": True, "order": 5},
+    {"id": "atti", "name": "Atti", "icon": "scale", "color": "#ca8a04", "is_default": True, "order": 6},
+    {"id": "registro_mercantil", "name": "Registro Mercantil", "icon": "briefcase", "color": "#0891b2", "is_default": True, "order": 7},
+]
+
 app = FastAPI(title="Fiscal Tax Canarie API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
@@ -136,6 +147,8 @@ class DocumentCreate(BaseModel):
     description: Optional[str] = None
     category: str
     client_id: str
+    folder_category: Optional[str] = "documenti"  # Categoria cartella
+    document_year: Optional[int] = None  # Anno del documento
 
 class DocumentResponse(BaseModel):
     id: str
@@ -149,6 +162,24 @@ class DocumentResponse(BaseModel):
     created_at: str
     ai_description: Optional[str] = None
     tags: List[str] = []
+    folder_category: Optional[str] = "documenti"  # Categoria cartella
+    document_year: Optional[int] = None  # Anno del documento
+
+# Modelli per le categorie cartella
+class FolderCategoryCreate(BaseModel):
+    name: str
+    icon: Optional[str] = "folder"
+    color: Optional[str] = "#6b7280"
+
+class FolderCategoryResponse(BaseModel):
+    id: str
+    name: str
+    icon: str
+    color: str
+    is_default: bool
+    order: int
+    created_at: Optional[str] = None
+    created_by: Optional[str] = None
 
 class PayslipResponse(BaseModel):
     id: str
@@ -988,6 +1019,214 @@ async def send_notification_to_list(
         "errors": errors if errors else None
     }
 
+# ==================== FOLDER CATEGORIES ROUTES ====================
+
+@api_router.get("/folder-categories")
+async def get_folder_categories(user: dict = Depends(get_current_user)):
+    """Ottiene tutte le categorie cartella (predefinite + personalizzate)"""
+    # Carica le categorie personalizzate dal database
+    custom_categories = await db.folder_categories.find({}, {"_id": 0}).to_list(100)
+    
+    # Unisci con le categorie predefinite
+    all_categories = []
+    
+    # Aggiungi le predefinite
+    for cat in DEFAULT_FOLDER_CATEGORIES:
+        all_categories.append({
+            **cat,
+            "created_at": None,
+            "created_by": None
+        })
+    
+    # Aggiungi le personalizzate
+    for cat in custom_categories:
+        all_categories.append(cat)
+    
+    # Ordina per 'order'
+    all_categories.sort(key=lambda x: x.get("order", 999))
+    
+    return all_categories
+
+@api_router.post("/folder-categories")
+async def create_folder_category(category: FolderCategoryCreate, user: dict = Depends(require_commercialista)):
+    """Crea una nuova categoria cartella personalizzata"""
+    # Verifica che non esista già una categoria con lo stesso nome
+    existing = await db.folder_categories.find_one({"name": {"$regex": f"^{category.name}$", "$options": "i"}})
+    if existing:
+        raise HTTPException(status_code=400, detail="Una categoria con questo nome esiste già")
+    
+    # Verifica che non sia una categoria predefinita
+    for default_cat in DEFAULT_FOLDER_CATEGORIES:
+        if default_cat["name"].lower() == category.name.lower():
+            raise HTTPException(status_code=400, detail="Non puoi creare una categoria con un nome predefinito")
+    
+    # Trova l'ordine più alto esistente
+    max_order = len(DEFAULT_FOLDER_CATEGORIES)
+    last_custom = await db.folder_categories.find_one(sort=[("order", -1)])
+    if last_custom:
+        max_order = max(max_order, last_custom.get("order", 0))
+    
+    cat_id = str(uuid.uuid4())
+    # Crea ID slug dal nome
+    slug_id = category.name.lower().replace(" ", "_").replace("-", "_")
+    
+    cat_doc = {
+        "id": slug_id,
+        "name": category.name,
+        "icon": category.icon or "folder",
+        "color": category.color or "#6b7280",
+        "is_default": False,
+        "order": max_order + 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user["id"]
+    }
+    
+    await db.folder_categories.insert_one(cat_doc)
+    
+    await log_activity(
+        "categoria_creata",
+        f"Creata categoria cartella: {category.name}",
+        user["id"]
+    )
+    
+    return {**cat_doc, "_id": None}
+
+@api_router.delete("/folder-categories/{category_id}")
+async def delete_folder_category(category_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina una categoria cartella personalizzata (non le predefinite)"""
+    # Verifica che non sia una categoria predefinita
+    for default_cat in DEFAULT_FOLDER_CATEGORIES:
+        if default_cat["id"] == category_id:
+            raise HTTPException(status_code=400, detail="Non puoi eliminare una categoria predefinita")
+    
+    result = await db.folder_categories.delete_one({"id": category_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    # Sposta i documenti di questa categoria in "documenti"
+    await db.documents.update_many(
+        {"folder_category": category_id},
+        {"$set": {"folder_category": "documenti"}}
+    )
+    
+    return {"success": True, "message": "Categoria eliminata"}
+
+@api_router.put("/documents/{doc_id}/category")
+async def update_document_category(
+    doc_id: str,
+    folder_category: str = Form(...),
+    document_year: Optional[int] = Form(None),
+    user: dict = Depends(get_current_user)
+):
+    """Aggiorna la categoria cartella e/o l'anno di un documento"""
+    # Verifica che il documento esista
+    document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    # Verifica permessi: admin può modificare tutto, cliente solo i propri
+    if user["role"] == "cliente" and document["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    
+    update_data = {"folder_category": folder_category}
+    if document_year:
+        update_data["document_year"] = document_year
+    
+    await db.documents.update_one({"id": doc_id}, {"$set": update_data})
+    
+    await log_activity(
+        "documento_categoria_modificata",
+        f"Documento {doc_id} spostato in categoria {folder_category}",
+        user["id"]
+    )
+    
+    return {"success": True, "message": "Categoria aggiornata"}
+
+@api_router.get("/clients/{client_id}/documents/by-folder")
+async def get_client_documents_by_folder(
+    client_id: str,
+    year: Optional[int] = None,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Ottiene i documenti di un cliente organizzati per cartelle.
+    Restituisce la struttura delle cartelle con conteggio documenti.
+    """
+    # Verifica permessi
+    if user["role"] == "cliente" and user["id"] != client_id:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    
+    if user["role"] == "consulente_lavoro":
+        # Verifica che il cliente sia assegnato al consulente
+        if client_id not in user.get("assigned_clients", []):
+            raise HTTPException(status_code=403, detail="Cliente non assegnato")
+    
+    # Query base
+    query = {"client_id": client_id}
+    if year:
+        query["document_year"] = year
+    
+    # Ottieni tutti i documenti del cliente
+    documents = await db.documents.find(
+        query, 
+        {"_id": 0, "file_data": 0, "versions_history": 0}
+    ).to_list(1000)
+    
+    # Ottieni tutte le categorie
+    custom_categories = await db.folder_categories.find({}, {"_id": 0}).to_list(100)
+    all_categories = list(DEFAULT_FOLDER_CATEGORIES) + custom_categories
+    
+    # Organizza documenti per cartella
+    folders = {}
+    for cat in all_categories:
+        cat_id = cat["id"]
+        folders[cat_id] = {
+            "id": cat_id,
+            "name": cat["name"],
+            "icon": cat["icon"],
+            "color": cat["color"],
+            "is_default": cat.get("is_default", False),
+            "order": cat.get("order", 999),
+            "documents": [],
+            "document_count": 0,
+            "years": set()
+        }
+    
+    # Aggiungi documenti alle cartelle
+    for doc in documents:
+        folder_cat = doc.get("folder_category", "documenti")
+        if folder_cat not in folders:
+            folder_cat = "documenti"  # Fallback
+        
+        folders[folder_cat]["documents"].append(doc)
+        folders[folder_cat]["document_count"] += 1
+        
+        # Traccia gli anni
+        doc_year = doc.get("document_year")
+        if doc_year:
+            folders[folder_cat]["years"].add(doc_year)
+    
+    # Converti sets in liste e ordina
+    result = []
+    for folder_id, folder_data in folders.items():
+        folder_data["years"] = sorted(list(folder_data["years"]), reverse=True)
+        result.append(folder_data)
+    
+    # Ordina per 'order'
+    result.sort(key=lambda x: x["order"])
+    
+    # Calcola anni disponibili globalmente
+    all_years = set()
+    for doc in documents:
+        if doc.get("document_year"):
+            all_years.add(doc["document_year"])
+    
+    return {
+        "folders": result,
+        "total_documents": len(documents),
+        "available_years": sorted(list(all_years), reverse=True)
+    }
+
 # ==================== DOCUMENTS ROUTES ====================
 
 @api_router.post("/documents")
@@ -1167,6 +1406,27 @@ async def upload_document_with_ai(
     if ai_result.get("success") and ai_result.get("categoria_suggerita"):
         category = ai_result["categoria_suggerita"]
     
+    # Determina folder_category (per organizzazione cartelle)
+    folder_category = "documenti"  # Default
+    if ai_result.get("success") and ai_result.get("folder_category"):
+        folder_category = ai_result["folder_category"]
+    
+    # Determina anno documento
+    document_year = None
+    if ai_result.get("success"):
+        # Prima prova anno_documento diretto dall'AI
+        if ai_result.get("anno_documento"):
+            document_year = ai_result["anno_documento"]
+        # Poi prova a estrarre dalla data_documento
+        elif ai_result.get("data_documento"):
+            try:
+                document_year = int(ai_result["data_documento"][:4])
+            except (ValueError, TypeError):
+                pass
+        # Infine usa anno corrente come fallback
+        if not document_year:
+            document_year = datetime.now().year
+    
     # Verifica se è una busta paga - se sì, salvala nella collection payslips
     is_payslip = ai_result.get("success") and ai_result.get("is_busta_paga", False)
     
@@ -1218,6 +1478,8 @@ async def upload_document_with_ai(
         "title": ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename,
         "description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
         "category": category,
+        "folder_category": folder_category,  # Categoria cartella per organizzazione
+        "document_year": document_year,  # Anno documento estratto dall'AI
         "client_id": final_client_id,
         "file_name": standardized_filename,  # Nome rinominato automaticamente
         "file_name_original": file.filename,  # Nome originale per riferimento
@@ -1273,7 +1535,9 @@ async def upload_document_with_ai(
         "suggested_filename": suggested_filename,
         "standardized_filename": standardized_filename,
         "original_filename": file.filename,
-        "category": category
+        "category": category,
+        "folder_category": folder_category,
+        "document_year": document_year
     }
 
 @api_router.put("/documents/{doc_id}/verify")
