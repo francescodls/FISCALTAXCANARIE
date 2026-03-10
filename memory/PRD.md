@@ -8,6 +8,29 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 15 (10 Marzo 2026) - COMPLETATA ✅
+
+**Sezione Dipendenti nella Scheda Cliente + Notifiche Consulenti**
+
+1. **Tab Dipendenti in ClientDetail:**
+   - Aggiunta nuova tab "Dipendenti" nella scheda di ogni cliente
+   - Admin e consulenti del lavoro possono ora vedere i dipendenti del cliente dalla sua scheda
+   - Filtro automatico per `client_id` nell'API `/employees`
+
+2. **Notifiche Assunzione ai Consulenti:**
+   - Quando un cliente richiede un'assunzione, vengono creati:
+     - Notifica interna per ogni consulente del lavoro
+     - Notifica interna per ogni admin (commercialista)
+   - Email automatica inviata a ogni consulente del lavoro con tutti i dettagli:
+     - Nome dipendente, mansione, data inizio
+     - Luogo di lavoro, orario, giorni lavorativi
+     - Ore settimanali e note
+
+File modificati:
+- `/app/frontend/src/pages/ClientDetail.jsx`: Aggiunta tab Dipendenti con componente `EmployeeManagementAdmin`
+- `/app/frontend/src/components/EmployeeManagementAdmin.jsx`: Aggiunto supporto per filtro `clientId`
+- `/app/backend/server.py`: Modificato endpoint `/employees/hire-request` per notifiche a consulenti
+
 ### Fase 14 (10 Marzo 2026) - COMPLETATA ✅
 
 **Modifica Form Assunzione Dipendente (lato cliente)**

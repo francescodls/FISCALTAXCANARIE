@@ -21,6 +21,7 @@ import {
   StickyNote,
   LogOut,
   User,
+  Users,
   Plus,
   Upload,
   Download,
@@ -42,11 +43,13 @@ import {
   Shield,
   Key,
   Building2,
-  X
+  X,
+  Briefcase
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import FeeManagement from "@/components/FeeManagement";
+import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -915,6 +918,14 @@ const ClientDetail = () => {
             >
               <User className="h-4 w-4 mr-2" />
               Anagrafica
+            </TabsTrigger>
+            <TabsTrigger 
+              value="employees" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-employees"
+            >
+              <Briefcase className="h-4 w-4 mr-2" />
+              Dipendenti
             </TabsTrigger>
           </TabsList>
 
@@ -2380,6 +2391,16 @@ const ClientDetail = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Employees Tab */}
+          <TabsContent value="employees" className="space-y-6">
+            <EmployeeManagementAdmin 
+              token={token} 
+              clientId={clientId}
+              isAdmin={user?.role === "commercialista"}
+              isConsulente={user?.role === "consulente_lavoro"}
+            />
           </TabsContent>
         </Tabs>
       </main>

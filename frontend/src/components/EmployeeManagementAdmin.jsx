@@ -32,7 +32,7 @@ import {
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 
-const EmployeeManagementAdmin = ({ token, userRole }) => {
+const EmployeeManagementAdmin = ({ token, userRole, clientId = null, isAdmin = false, isConsulente = false }) => {
   const [employees, setEmployees] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -57,12 +57,16 @@ const EmployeeManagementAdmin = ({ token, userRole }) => {
     fetchEmployees();
     fetchNotifications();
     fetchUnreadCount();
-  }, []);
+  }, [clientId]);
 
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/employees`, { headers });
+      // Se c'è clientId, filtra per quel cliente
+      const url = clientId 
+        ? `${API}/employees?client_id=${clientId}` 
+        : `${API}/employees`;
+      const response = await axios.get(url, { headers });
       setEmployees(response.data);
     } catch (error) {
       console.error("Errore nel caricamento dipendenti:", error);

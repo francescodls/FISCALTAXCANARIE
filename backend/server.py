@@ -3323,15 +3323,73 @@ async def request_employee_hire(
     }
     await db.employees.insert_one(employee_doc)
     
-    # Crea notifica
     client_name = user.get("full_name", user.get("email"))
-    await create_employee_notification(
-        "hire_request",
-        "Nuova richiesta di assunzione",
-        f"Il cliente {client_name} ha richiesto l'assunzione di {hire_data.full_name} come {hire_data.job_title}. Data inizio: {hire_data.start_date}.",
-        user["id"],
-        employee_id
-    )
+    
+    # Trova tutti i consulenti del lavoro
+    consulenti = await db.users.find(
+        {"role": "consulente_lavoro"},
+        {"_id": 0, "id": 1, "email": 1, "full_name": 1}
+    ).to_list(100)
+    
+    # Crea notifica e invia email a ogni consulente del lavoro
+    notification_message = f"Il cliente {client_name} ha richiesto l'assunzione di {hire_data.full_name} come {hire_data.job_title}. Data inizio: {hire_data.start_date}."
+    
+    for consulente in consulenti:
+        # Crea notifica interna per il consulente
+        notification_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": consulente["id"],
+            "notification_type": "hire_request",
+            "title": "Nuova richiesta di assunzione",
+            "message": notification_message,
+            "client_id": user["id"],
+            "employee_id": employee_id,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.employee_notifications.insert_one(notification_doc)
+        
+        # Invia email al consulente
+        if consulente.get("email"):
+            try:
+                email_subject = f"Nuova richiesta di assunzione - {client_name}"
+                email_content = f"""
+                <h2>Nuova Richiesta di Assunzione</h2>
+                <p><strong>Cliente:</strong> {client_name}</p>
+                <p><strong>Dipendente:</strong> {hire_data.full_name}</p>
+                <p><strong>Mansione:</strong> {hire_data.job_title}</p>
+                <p><strong>Data Inizio:</strong> {hire_data.start_date}</p>
+                <p><strong>Luogo di Lavoro:</strong> {hire_data.work_location}</p>
+                <p><strong>Orario:</strong> {hire_data.work_hours}</p>
+                <p><strong>Giorni Lavorativi:</strong> {hire_data.work_days}</p>
+                {f"<p><strong>Ore Settimanali:</strong> {hire_data.weekly_hours}</p>" if hire_data.weekly_hours else ""}
+                {f"<p><strong>Note:</strong> {hire_data.notes}</p>" if hire_data.notes else ""}
+                <hr>
+                <p>Accedi alla piattaforma per gestire questa richiesta.</p>
+                """
+                send_generic_email(consulente["email"], email_subject, email_content)
+            except Exception as e:
+                print(f"Errore invio email al consulente {consulente['email']}: {e}")
+    
+    # Notifica anche agli admin
+    admins = await db.users.find(
+        {"role": "commercialista"},
+        {"_id": 0, "id": 1}
+    ).to_list(100)
+    
+    for admin in admins:
+        notification_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": admin["id"],
+            "notification_type": "hire_request",
+            "title": "Nuova richiesta di assunzione",
+            "message": notification_message,
+            "client_id": user["id"],
+            "employee_id": employee_id,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.employee_notifications.insert_one(notification_doc)
     
     await log_activity(
         "richiesta_assunzione",
