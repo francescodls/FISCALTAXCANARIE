@@ -3492,15 +3492,67 @@ async def request_employee_termination(
         }}
     )
     
-    # Crea notifica
     client_name = user.get("full_name", user.get("email"))
-    await create_employee_notification(
-        "termination_request",
-        "Richiesta di licenziamento",
-        f"Il cliente {client_name} ha richiesto il licenziamento di {employee['full_name']}. Data cessazione: {termination.termination_date}. Motivo: {termination.reason or 'Non specificato'}.",
-        user["id"],
-        employee_id
-    )
+    notification_message = f"Il cliente {client_name} ha richiesto il licenziamento di {employee['full_name']}. Data cessazione: {termination.termination_date}. Motivo: {termination.reason or 'Non specificato'}."
+    
+    # Trova tutti i consulenti del lavoro e invia notifica + email
+    consulenti = await db.users.find(
+        {"role": "consulente_lavoro"},
+        {"_id": 0, "id": 1, "email": 1, "full_name": 1}
+    ).to_list(100)
+    
+    for consulente in consulenti:
+        # Crea notifica interna
+        notification_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": consulente["id"],
+            "notification_type": "termination_request",
+            "title": "Richiesta di licenziamento",
+            "message": notification_message,
+            "client_id": user["id"],
+            "employee_id": employee_id,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.employee_notifications.insert_one(notification_doc)
+        
+        # Invia email al consulente
+        if consulente.get("email"):
+            try:
+                email_subject = f"Richiesta di Licenziamento - {client_name}"
+                email_content = f"""
+                <h2>Richiesta di Licenziamento</h2>
+                <p><strong>Cliente:</strong> {client_name}</p>
+                <p><strong>Dipendente:</strong> {employee['full_name']}</p>
+                <p><strong>Mansione:</strong> {employee.get('job_title', 'N/D')}</p>
+                <p><strong>Data Cessazione:</strong> {termination.termination_date}</p>
+                <p><strong>Motivo:</strong> {termination.reason or 'Non specificato'}</p>
+                <hr>
+                <p>Accedi alla piattaforma per gestire questa richiesta.</p>
+                """
+                send_generic_email(consulente["email"], email_subject, email_content)
+            except Exception as e:
+                print(f"Errore invio email al consulente {consulente['email']}: {e}")
+    
+    # Notifica anche agli admin
+    admins = await db.users.find(
+        {"role": "commercialista"},
+        {"_id": 0, "id": 1}
+    ).to_list(100)
+    
+    for admin in admins:
+        notification_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": admin["id"],
+            "notification_type": "termination_request",
+            "title": "Richiesta di licenziamento",
+            "message": notification_message,
+            "client_id": user["id"],
+            "employee_id": employee_id,
+            "is_read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.employee_notifications.insert_one(notification_doc)
     
     return {"success": True, "message": "Richiesta di licenziamento inviata"}
 
@@ -3524,10 +3576,44 @@ async def update_employee(
     update_fields = {k: v for k, v in update_data.dict().items() if v is not None}
     update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
     
+    # Assegna consulente se cambia stato
+    if "status" in update_fields and user["role"] == "consulente_lavoro":
+        update_fields["assigned_consulente"] = user["id"]
+        update_fields["assigned_consulente_name"] = user.get("full_name", user.get("email"))
+    
     await db.employees.update_one(
         {"id": employee_id},
         {"$set": update_fields}
     )
+    
+    # Se la modifica NON è fatta dal consulente, notifica i consulenti via email
+    if user["role"] == "commercialista":
+        # Ottieni info cliente
+        client = await db.users.find_one({"id": employee["client_id"]}, {"_id": 0, "full_name": 1, "email": 1})
+        client_name = client.get("full_name", client.get("email", "N/D")) if client else "N/D"
+        
+        consulenti = await db.users.find(
+            {"role": "consulente_lavoro"},
+            {"_id": 0, "id": 1, "email": 1, "full_name": 1}
+        ).to_list(100)
+        
+        changes = ", ".join([f"{k}: {v}" for k, v in update_fields.items() if k not in ["updated_at"]])
+        
+        for consulente in consulenti:
+            if consulente.get("email"):
+                try:
+                    email_subject = f"Modifica Dipendente - {employee['full_name']}"
+                    email_content = f"""
+                    <h2>Modifica Dati Dipendente</h2>
+                    <p><strong>Dipendente:</strong> {employee['full_name']}</p>
+                    <p><strong>Cliente:</strong> {client_name}</p>
+                    <p><strong>Modifiche effettuate:</strong> {changes}</p>
+                    <hr>
+                    <p>Accedi alla piattaforma per visualizzare i dettagli.</p>
+                    """
+                    send_generic_email(consulente["email"], email_subject, email_content)
+                except Exception as e:
+                    print(f"Errore invio email al consulente {consulente['email']}: {e}")
     
     return {"success": True, "message": "Dipendente aggiornato"}
 
@@ -3767,6 +3853,22 @@ async def get_client_notifications_history(
     
     notifications = await db.client_notifications_history.find(
         {"client_id": client_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return notifications
+
+@api_router.get("/my-notifications-history")
+async def get_my_notifications_history(
+    limit: int = 50,
+    user: dict = Depends(get_current_user)
+):
+    """Ottiene la cronologia delle notifiche ricevute dal cliente corrente"""
+    if user["role"] != "cliente":
+        raise HTTPException(status_code=403, detail="Solo i clienti possono accedere a questo endpoint")
+    
+    notifications = await db.client_notifications_history.find(
+        {"client_id": user["id"]},
         {"_id": 0}
     ).sort("created_at", -1).limit(limit).to_list(limit)
     

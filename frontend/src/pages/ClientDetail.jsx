@@ -50,6 +50,7 @@ import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import FeeManagement from "@/components/FeeManagement";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
+import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -1859,9 +1860,14 @@ const ClientDetail = () => {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Cronologia Notifiche */}
+            <ClientNotificationsHistory 
+              token={token} 
+              clientId={clientId} 
+              clientName={client?.full_name}
+            />
           </TabsContent>
-
-          {/* Fees (Onorari) Tab */}
           <TabsContent value="fees" className="space-y-6">
             <FeeManagement 
               clientId={clientId} 

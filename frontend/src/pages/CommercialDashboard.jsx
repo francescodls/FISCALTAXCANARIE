@@ -37,7 +37,9 @@ import {
   Send,
   RefreshCw,
   HardDrive,
-  Briefcase
+  Briefcase,
+  Upload,
+  FolderUp
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -71,12 +73,23 @@ const CommercialDashboard = () => {
   const [inviteResult, setInviteResult] = useState(null); // Per mostrare il link dopo l'invio
   const [pendingInvitations, setPendingInvitations] = useState([]); // Inviti pendenti
   const [tipoClienteFilter, setTipoClienteFilter] = useState("all"); // Filtro per tipo cliente
+  const [clientLists, setClientLists] = useState([]); // Liste/Categorie clienti
 
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
     fetchData();
+    fetchClientLists();
   }, []);
+
+  const fetchClientLists = async () => {
+    try {
+      const response = await axios.get(`${API}/client-lists`, { headers });
+      setClientLists(response.data);
+    } catch (error) {
+      console.error("Errore nel caricamento categorie:", error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -273,7 +286,7 @@ const CommercialDashboard = () => {
               data-testid="manage-lists-btn"
             >
               <Users className="h-4 w-4 mr-2" />
-              Liste
+              Categorie
             </Button>
             <Button 
               variant="outline"
@@ -482,6 +495,14 @@ const CommercialDashboard = () => {
             >
               <Activity className="h-4 w-4 mr-2" />
               {t("dashboard.recentActivity")}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="global-upload" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-global-upload"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Caricamento Globale
             </TabsTrigger>
           </TabsList>
 
@@ -1092,6 +1113,11 @@ const CommercialDashboard = () => {
           <TabsContent value="employees">
             <EmployeeManagementAdmin token={token} userRole="commercialista" />
           </TabsContent>
+
+          {/* Global Upload Tab */}
+          <TabsContent value="global-upload">
+            <GlobalDocumentUpload token={token} clients={clients} clientLists={clientLists} />
+          </TabsContent>
         </Tabs>
       </main>
     </div>
@@ -1163,6 +1189,275 @@ const PendingDocCard = ({ doc, clients, onVerify, verifying }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Componente per caricamento globale documenti
+const GlobalDocumentUpload = ({ token, clients, clientLists }) => {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadMode, setUploadMode] = useState("all"); // all, category, selected
+  const [selectedClients, setSelectedClients] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [documentTitle, setDocumentTitle] = useState("");
+  const [documentCategory, setDocumentCategory] = useState("fiscale");
+  const [uploading, setUploading] = useState(false);
+  const [notifyClients, setNotifyClients] = useState(true);
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      toast.error("Seleziona un file da caricare");
+      return;
+    }
+    if (!documentTitle) {
+      toast.error("Inserisci un titolo per il documento");
+      return;
+    }
+
+    let targetClients = [];
+    
+    if (uploadMode === "all") {
+      targetClients = clients.filter(c => c.status === "active").map(c => c.id);
+    } else if (uploadMode === "category" && selectedCategory) {
+      const category = clientLists.find(l => l.id === selectedCategory);
+      targetClients = category?.clients || [];
+    } else if (uploadMode === "selected") {
+      targetClients = selectedClients;
+    }
+
+    if (targetClients.length === 0) {
+      toast.error("Nessun cliente selezionato");
+      return;
+    }
+
+    setUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const clientId of targetClients) {
+      try {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("title", documentTitle);
+        formData.append("category", documentCategory);
+        formData.append("notify_client", notifyClients);
+
+        await axios.post(`${API}/clients/${clientId}/documents`, formData, {
+          headers: { ...headers, "Content-Type": "multipart/form-data" }
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`Errore upload per cliente ${clientId}:`, error);
+        errorCount++;
+      }
+    }
+
+    setUploading(false);
+    
+    if (errorCount === 0) {
+      toast.success(`Documento caricato con successo a ${successCount} clienti`);
+      setSelectedFile(null);
+      setDocumentTitle("");
+    } else {
+      toast.warning(`Caricato a ${successCount} clienti, ${errorCount} errori`);
+    }
+  };
+
+  return (
+    <Card className="bg-white border border-slate-200">
+      <CardHeader>
+        <CardTitle className="font-heading text-xl flex items-center gap-2">
+          <FolderUp className="h-5 w-5 text-teal-500" />
+          Caricamento Globale Documenti
+        </CardTitle>
+        <p className="text-sm text-slate-500 mt-1">
+          Carica un documento a più clienti contemporaneamente
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Selezione modalità */}
+        <div className="space-y-3">
+          <Label className="text-slate-700 font-medium">Destinatari</Label>
+          <div className="grid grid-cols-3 gap-3">
+            <Card 
+              className={`p-4 cursor-pointer transition-all ${uploadMode === "all" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
+              onClick={() => setUploadMode("all")}
+            >
+              <div className="flex items-center gap-2">
+                <Users className={`h-5 w-5 ${uploadMode === "all" ? "text-teal-600" : "text-slate-400"}`} />
+                <span className={`font-medium ${uploadMode === "all" ? "text-teal-700" : "text-slate-600"}`}>
+                  Tutti i Clienti
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {clients.filter(c => c.status === "active").length} clienti attivi
+              </p>
+            </Card>
+            <Card 
+              className={`p-4 cursor-pointer transition-all ${uploadMode === "category" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
+              onClick={() => setUploadMode("category")}
+            >
+              <div className="flex items-center gap-2">
+                <FileText className={`h-5 w-5 ${uploadMode === "category" ? "text-teal-600" : "text-slate-400"}`} />
+                <span className={`font-medium ${uploadMode === "category" ? "text-teal-700" : "text-slate-600"}`}>
+                  Per Categoria
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {clientLists.length} categorie disponibili
+              </p>
+            </Card>
+            <Card 
+              className={`p-4 cursor-pointer transition-all ${uploadMode === "selected" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
+              onClick={() => setUploadMode("selected")}
+            >
+              <div className="flex items-center gap-2">
+                <Check className={`h-5 w-5 ${uploadMode === "selected" ? "text-teal-600" : "text-slate-400"}`} />
+                <span className={`font-medium ${uploadMode === "selected" ? "text-teal-700" : "text-slate-600"}`}>
+                  Selezione Manuale
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Scegli singoli clienti
+              </p>
+            </Card>
+          </div>
+        </div>
+
+        {/* Selezione categoria */}
+        {uploadMode === "category" && (
+          <div className="space-y-2">
+            <Label>Seleziona Categoria</Label>
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="border-slate-200">
+                <SelectValue placeholder="Scegli una categoria..." />
+              </SelectTrigger>
+              <SelectContent>
+                {clientLists.map(list => (
+                  <SelectItem key={list.id} value={list.id}>
+                    {list.name} ({list.clients?.length || 0} clienti)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Selezione clienti manuale */}
+        {uploadMode === "selected" && (
+          <div className="space-y-2">
+            <Label>Seleziona Clienti</Label>
+            <ScrollArea className="h-48 border border-slate-200 rounded-lg p-2">
+              {clients.filter(c => c.status === "active").map(client => (
+                <div 
+                  key={client.id}
+                  className="flex items-center gap-2 p-2 hover:bg-slate-50 rounded cursor-pointer"
+                  onClick={() => {
+                    if (selectedClients.includes(client.id)) {
+                      setSelectedClients(selectedClients.filter(id => id !== client.id));
+                    } else {
+                      setSelectedClients([...selectedClients, client.id]);
+                    }
+                  }}
+                >
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedClients.includes(client.id) ? "bg-teal-500 border-teal-500" : "border-slate-300"}`}>
+                    {selectedClients.includes(client.id) && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  <span className="text-sm">{client.full_name}</span>
+                  <span className="text-xs text-slate-400">{client.email}</span>
+                </div>
+              ))}
+            </ScrollArea>
+            <p className="text-xs text-slate-500">{selectedClients.length} clienti selezionati</p>
+          </div>
+        )}
+
+        {/* Info documento */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Titolo Documento *</Label>
+            <Input
+              value={documentTitle}
+              onChange={(e) => setDocumentTitle(e.target.value)}
+              placeholder="Es: Modello F24 Febbraio 2024"
+              className="border-slate-200"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Categoria</Label>
+            <Select value={documentCategory} onValueChange={setDocumentCategory}>
+              <SelectTrigger className="border-slate-200">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fiscale">Fiscale</SelectItem>
+                <SelectItem value="contabile">Contabile</SelectItem>
+                <SelectItem value="legale">Legale</SelectItem>
+                <SelectItem value="comunicazione">Comunicazione</SelectItem>
+                <SelectItem value="buste_paga">Buste Paga</SelectItem>
+                <SelectItem value="altro">Altro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Upload file */}
+        <div className="space-y-2">
+          <Label>File da caricare *</Label>
+          <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-teal-400 transition-colors">
+            <input
+              type="file"
+              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+              className="hidden"
+              id="global-upload-input"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+            />
+            <label htmlFor="global-upload-input" className="cursor-pointer">
+              <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+              {selectedFile ? (
+                <p className="text-sm font-medium text-teal-600">{selectedFile.name}</p>
+              ) : (
+                <p className="text-sm text-slate-500">Clicca per selezionare un file o trascinalo qui</p>
+              )}
+            </label>
+          </div>
+        </div>
+
+        {/* Opzione notifica */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="notify-clients"
+            checked={notifyClients}
+            onChange={(e) => setNotifyClients(e.target.checked)}
+            className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
+          />
+          <Label htmlFor="notify-clients" className="text-sm cursor-pointer">
+            Notifica i clienti via email del nuovo documento
+          </Label>
+        </div>
+
+        {/* Pulsante upload */}
+        <Button
+          onClick={handleUpload}
+          disabled={uploading || !selectedFile || !documentTitle}
+          className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold h-12"
+        >
+          {uploading ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+              Caricamento in corso...
+            </>
+          ) : (
+            <>
+              <Upload className="h-4 w-4 mr-2" />
+              Carica Documento
+            </>
+          )}
+        </Button>
+      </CardContent>
+    </Card>
   );
 };
 

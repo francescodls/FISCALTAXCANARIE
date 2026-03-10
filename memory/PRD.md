@@ -8,6 +8,44 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 16 (10 Marzo 2026) - COMPLETATA ✅
+
+**Miglioramenti Dashboard e Notifiche Dipendenti**
+
+1. **Dettaglio Dipendente - Consulente Assegnato:**
+   - Solo l'amministratore può vedere quale consulente è stato assegnato al dipendente
+   - Campo visualizzato in box viola nel dettaglio dipendente
+
+2. **Notifiche per Richieste Assunzione/Licenziamento:**
+   - Notifica interna a tutti i consulenti del lavoro
+   - Notifica interna a tutti gli admin
+   - Email automatica ai consulenti con tutti i dettagli
+
+3. **Email Modifiche Dipendenti:**
+   - Quando l'admin modifica un dipendente, i consulenti ricevono email
+   - Include dettaglio delle modifiche effettuate
+
+4. **Cronologia Notifiche:**
+   - Componente `ClientNotificationsHistory` integrato nella tab Notifiche
+   - Visibile sia da admin che da cliente (endpoint `/my-notifications-history`)
+
+5. **Caricamento Globale Documenti:**
+   - Nuova tab "Caricamento Globale" nella dashboard admin
+   - 3 modalità: Tutti i clienti, Per categoria, Selezione manuale
+   - Opzione per notificare i clienti via email
+
+6. **Rinomina "Liste" → "Categorie":**
+   - Menu principale
+   - Pagina DeadlinesManagement
+   - Tutti i riferimenti nell'interfaccia
+
+File modificati:
+- `/app/backend/server.py`: Notifiche licenziamento, email modifiche, endpoint cronologia cliente
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Tab caricamento globale, categorie
+- `/app/frontend/src/pages/ClientDetail.jsx`: Integrazione cronologia notifiche
+- `/app/frontend/src/components/EmployeeManagementAdmin.jsx`: Visualizzazione consulente assegnato
+- `/app/frontend/src/pages/DeadlinesManagement.jsx`: Rinomina liste→categorie
+
 ### Fase 15 (10 Marzo 2026) - COMPLETATA ✅
 
 **Sezione Dipendenti nella Scheda Cliente + Notifiche Consulenti**

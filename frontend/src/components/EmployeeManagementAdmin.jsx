@@ -424,10 +424,19 @@ const EmployeeManagementAdmin = ({ token, userRole, clientId = null, isAdmin = f
                     <span className="text-slate-500">Giorni:</span>
                     <span className="ml-2 font-medium">{selectedEmployee.work_days}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500">Contratto:</span>
-                    <span className="ml-2 font-medium">{selectedEmployee.contract_type || "N/D"}</span>
-                  </div>
+                  {selectedEmployee.weekly_hours && (
+                    <div>
+                      <span className="text-slate-500">Ore Settimanali:</span>
+                      <span className="ml-2 font-medium">{selectedEmployee.weekly_hours}</span>
+                    </div>
+                  )}
+                  {/* Solo admin vede il consulente assegnato */}
+                  {isAdmin && selectedEmployee.assigned_consulente_name && (
+                    <div className="col-span-2 mt-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
+                      <span className="text-purple-700 font-medium">Consulente Assegnato:</span>
+                      <span className="ml-2 text-purple-900">{selectedEmployee.assigned_consulente_name}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

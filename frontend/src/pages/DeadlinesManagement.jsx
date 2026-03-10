@@ -98,7 +98,7 @@ const DeadlinesManagement = () => {
       
       await axios.post(`${API}/deadlines`, deadlineData, { headers });
       
-      let message = "Scadenza creata per le liste selezionate";
+      let message = "Scadenza creata per le categorie selezionate";
       if (form.is_recurring) message += ` (ricorrente ${form.recurrence_type})`;
       if (form.send_notification) message += " - Notifiche inviate!";
       toast.success(message);
@@ -158,7 +158,7 @@ const DeadlinesManagement = () => {
     }
   };
 
-  // Filtra scadenze per liste (non singoli clienti)
+  // Filtra scadenze per categorie (non singoli clienti)
   const listDeadlines = deadlines.filter(d => d.list_ids && d.list_ids.length > 0);
 
   if (loading) {
@@ -183,7 +183,7 @@ const DeadlinesManagement = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <span className="font-heading font-bold text-xl text-slate-900">Scadenze per Liste</span>
+              <span className="font-heading font-bold text-xl text-slate-900">Scadenze per Categorie</span>
               <span className="text-xs text-slate-500 block">Gestisci scadenze ricorrenti per gruppi di clienti</span>
             </div>
           </div>
@@ -206,7 +206,7 @@ const DeadlinesManagement = () => {
           <CardHeader>
             <CardTitle className="font-heading text-lg flex items-center gap-2">
               <Plus className="h-5 w-5 text-teal-500" />
-              Crea Scadenza per Liste
+              Crea Scadenza per Categorie
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -275,11 +275,11 @@ const DeadlinesManagement = () => {
                 </div>
               </div>
               
-              {/* Liste di clienti */}
+              {/* Categorie di clienti */}
               <div className="space-y-3">
                 <Label className="flex items-center gap-2">
                   <Tag className="h-4 w-4 text-teal-500" />
-                  Seleziona Liste Clienti *
+                  Seleziona Categorie Clienti *
                 </Label>
                 <div className="grid md:grid-cols-3 gap-3">
                   {lists.map((list) => (
@@ -393,7 +393,7 @@ const DeadlinesManagement = () => {
               
               <Button type="submit" disabled={saving} className="bg-teal-500 hover:bg-teal-600 text-white">
                 <Calendar className="h-4 w-4 mr-2" />
-                {saving ? "Creazione..." : "Crea Scadenza per Liste"}
+                {saving ? "Creazione..." : "Crea Scadenza per Categorie"}
               </Button>
             </form>
           </CardContent>
@@ -404,7 +404,7 @@ const DeadlinesManagement = () => {
           <CardHeader>
             <CardTitle className="font-heading text-lg flex items-center gap-2">
               <Calendar className="h-5 w-5 text-teal-500" />
-              Scadenze Assegnate a Liste
+              Scadenze Assegnate a Categorie
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -474,8 +474,8 @@ const DeadlinesManagement = () => {
             ) : (
               <div className="text-center py-12">
                 <Calendar className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                <p className="text-slate-500">Nessuna scadenza assegnata a liste</p>
-                <p className="text-sm text-slate-400">Crea una scadenza per una o più liste di clienti</p>
+                <p className="text-slate-500">Nessuna scadenza assegnata a categorie</p>
+                <p className="text-sm text-slate-400">Crea una scadenza per una o più categorie di clienti</p>
               </div>
             )}
           </CardContent>
