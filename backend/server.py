@@ -323,6 +323,11 @@ class ConsulenteCreate(BaseModel):
     password: str
     full_name: str
 
+class ConsulenteInvite(BaseModel):
+    """Invito per consulente del lavoro"""
+    email: EmailStr
+    full_name: str
+
 class ClientAssignment(BaseModel):
     client_ids: List[str]  # Lista di ID clienti da assegnare
 
@@ -2423,9 +2428,8 @@ async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_
 @api_router.post("/auth/complete-registration")
 async def complete_registration(data: CompleteRegistration):
     """
-    Completa la registrazione di un cliente invitato.
-    Il cliente sceglie la sua email di accesso, imposta la password e il nome.
-    L'email originale (di notifica) viene salvata come email secondaria.
+    Completa la registrazione di un utente invitato (cliente o consulente del lavoro).
+    L'utente sceglie la sua email di accesso, imposta la password e il nome.
     """
     # Trova l'invito con il token
     invitation = await db.invitations.find_one({"invitation_token": data.token}, {"_id": 0})
@@ -2444,44 +2448,65 @@ async def complete_registration(data: CompleteRegistration):
     if invitation_sent:
         sent_date = datetime.fromisoformat(invitation_sent.replace('Z', '+00:00'))
         if datetime.now(timezone.utc) - sent_date > timedelta(days=7):
-            raise HTTPException(status_code=400, detail="Invito scaduto. Richiedi un nuovo invito al commercialista.")
+            raise HTTPException(status_code=400, detail="Invito scaduto. Richiedi un nuovo invito.")
     
     # Verifica che l'email scelta non sia già registrata
     existing_user = await db.users.find_one({"email": data.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Questa email è già registrata. Scegli un'altra email o usa il Login.")
     
-    # Crea il nuovo utente con l'email scelta dal cliente
+    # Determina il ruolo dall'invito
+    invited_role = invitation.get("role", "cliente")  # Default: cliente
+    is_consulente = invited_role == "consulente_lavoro"
+    
     user_id = str(uuid.uuid4())
-    user_doc = {
-        "id": user_id,
-        "email": data.email,  # Email scelta dal cliente per l'account
-        "email_notifica": invitation.get("notification_email"),  # Email originale per notifiche
-        "additional_emails": [],  # Email aggiuntive
-        "password": hash_password(data.password),
-        "full_name": data.full_name or invitation.get("suggested_name", ""),
-        "phone": None,
-        "codice_fiscale": None,
-        "nie": None,
-        "nif": None,
-        "cif": None,
-        "indirizzo": None,
-        "citta": None,
-        "cap": None,
-        "provincia": None,
-        "iban": None,
-        "regime_fiscale": None,
-        "tipo_attivita": None,
-        "tipo_cliente": invitation.get("tipo_cliente", "autonomo"),  # Usa tipo dall'invito
-        "role": "cliente",
-        "stato": "attivo",
-        "invited_by": invitation.get("invited_by"),
-        "note_interne": "",
-        "lists": [],
-        "bank_credentials": [],  # Credenziali bancarie
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "registration_completed_at": datetime.now(timezone.utc).isoformat()
-    }
+    
+    if is_consulente:
+        # Crea documento consulente del lavoro
+        user_doc = {
+            "id": user_id,
+            "email": data.email,
+            "password": hash_password(data.password),
+            "full_name": data.full_name or invitation.get("suggested_name", ""),
+            "role": "consulente_lavoro",
+            "stato": "attivo",
+            "assigned_clients": [],
+            "created_by": invitation.get("invited_by"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "registration_completed_at": datetime.now(timezone.utc).isoformat()
+        }
+    else:
+        # Crea documento cliente
+        user_doc = {
+            "id": user_id,
+            "email": data.email,
+            "email_notifica": invitation.get("notification_email"),
+            "additional_emails": [],
+            "password": hash_password(data.password),
+            "full_name": data.full_name or invitation.get("suggested_name", ""),
+            "phone": None,
+            "codice_fiscale": None,
+            "nie": None,
+            "nif": None,
+            "cif": None,
+            "indirizzo": None,
+            "citta": None,
+            "cap": None,
+            "provincia": None,
+            "iban": None,
+            "regime_fiscale": None,
+            "tipo_attivita": None,
+            "tipo_cliente": invitation.get("tipo_cliente", "autonomo"),
+            "role": "cliente",
+            "stato": "attivo",
+            "invited_by": invitation.get("invited_by"),
+            "note_interne": "",
+            "lists": [],
+            "bank_credentials": [],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "registration_completed_at": datetime.now(timezone.utc).isoformat()
+        }
+    
     await db.users.insert_one(user_doc)
     
     # Aggiorna l'invito come completato
@@ -2500,14 +2525,16 @@ async def complete_registration(data: CompleteRegistration):
     except Exception as e:
         logger.error(f"Errore invio email benvenuto: {e}")
     
+    role_label = "Consulente del lavoro" if is_consulente else "Cliente"
     await log_activity(
         "registrazione_completata",
-        f"Cliente {data.email} ha completato la registrazione",
+        f"{role_label} {data.email} ha completato la registrazione",
         user_id
     )
     
     # Genera token di accesso
-    token = create_token(user_id, data.email, "cliente")
+    final_role = "consulente_lavoro" if is_consulente else "cliente"
+    token = create_token(user_id, data.email, final_role)
     
     return {
         "success": True,
@@ -2518,7 +2545,7 @@ async def complete_registration(data: CompleteRegistration):
             "id": user_id,
             "email": data.email,
             "full_name": data.full_name or invitation.get("suggested_name", ""),
-            "role": "cliente"
+            "role": final_role
         }
     }
 
@@ -3279,6 +3306,144 @@ async def create_consulente(consulente: ConsulenteCreate, user: dict = Depends(r
     )
     
     return {"success": True, "id": consulente_id, "email": consulente.email}
+
+@api_router.post("/consulenti/invite")
+async def invite_consulente(invite_data: ConsulenteInvite, user: dict = Depends(require_commercialista)):
+    """
+    Invita un consulente del lavoro via email.
+    Il consulente riceverà un link per completare la registrazione.
+    """
+    # Verifica che l'email non sia già registrata
+    existing = await db.users.find_one({"email": invite_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email già registrata nel sistema")
+    
+    # Verifica che non ci sia già un invito pendente
+    existing_invite = await db.invitations.find_one({
+        "notification_email": invite_data.email,
+        "status": "pending",
+        "role": "consulente_lavoro"
+    })
+    if existing_invite:
+        raise HTTPException(status_code=400, detail="Esiste già un invito pendente per questa email")
+    
+    # Genera token e crea l'invito
+    invitation_token = secrets.token_urlsafe(32)
+    invite_id = str(uuid.uuid4())
+    
+    invite_doc = {
+        "id": invite_id,
+        "notification_email": invite_data.email,
+        "suggested_name": invite_data.full_name,
+        "role": "consulente_lavoro",  # Identificatore per distinguere dagli inviti clienti
+        "invitation_token": invitation_token,
+        "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
+        "invited_by": user["id"],
+        "status": "pending",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    }
+    await db.invitations.insert_one(invite_doc)
+    
+    # Costruisci il link di invito
+    frontend_url = os.environ.get("FRONTEND_URL", "https://app.fiscaltaxcanarie.com")
+    invitation_link = f"{frontend_url}/complete-registration?token={invitation_token}"
+    
+    # Invia email di invito
+    try:
+        await send_generic_email(
+            to_email=invite_data.email,
+            subject="Invito come Consulente del Lavoro - Fiscal Tax Canarie",
+            html_content=f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #3caca4;">Benvenuto in Fiscal Tax Canarie</h2>
+                <p>Ciao {invite_data.full_name},</p>
+                <p>Sei stato invitato come <strong>Consulente del Lavoro</strong> nella piattaforma Fiscal Tax Canarie.</p>
+                <p>Clicca sul pulsante qui sotto per completare la registrazione e impostare la tua password:</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{invitation_link}" style="background-color: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                        Completa Registrazione
+                    </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">Questo link scadrà tra 7 giorni.</p>
+                <p style="color: #666; font-size: 12px;">Se non hai richiesto questo invito, puoi ignorare questa email.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                <p style="color: #999; font-size: 12px;">Fiscal Tax Canarie - Gestione Fiscale Professionale</p>
+            </div>
+            """
+        )
+    except Exception as e:
+        logger.error(f"Errore invio email invito consulente: {e}")
+    
+    await log_activity(
+        "consulente_invitato",
+        f"Invito inviato a consulente del lavoro: {invite_data.email}",
+        user["id"]
+    )
+    
+    return {
+        "success": True,
+        "message": f"Invito inviato a {invite_data.email}",
+        "invite_id": invite_id,
+        "invitation_link": invitation_link
+    }
+
+@api_router.get("/consulenti/invitations")
+async def get_consulenti_invitations(user: dict = Depends(require_commercialista)):
+    """Lista gli inviti pendenti per consulenti del lavoro"""
+    invitations = await db.invitations.find(
+        {"invited_by": user["id"], "status": "pending", "role": "consulente_lavoro"},
+        {"_id": 0}
+    ).to_list(100)
+    return invitations
+
+@api_router.post("/consulenti/resend-invite/{invite_id}")
+async def resend_consulente_invitation(invite_id: str, user: dict = Depends(require_commercialista)):
+    """Reinvia l'invito a un consulente"""
+    invitation = await db.invitations.find_one({"id": invite_id, "role": "consulente_lavoro"}, {"_id": 0})
+    
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
+    
+    if invitation.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Questo invito è già stato utilizzato")
+    
+    # Genera nuovo token
+    new_token = secrets.token_urlsafe(32)
+    await db.invitations.update_one(
+        {"id": invite_id},
+        {"$set": {
+            "invitation_token": new_token,
+            "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+        }}
+    )
+    
+    frontend_url = os.environ.get("FRONTEND_URL", "https://app.fiscaltaxcanarie.com")
+    invitation_link = f"{frontend_url}/complete-registration?token={new_token}"
+    
+    # Reinvia email
+    try:
+        await send_generic_email(
+            to_email=invitation["notification_email"],
+            subject="Invito come Consulente del Lavoro - Fiscal Tax Canarie (Reinvio)",
+            html_content=f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #3caca4;">Benvenuto in Fiscal Tax Canarie</h2>
+                <p>Ciao {invitation.get('suggested_name', '')},</p>
+                <p>Ecco il tuo nuovo link di invito come <strong>Consulente del Lavoro</strong>.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{invitation_link}" style="background-color: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                        Completa Registrazione
+                    </a>
+                </div>
+                <p style="color: #666; font-size: 14px;">Questo link scadrà tra 7 giorni.</p>
+            </div>
+            """
+        )
+    except Exception as e:
+        logger.error(f"Errore reinvio email consulente: {e}")
+    
+    return {"success": True, "message": f"Invito reinviato a {invitation['notification_email']}", "invitation_link": invitation_link}
 
 @api_router.get("/consulenti")
 async def get_consulenti(user: dict = Depends(require_commercialista)):

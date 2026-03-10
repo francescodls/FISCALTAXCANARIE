@@ -15,23 +15,29 @@ import {
   Trash2, 
   Users,
   Save,
-  X
+  X,
+  Mail,
+  RefreshCw,
+  Clock,
+  CheckCircle2,
+  Copy
 } from "lucide-react";
 
 const ConsulentiManagement = ({ token }) => {
   const [consulenti, setConsulenti] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedConsulente, setSelectedConsulente] = useState(null);
   const [selectedClientIds, setSelectedClientIds] = useState([]);
-  const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [inviteResult, setInviteResult] = useState(null);
   
-  const [createForm, setCreateForm] = useState({
+  const [inviteForm, setInviteForm] = useState({
     email: "",
-    password: "",
     full_name: ""
   });
 
@@ -44,12 +50,14 @@ const ConsulentiManagement = ({ token }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [consulentiRes, clientsRes] = await Promise.all([
+      const [consulentiRes, clientsRes, invitationsRes] = await Promise.all([
         axios.get(`${API}/consulenti`, { headers }),
-        axios.get(`${API}/clients`, { headers })
+        axios.get(`${API}/clients`, { headers }),
+        axios.get(`${API}/consulenti/invitations`, { headers })
       ]);
       setConsulenti(consulentiRes.data);
       setClients(clientsRes.data);
+      setPendingInvitations(invitationsRes.data);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
     } finally {
@@ -57,24 +65,49 @@ const ConsulentiManagement = ({ token }) => {
     }
   };
 
-  const handleCreateConsulente = async (e) => {
+  const handleInviteConsulente = async (e) => {
     e.preventDefault();
-    if (!createForm.email || !createForm.password || !createForm.full_name) {
+    if (!inviteForm.email || !inviteForm.full_name) {
       toast.error("Compila tutti i campi");
       return;
     }
-    setCreating(true);
+    setInviting(true);
+    setInviteResult(null);
     try {
-      await axios.post(`${API}/consulenti`, createForm, { headers });
-      toast.success("Consulente creato con successo");
-      setCreateForm({ email: "", password: "", full_name: "" });
-      setShowCreateDialog(false);
+      const response = await axios.post(`${API}/consulenti/invite`, inviteForm, { headers });
+      toast.success(`Invito inviato a ${inviteForm.email}!`);
+      setInviteResult({
+        email: inviteForm.email,
+        link: response.data.invitation_link
+      });
+      setInviteForm({ email: "", full_name: "" });
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Errore nella creazione");
+      toast.error(error.response?.data?.detail || "Errore nell'invio dell'invito");
     } finally {
-      setCreating(false);
+      setInviting(false);
     }
+  };
+
+  const handleResendInvite = async (inviteId, email) => {
+    try {
+      await axios.post(`${API}/consulenti/resend-invite/${inviteId}`, {}, { headers });
+      toast.success(`Invito reinviato a ${email}`);
+      fetchData();
+    } catch (error) {
+      toast.error("Errore nel reinvio dell'invito");
+    }
+  };
+
+  const closeInviteDialog = () => {
+    setShowInviteDialog(false);
+    setInviteResult(null);
+    setInviteForm({ email: "", full_name: "" });
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Link copiato negli appunti!");
   };
 
   const handleDeleteConsulente = async (consulenteId) => {
@@ -135,72 +168,149 @@ const ConsulentiManagement = ({ token }) => {
           <h2 className="font-heading text-2xl font-bold text-slate-900">Consulenti del Lavoro</h2>
           <p className="text-slate-600">Gestisci i consulenti e assegna loro i clienti</p>
         </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <Dialog open={showInviteDialog} onOpenChange={(open) => { if (!open) closeInviteDialog(); else setShowInviteDialog(true); }}>
           <DialogTrigger asChild>
-            <Button className="bg-indigo-500 hover:bg-indigo-600 text-white" data-testid="create-consulente-btn">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuovo Consulente
+            <Button className="bg-indigo-500 hover:bg-indigo-600 text-white" data-testid="invite-consulente-btn">
+              <Mail className="h-4 w-4 mr-2" />
+              Invita Consulente
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Briefcase className="h-5 w-5 text-indigo-500" />
-                Crea Consulente del Lavoro
+                Invita Consulente del Lavoro
               </DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleCreateConsulente} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Nome Completo *</Label>
-                <Input
-                  value={createForm.full_name}
-                  onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
-                  placeholder="Mario Rossi"
-                  className="border-slate-200"
-                  required
-                  data-testid="consulente-name"
-                />
+            
+            {inviteResult ? (
+              <div className="space-y-4 py-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <span className="font-medium text-green-800">Invito inviato!</span>
+                  </div>
+                  <p className="text-sm text-green-700">
+                    L'email di invito è stata inviata a <strong>{inviteResult.email}</strong>
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Link di invito (backup)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={inviteResult.link}
+                      readOnly
+                      className="bg-slate-50 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => copyToClipboard(inviteResult.link)}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Puoi condividere questo link manualmente se necessario
+                  </p>
+                </div>
+                
+                <DialogFooter>
+                  <Button onClick={closeInviteDialog} className="w-full bg-indigo-500 hover:bg-indigo-600 text-white">
+                    Chiudi
+                  </Button>
+                </DialogFooter>
               </div>
-              <div className="space-y-2">
-                <Label>Email *</Label>
-                <Input
-                  type="email"
-                  value={createForm.email}
-                  onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                  placeholder="consulente@email.com"
-                  className="border-slate-200"
-                  required
-                  data-testid="consulente-email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Password *</Label>
-                <Input
-                  type="password"
-                  value={createForm.password}
-                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                  placeholder="Password sicura"
-                  className="border-slate-200"
-                  required
-                  data-testid="consulente-password"
-                />
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowCreateDialog(false)}>
-                  Annulla
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={creating}
-                  className="bg-indigo-500 hover:bg-indigo-600 text-white"
-                >
-                  {creating ? "Creazione..." : "Crea Consulente"}
-                </Button>
-              </DialogFooter>
-            </form>
+            ) : (
+              <form onSubmit={handleInviteConsulente} className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Il consulente riceverà un'email con il link per completare la registrazione e impostare la propria password.
+                </p>
+                <div className="space-y-2">
+                  <Label>Nome Completo *</Label>
+                  <Input
+                    value={inviteForm.full_name}
+                    onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
+                    placeholder="Mario Rossi"
+                    className="border-slate-200"
+                    required
+                    data-testid="consulente-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    placeholder="consulente@email.com"
+                    className="border-slate-200"
+                    required
+                    data-testid="consulente-email-input"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={closeInviteDialog}>
+                    Annulla
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={inviting}
+                    className="bg-indigo-500 hover:bg-indigo-600 text-white"
+                    data-testid="send-invite-btn"
+                  >
+                    {inviting ? "Invio in corso..." : (
+                      <>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Invia Invito
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Inviti in attesa */}
+      {pendingInvitations.length > 0 && (
+        <Card className="bg-amber-50 border border-amber-200">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="h-5 w-5 text-amber-600" />
+              <h3 className="font-semibold text-amber-800">
+                Inviti in attesa di registrazione ({pendingInvitations.length})
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {pendingInvitations.map((invite) => (
+                <div key={invite.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-amber-100">
+                  <div className="flex items-center gap-3">
+                    <Mail className="h-5 w-5 text-amber-500" />
+                    <div>
+                      <p className="font-medium text-slate-900">{invite.suggested_name}</p>
+                      <p className="text-sm text-slate-500">{invite.notification_email}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResendInvite(invite.id, invite.notification_email)}
+                    className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                    data-testid={`resend-invite-${invite.id}`}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                    Reinvia
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {consulenti.length > 0 ? (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -222,6 +332,7 @@ const ConsulentiManagement = ({ token }) => {
                     size="sm"
                     onClick={() => handleDeleteConsulente(consulente.id)}
                     className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    data-testid={`delete-consulente-${consulente.id}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -267,24 +378,24 @@ const ConsulentiManagement = ({ token }) => {
             </Card>
           ))}
         </div>
-      ) : (
+      ) : pendingInvitations.length === 0 ? (
         <Card className="bg-white border border-slate-200">
           <CardContent className="p-12 text-center">
             <Briefcase className="h-16 w-16 text-slate-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-700 mb-2">Nessun consulente</h3>
             <p className="text-slate-500 mb-4">
-              Crea un consulente del lavoro per delegare la gestione delle buste paga.
+              Invita un consulente del lavoro per delegare la gestione delle buste paga.
             </p>
             <Button
-              onClick={() => setShowCreateDialog(true)}
+              onClick={() => setShowInviteDialog(true)}
               className="bg-indigo-500 hover:bg-indigo-600 text-white"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Crea il primo consulente
+              <Mail className="h-4 w-4 mr-2" />
+              Invita il primo consulente
             </Button>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {/* Dialog assegnazione clienti */}
       <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>

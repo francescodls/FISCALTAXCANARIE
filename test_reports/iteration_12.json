@@ -1,0 +1,109 @@
+{
+  "summary": "Iteration 12 - Caricamento Globale Documenti and Consulente Invitation System testing completed. All features working correctly. Backend: 11/11 tests passed. Frontend: All UI components verified.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "DialogContent components",
+        "issues": ["Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent} - accessibility improvement recommended (inherited from previous iterations)"]
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "✅ POST /api/consulenti/invite - Creates invitation with token and returns invitation_link",
+    "✅ GET /api/consulenti/invitations - Returns pending consulente invitations with role=consulente_lavoro",
+    "✅ POST /api/consulenti/resend-invite/{id} - Regenerates token and resends invitation",
+    "✅ POST /api/auth/complete-registration - Endpoint exists and validates tokens (supports consulente_lavoro)",
+    "✅ GET /api/stats - Returns clients_active count (22 active clients)",
+    "✅ GET /api/clients - Returns clients with 'stato' field for filtering",
+    "✅ GET /api/consulenti - Returns list of registered consulenti",
+    "✅ Duplicate invitation for same email correctly rejected",
+    "✅ Invitation requires name and email fields (not password)",
+    "✅ Frontend: Global Upload Dialog shows 'Destinatario (opzionale)' label",
+    "✅ Frontend: Global Upload Dialog shows '22 clienti attivi' in dropdown",
+    "✅ Frontend: Global Upload Dialog has drag & drop area with 'Trascina qui il file'",
+    "✅ Frontend: Consulenti tab shows 'Inviti in attesa di registrazione' section",
+    "✅ Frontend: Invite Consulente form has Name and Email fields only (NO password field)",
+    "✅ Frontend: Pending invitations list with 'Reinvia' buttons visible"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12_consulenti_global_upload.py",
+    "/app/test_reports/pytest/pytest_results_iteration12.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "GlobalDocumentUpload component uses c.stato === 'attivo' filter correctly after fix from 'status' to 'stato'",
+    "SelectItem value='all' used instead of empty string '' to avoid React controlled component warning",
+    "Consulente invitation sends email via send_generic_email - delivery depends on Brevo API configuration"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_iteration12_consulenti_global_upload.py - New test file for this iteration"
+  ],
+
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all UI features verified)"
+  },
+
+  "test_credentials": {
+    "commercialista": {
+      "email": "info@fiscaltaxcanarie.com",
+      "password": "Triana48+"
+    }
+  },
+
+  "seed_data_creation": "Test consulente invitations created with TEST_ prefix during API tests",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": true,
+
+  "context_for_next_testing_agent": "Iteration 12 verified: 1) GlobalDocumentUpload shows '22 clienti attivi' correctly (fixed filter from 'status' to 'stato'). 2) Consulente invitation system fully working with POST /api/consulenti/invite, GET /api/consulenti/invitations, and POST /api/consulenti/resend-invite/{id}. 3) Complete-registration endpoint at POST /api/auth/complete-registration supports role=consulente_lavoro from invitation. 4) Invite form requires only name and email (no password - the consulente sets their password during registration). 5) Pending invitations are visible in UI with Reinvia (resend) buttons.",
+
+  "features_verified": {
+    "global_document_upload_dialog": {
+      "status": "WORKING",
+      "description": "Dialog shows 'Destinatario (opzionale)', '22 clienti attivi' count, drag&drop area with 'Trascina qui il file' text"
+    },
+    "consulente_invite_api": {
+      "status": "WORKING", 
+      "description": "POST /api/consulenti/invite creates invitation with role=consulente_lavoro and returns invitation_link"
+    },
+    "consulente_invitations_list_api": {
+      "status": "WORKING",
+      "description": "GET /api/consulenti/invitations returns pending invitations with correct structure"
+    },
+    "consulente_resend_invite_api": {
+      "status": "WORKING",
+      "description": "POST /api/consulenti/resend-invite/{id} regenerates token and returns new invitation_link"
+    },
+    "complete_registration_consulente_support": {
+      "status": "WORKING",
+      "description": "POST /api/auth/complete-registration supports role=consulente_lavoro from invitation document"
+    },
+    "invite_form_no_password": {
+      "status": "WORKING",
+      "description": "ConsulentiManagement invite form requires only name and email fields (password set during registration)"
+    },
+    "pending_invitations_ui": {
+      "status": "WORKING",
+      "description": "Consulenti tab shows 'Inviti in attesa di registrazione' section with Reinvia buttons"
+    },
+    "stats_active_clients": {
+      "status": "WORKING",
+      "description": "GET /api/stats returns clients_active=22 and stats card displays correctly"
+    }
+  }
+}

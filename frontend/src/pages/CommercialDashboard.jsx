@@ -1207,7 +1207,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  const activeClients = clients.filter(c => c.status === "active");
+  const activeClients = clients.filter(c => c.stato === "attivo");
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -1271,12 +1271,12 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
       {/* Selezione cliente opzionale */}
       <div className="space-y-2">
         <Label className="text-slate-700 font-medium">Destinatario (opzionale)</Label>
-        <Select value={selectedClient} onValueChange={setSelectedClient}>
+        <Select value={selectedClient} onValueChange={(val) => setSelectedClient(val === "all" ? "" : val)}>
           <SelectTrigger className="border-slate-200">
             <SelectValue placeholder="Tutti i clienti attivi" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tutti i clienti attivi ({activeClients.length})</SelectItem>
+            <SelectItem value="all">Tutti i clienti attivi ({activeClients.length})</SelectItem>
             {activeClients.map(client => (
               <SelectItem key={client.id} value={client.id}>
                 {client.full_name}
