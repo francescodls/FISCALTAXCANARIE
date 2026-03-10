@@ -8,6 +8,41 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 11 (10 Marzo 2026) - COMPLETATA ✅
+
+**5 Nuove Funzionalità Richieste**
+
+1. **Chiavi Consultive Bancarie**
+   - Sezione nell'anagrafica cliente per gestire credenziali di accesso bancario
+   - Entità bancarie predefinite: Revolut, Caixa, Santander, BBVA, Cajamar
+   - Possibilità di creare nuove entità bancarie personalizzate
+   - Campi: Banca, Nome Utente, Password (con toggle visibilità)
+   - Endpoint: `/api/bank-entities`, `/api/clients/{id}/bank-credentials`
+
+2. **Riconoscimento Automatico Buste Paga**
+   - L'AI analizza i documenti caricati e identifica le buste paga
+   - Se riconosciuta come busta paga, viene archiviata automaticamente nella sezione "Buste Paga"
+   - Estrae mese e anno dalla busta paga
+   - Campo `is_busta_paga` nella risposta AI
+
+3. **Ruolo Consulente del Lavoro**
+   - Nuovo ruolo con permessi limitati
+   - Dashboard dedicata (`/consulente`) con vista ristretta
+   - Può vedere solo i clienti assegnati dall'amministratore
+   - Può caricare solo buste paga
+   - Endpoint: `/api/consulenti`, `/api/consulenti/{id}/assign-clients`, `/api/consulente/*`
+
+4. **Email Multiple per Cliente**
+   - Possibilità di associare più indirizzi email a un cliente
+   - Sezione "Email Aggiuntive" nell'anagrafica
+   - Email principale evidenziata
+   - Endpoint: `/api/clients/{id}/emails`
+
+5. **Tipo Cliente all'Invito + Filtro**
+   - Campo "Tipo Cliente" nel form di invito: Autonomo, Società, Privato
+   - Filtro per tipo nella lista clienti
+   - Badge colorato per tipo nella lista
+
 ### Fase 10 (10 Marzo 2026) - COMPLETATA ✅
 
 **Refactoring Flusso di Invito Clienti**
@@ -152,14 +187,49 @@ Response:
 }
 ```
 
+## Database Schema Bank Entities
+
+```json
+{
+  "id": "uuid",
+  "name": "string (Revolut, Caixa, etc.)",
+  "is_default": "boolean",
+  "created_by": "uuid (null for defaults)",
+  "created_at": "ISO datetime"
+}
+```
+
+## Database Schema Bank Credentials (in users collection)
+
+```json
+{
+  "bank_credentials": [
+    {
+      "id": "uuid",
+      "bank_entity_id": "uuid",
+      "username": "string",
+      "password": "string",
+      "created_at": "ISO datetime"
+    }
+  ],
+  "additional_emails": ["email1", "email2"]
+}
+```
+
 ## Integrazioni
 - **OpenAI GPT-4o-mini**: Chatbot, analisi documenti, ricerca semantica
 - **Brevo**: Email transazionali e promemoria
 - **pyHanko**: Firma digitale PDF con certificati .p12
+- **Backblaze B2**: Storage cloud file
+
+## Ruoli Utente
+- **commercialista**: Accesso completo, gestione clienti/documenti/consulenti
+- **cliente**: Accesso ai propri documenti, chatbot, scadenze
+- **consulente_lavoro**: Dashboard limitata, solo clienti assegnati, solo buste paga
 
 ## Next Tasks
 1. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
-2. **P2**: Refactoring `server.py` (~2800 righe) in moduli separati (`routers/auth.py`, `routers/clients.py`, etc.)
+2. **P2**: Refactoring `server.py` (~3100 righe) in moduli separati (`routers/auth.py`, `routers/clients.py`, etc.)
 3. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
 4. **P2**: Versioning documenti con storico modifiche
 5. **P3**: Report esportabili (PDF/Excel)
@@ -170,3 +240,4 @@ Response:
 - Multilingua (IT/ES)
 - Promemoria automatici schedulati (cron job)
 - Valutazione accesso automatico portali governativi (AEAT, Seguridad Social)
+- Cifratura password credenziali bancarie (attualmente plaintext)
