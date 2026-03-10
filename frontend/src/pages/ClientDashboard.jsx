@@ -25,7 +25,9 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertTriangle,
-  Circle
+  Circle,
+  Bell,
+  Mail
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -50,6 +52,7 @@ const ClientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedModello, setSelectedModello] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notificationsHistory, setNotificationsHistory] = useState([]);
   
   // Anagrafica state
   const [editingProfile, setEditingProfile] = useState(false);
@@ -81,13 +84,14 @@ const ClientDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, deadlinesRes, docsRes, payslipsRes, notesRes, modelliRes] = await Promise.all([
+      const [statsRes, deadlinesRes, docsRes, payslipsRes, notesRes, modelliRes, notificationsRes] = await Promise.all([
         axios.get(`${API}/stats`, { headers }),
         axios.get(`${API}/deadlines`, { headers }),
         axios.get(`${API}/documents`, { headers }),
         axios.get(`${API}/payslips`, { headers }),
         axios.get(`${API}/notes`, { headers }),
-        axios.get(`${API}/modelli-tributari`, { headers })
+        axios.get(`${API}/modelli-tributari`, { headers }),
+        axios.get(`${API}/my-notifications-history`, { headers }).catch(() => ({ data: [] }))
       ]);
       setStats(statsRes.data);
       setDeadlines(deadlinesRes.data);
@@ -95,6 +99,7 @@ const ClientDashboard = () => {
       setPayslips(payslipsRes.data);
       setNotes(notesRes.data);
       setModelliTributari(modelliRes.data);
+      setNotificationsHistory(notificationsRes.data);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
     } finally {
@@ -265,6 +270,14 @@ const ClientDashboard = () => {
               data-testid="tab-notes"
             >
               {t("common.notes")}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="communications" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-communications"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Comunicazioni
             </TabsTrigger>
             <TabsTrigger 
               value="modelli" 
@@ -799,6 +812,82 @@ const ClientDashboard = () => {
                     <StickyNote className="h-12 w-12 text-slate-300 mx-auto mb-4" />
                     <p className="text-slate-500">Nessuna comunicazione disponibile</p>
                     <p className="text-sm text-slate-400">Le comunicazioni del tuo commercialista appariranno qui</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Communications History Tab */}
+          <TabsContent value="communications" className="space-y-6">
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-xl flex items-center gap-2">
+                  <Bell className="h-5 w-5 text-amber-500" />
+                  Cronologia Comunicazioni
+                </CardTitle>
+                <p className="text-sm text-slate-500 mt-1">
+                  Tutte le notifiche e comunicazioni ricevute dallo studio
+                </p>
+              </CardHeader>
+              <CardContent>
+                {notificationsHistory.length > 0 ? (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                    {notificationsHistory.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1">
+                            {notif.type === "document" ? (
+                              <FileText className="h-5 w-5 text-blue-500" />
+                            ) : notif.type === "deadline" ? (
+                              <CalendarIcon className="h-5 w-5 text-amber-500" />
+                            ) : notif.type === "welcome" || notif.type === "invite" ? (
+                              <Mail className="h-5 w-5 text-teal-500" />
+                            ) : notif.type === "employee" ? (
+                              <Users className="h-5 w-5 text-indigo-500" />
+                            ) : (
+                              <Bell className="h-5 w-5 text-slate-500" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-semibold text-slate-900">{notif.title}</span>
+                              <Badge className="bg-slate-100 text-slate-600 text-xs">
+                                {notif.type === "document" ? "Documento" :
+                                 notif.type === "deadline" ? "Scadenza" :
+                                 notif.type === "welcome" ? "Benvenuto" :
+                                 notif.type === "invite" ? "Invito" :
+                                 notif.type === "employee" ? "Dipendente" :
+                                 notif.type === "manual" ? "Comunicazione" :
+                                 notif.type}
+                              </Badge>
+                              {notif.email_sent && (
+                                <Badge className="bg-emerald-100 text-emerald-700 text-xs">
+                                  <Mail className="h-3 w-3 mr-1" />
+                                  Via Email
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-600">{notif.message}</p>
+                            <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                              <Clock className="h-3 w-3" />
+                              {notif.created_at && format(parseISO(notif.created_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Bell className="h-16 w-16 text-slate-200 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-slate-700 mb-2">Nessuna comunicazione</h3>
+                    <p className="text-slate-500">
+                      Le notifiche e comunicazioni dallo studio appariranno qui
+                    </p>
                   </div>
                 )}
               </CardContent>

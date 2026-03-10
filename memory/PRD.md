@@ -8,6 +8,20 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 17 (10 Marzo 2026) - COMPLETATA ✅
+
+**Cronologia Comunicazioni nella Dashboard Cliente**
+
+- Aggiunta nuova tab "Comunicazioni" nella dashboard cliente
+- Visualizza tutte le notifiche ricevute dallo studio
+- Mostra tipo di notifica con icona appropriata (documento, scadenza, email, dipendente)
+- Badge per indicare se inviata via email
+- Timestamp formattato in italiano
+- Stato vuoto friendly quando non ci sono comunicazioni
+
+File modificati:
+- `/app/frontend/src/pages/ClientDashboard.jsx`: Nuova tab comunicazioni con cronologia
+
 ### Fase 16 (10 Marzo 2026) - COMPLETATA ✅
 
 **Miglioramenti Dashboard e Notifiche Dipendenti**
