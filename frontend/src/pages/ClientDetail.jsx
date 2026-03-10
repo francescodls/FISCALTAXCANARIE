@@ -51,6 +51,7 @@ import { it } from "date-fns/locale";
 import FeeManagement from "@/components/FeeManagement";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
+import SignatureManagement from "@/components/SignatureManagement";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -927,6 +928,14 @@ const ClientDetail = () => {
             >
               <Briefcase className="h-4 w-4 mr-2" />
               Dipendenti
+            </TabsTrigger>
+            <TabsTrigger 
+              value="signatures" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-signatures"
+            >
+              <FileSignature className="h-4 w-4 mr-2" />
+              Firma Digitale
             </TabsTrigger>
           </TabsList>
 
@@ -2406,6 +2415,15 @@ const ClientDetail = () => {
               clientId={clientId}
               isAdmin={user?.role === "commercialista"}
               isConsulente={user?.role === "consulente_lavoro"}
+            />
+          </TabsContent>
+
+          {/* Digital Signatures Tab */}
+          <TabsContent value="signatures" className="space-y-6">
+            <SignatureManagement 
+              token={token} 
+              clientId={clientId}
+              clientName={client?.full_name}
             />
           </TabsContent>
         </Tabs>

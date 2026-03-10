@@ -318,15 +318,6 @@ const CommercialDashboard = () => {
             </Button>
             <Button 
               variant="outline"
-              onClick={() => navigate("/admin/signatures")}
-              className="border-purple-200 text-purple-600 hover:bg-purple-50"
-              data-testid="manage-signatures-btn"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Firma Digitale
-            </Button>
-            <Button 
-              variant="outline"
               onClick={() => navigate("/admin/backup")}
               className="border-green-200 text-green-600 hover:bg-green-50"
               data-testid="manage-backup-btn"
@@ -1412,10 +1403,35 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
           </div>
         </div>
 
-        {/* Upload file */}
+        {/* Upload file con drag & drop */}
         <div className="space-y-2">
           <Label>File da caricare *</Label>
-          <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:border-teal-400 transition-colors">
+          <div 
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              selectedFile ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-400'
+            }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.currentTarget.classList.add('border-teal-500', 'bg-teal-50');
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!selectedFile) {
+                e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
+              const files = e.dataTransfer.files;
+              if (files && files.length > 0) {
+                setSelectedFile(files[0]);
+              }
+            }}
+          >
             <input
               type="file"
               onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
@@ -1423,12 +1439,18 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
               id="global-upload-input"
               accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
             />
-            <label htmlFor="global-upload-input" className="cursor-pointer">
+            <label htmlFor="global-upload-input" className="cursor-pointer block">
               <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
               {selectedFile ? (
-                <p className="text-sm font-medium text-teal-600">{selectedFile.name}</p>
+                <div>
+                  <p className="text-sm font-medium text-teal-600">{selectedFile.name}</p>
+                  <p className="text-xs text-slate-500 mt-1">Clicca per cambiare file</p>
+                </div>
               ) : (
-                <p className="text-sm text-slate-500">Clicca per selezionare un file o trascinalo qui</p>
+                <div>
+                  <p className="text-sm text-slate-600 font-medium">Trascina qui il file</p>
+                  <p className="text-xs text-slate-400 mt-1">oppure clicca per selezionare</p>
+                </div>
               )}
             </label>
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,14 +17,22 @@ import {
   FileSignature,
   CheckCircle,
   AlertCircle,
-  Lock
+  Lock,
+  FileText,
+  Download
 } from "lucide-react";
 
-const SignatureManagement = ({ token, API }) => {
+const SignatureManagement = ({ token, clientId = null, clientName = "" }) => {
   const [certificates, setCertificates] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [showSignDialog, setShowSignDialog] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const [selectedCert, setSelectedCert] = useState("");
+  const [certPassword, setCertPassword] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [signing, setSigning] = useState(false);
   
   const [uploadForm, setUploadForm] = useState({
     name: "",
@@ -35,7 +44,10 @@ const SignatureManagement = ({ token, API }) => {
 
   useEffect(() => {
     fetchCertificates();
-  }, []);
+    if (clientId) {
+      fetchClientDocuments();
+    }
+  }, [clientId]);
 
   const fetchCertificates = async () => {
     setLoading(true);
@@ -46,6 +58,47 @@ const SignatureManagement = ({ token, API }) => {
       console.error("Errore caricamento certificati:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchClientDocuments = async () => {
+    try {
+      const response = await axios.get(`${API}/clients/${clientId}/documents`, { headers });
+      // Filtra solo i documenti PDF che possono essere firmati
+      const pdfDocs = response.data.filter(doc => 
+        doc.filename?.toLowerCase().endsWith('.pdf') || doc.file_type === 'application/pdf'
+      );
+      setDocuments(pdfDocs);
+    } catch (error) {
+      console.error("Errore caricamento documenti:", error);
+    }
+  };
+
+  const handleSignDocument = async () => {
+    if (!selectedDoc || !selectedCert || !certPassword) {
+      toast.error("Seleziona documento, certificato e inserisci la password");
+      return;
+    }
+
+    setSigning(true);
+    try {
+      await axios.post(`${API}/sign-document`, {
+        document_id: selectedDoc.id,
+        certificate_id: selectedCert,
+        password: certPassword,
+        client_id: clientId
+      }, { headers });
+      
+      toast.success("Documento firmato con successo!");
+      setShowSignDialog(false);
+      setSelectedDoc(null);
+      setSelectedCert("");
+      setCertPassword("");
+      fetchClientDocuments();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nella firma del documento");
+    } finally {
+      setSigning(false);
     }
   };
 
@@ -263,6 +316,148 @@ const SignatureManagement = ({ token, API }) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Documenti da Firmare (se siamo nella scheda cliente) */}
+      {clientId && (
+        <Card className="bg-white border border-slate-200">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5 text-purple-500" />
+              Documenti di {clientName || "questo cliente"}
+            </CardTitle>
+            <p className="text-sm text-slate-500">
+              Seleziona un documento PDF per applicare la firma digitale
+            </p>
+          </CardHeader>
+          <CardContent>
+            {documents.length > 0 ? (
+              <div className="space-y-3">
+                {documents.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="p-4 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between hover:border-slate-200 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">{doc.title || doc.filename}</p>
+                        <p className="text-xs text-slate-500">{doc.category || "Documento PDF"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {doc.is_signed && (
+                        <Badge className="bg-green-50 text-green-700 border border-green-200">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Firmato
+                        </Badge>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedDoc(doc);
+                          setShowSignDialog(true);
+                        }}
+                        disabled={certificates.length === 0}
+                        className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                      >
+                        <FileSignature className="h-4 w-4 mr-1" />
+                        Firma
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                <h4 className="font-medium text-slate-700 mb-1">Nessun documento PDF</h4>
+                <p className="text-sm text-slate-500">
+                  Carica documenti PDF nella sezione Documenti per poterli firmare
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog Firma Documento */}
+      <Dialog open={showSignDialog} onOpenChange={setShowSignDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5 text-purple-500" />
+              Firma Documento
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedDoc && (
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <p className="text-sm font-medium text-slate-900">{selectedDoc.title || selectedDoc.filename}</p>
+                <p className="text-xs text-slate-500">Documento da firmare</p>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label>Seleziona Certificato *</Label>
+              <Select value={selectedCert} onValueChange={setSelectedCert}>
+                <SelectTrigger className="border-slate-200">
+                  <SelectValue placeholder="Scegli un certificato..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {certificates.map((cert) => (
+                    <SelectItem key={cert.name} value={cert.name}>
+                      {cert.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Password Certificato *</Label>
+              <Input
+                type="password"
+                value={certPassword}
+                onChange={(e) => setCertPassword(e.target.value)}
+                placeholder="Inserisci la password del certificato"
+                className="border-slate-200"
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowSignDialog(false);
+                setSelectedDoc(null);
+                setCertPassword("");
+              }}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleSignDocument}
+              disabled={signing || !selectedCert || !certPassword}
+              className="bg-purple-500 hover:bg-purple-600 text-white"
+            >
+              {signing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                  Firma in corso...
+                </>
+              ) : (
+                <>
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Firma Documento
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Info Box */}
       <Card className="bg-gradient-to-br from-slate-50 to-stone-50 border border-slate-200">
