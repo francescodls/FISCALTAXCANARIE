@@ -675,7 +675,8 @@ async def forgot_password(request: PasswordResetRequest):
     })
     
     # Invia email con link di reset
-    reset_link = f"https://app.fiscaltaxcanarie.com/reset-password?token={reset_token}"
+    frontend_url = os.environ.get("FRONTEND_URL", "https://app.fiscaltaxcanarie.com")
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     try:
         email_subject = "Recupero Password - Fiscal Tax Canarie"
@@ -769,11 +770,40 @@ async def get_clients(
         query["lists"] = list_id
     
     clients = await db.users.find(query, {"_id": 0, "password": 0}).to_list(1000)
+    
+    # Ottimizzazione: Usa aggregation pipeline per contare documenti/payslips/notes in batch
+    # invece di N+1 query separate per ogni cliente
+    client_ids = [c["id"] for c in clients]
+    
+    # Aggregazione per documenti
+    docs_counts = {}
+    docs_agg = await db.documents.aggregate([
+        {"$match": {"client_id": {"$in": client_ids}}},
+        {"$group": {"_id": "$client_id", "count": {"$sum": 1}}}
+    ]).to_list(1000)
+    for item in docs_agg:
+        docs_counts[item["_id"]] = item["count"]
+    
+    # Aggregazione per payslips
+    payslips_counts = {}
+    payslips_agg = await db.payslips.aggregate([
+        {"$match": {"client_id": {"$in": client_ids}}},
+        {"$group": {"_id": "$client_id", "count": {"$sum": 1}}}
+    ]).to_list(1000)
+    for item in payslips_agg:
+        payslips_counts[item["_id"]] = item["count"]
+    
+    # Aggregazione per notes
+    notes_counts = {}
+    notes_agg = await db.notes.aggregate([
+        {"$match": {"client_id": {"$in": client_ids}}},
+        {"$group": {"_id": "$client_id", "count": {"$sum": 1}}}
+    ]).to_list(1000)
+    for item in notes_agg:
+        notes_counts[item["_id"]] = item["count"]
+    
     result = []
     for client in clients:
-        docs_count = await db.documents.count_documents({"client_id": client["id"]})
-        payslips_count = await db.payslips.count_documents({"client_id": client["id"]})
-        notes_count = await db.notes.count_documents({"client_id": client["id"]})
         result.append(ClientInListResponse(
             id=client["id"],
             email=client["email"],
@@ -786,9 +816,9 @@ async def get_clients(
             tipo_cliente=client.get("tipo_cliente", "autonomo"),
             stato=client.get("stato", "attivo"),
             created_at=client["created_at"],
-            documents_count=docs_count,
-            payslips_count=payslips_count,
-            notes_count=notes_count,
+            documents_count=docs_counts.get(client["id"], 0),
+            payslips_count=payslips_counts.get(client["id"], 0),
+            notes_count=notes_counts.get(client["id"], 0),
             lists=client.get("lists", [])
         ))
     return result

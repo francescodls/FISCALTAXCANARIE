@@ -21,6 +21,10 @@ def get_brevo_key():
 SENDER_EMAIL = "info@fiscaltaxcanarie.com"
 SENDER_NAME = "Fiscal Tax Canarie"
 
+def get_frontend_url():
+    """Ottiene l'URL del frontend dalla variabile d'ambiente"""
+    return os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')
+
 async def send_email(
     to_email: str,
     to_name: str,
@@ -99,7 +103,7 @@ def get_document_uploaded_template(client_name: str, doc_title: str, doc_descrip
                 </div>
                 <p>Accedi alla tua area clienti per visualizzarlo e scaricarlo.</p>
                 <p style="margin-top: 30px;">
-                    <a href="https://tribute-models-docs.preview.emergentagent.com/login" class="btn">Accedi all'Area Clienti</a>
+                    <a href="{get_frontend_url()}/login" class="btn">Accedi all'Area Clienti</a>
                 </p>
             </div>
             <div class="footer">
@@ -145,7 +149,7 @@ def get_deadline_reminder_template(client_name: str, deadline_title: str, deadli
                 </div>
                 <p>Assicurati di avere tutti i documenti pronti. In caso di dubbi, contattaci.</p>
                 <p style="margin-top: 30px;">
-                    <a href="https://tribute-models-docs.preview.emergentagent.com/login" class="btn">Visualizza Scadenze</a>
+                    <a href="{get_frontend_url()}/login" class="btn">Visualizza Scadenze</a>
                 </p>
             </div>
             <div class="footer">
@@ -188,7 +192,7 @@ def get_note_notification_template(client_name: str, note_title: str, note_conte
                     <p style="margin: 10px 0 0 0; color: #475569; white-space: pre-wrap;">{note_content[:500]}{'...' if len(note_content) > 500 else ''}</p>
                 </div>
                 <p style="margin-top: 30px;">
-                    <a href="https://tribute-models-docs.preview.emergentagent.com/login" class="btn">Leggi nella tua Area</a>
+                    <a href="{get_frontend_url()}/login" class="btn">Leggi nella tua Area</a>
                 </p>
             </div>
             <div class="footer">
@@ -250,7 +254,7 @@ def get_welcome_template(client_name: str) -> str:
                     </div>
                 </div>
                 <p style="margin-top: 30px; text-align: center;">
-                    <a href="https://tribute-models-docs.preview.emergentagent.com/login" class="btn">Accedi Ora</a>
+                    <a href="{get_frontend_url()}/login" class="btn">Accedi Ora</a>
                 </p>
             </div>
             <div class="footer">
