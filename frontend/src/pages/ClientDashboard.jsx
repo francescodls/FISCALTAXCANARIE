@@ -33,9 +33,10 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit, Save, Users } from "lucide-react";
+import { Edit, Save, Users, Folder } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementClient from "@/components/EmployeeManagementClient";
+import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const ClientDashboard = () => {
@@ -53,6 +54,7 @@ const ClientDashboard = () => {
   const [selectedModello, setSelectedModello] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notificationsHistory, setNotificationsHistory] = useState([]);
+  const [documentViewMode, setDocumentViewMode] = useState("folders"); // "folders" o "list"
   
   // Anagrafica state
   const [editingProfile, setEditingProfile] = useState(false);
@@ -628,106 +630,133 @@ const ClientDashboard = () => {
 
           {/* Documents Tab */}
           <TabsContent value="documents" className="space-y-6">
-            {/* Document Stats */}
-            {documents.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {['atto', 'imposta', 'contratto', 'altro'].map(cat => {
-                  const count = documents.filter(d => d.category === cat).length;
-                  return (
-                    <Card key={cat} className="bg-white border border-slate-200">
-                      <CardContent className="p-4 text-center">
-                        <p className="text-2xl font-bold text-slate-900">{count}</p>
-                        <p className="text-sm text-slate-500 capitalize">{cat === 'atto' ? 'Atti' : cat === 'imposta' ? 'Imposte' : cat === 'contratto' ? 'Contratti' : 'Altri'}</p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+            {/* Header con toggle vista */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">I Tuoi Documenti</h2>
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDocumentViewMode("folders")}
+                  className={documentViewMode === "folders" 
+                    ? "bg-white shadow-sm text-teal-600" 
+                    : "text-slate-500 hover:text-slate-700"}
+                >
+                  <Folder className="h-4 w-4 mr-1" />
+                  Cartelle
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDocumentViewMode("list")}
+                  className={documentViewMode === "list" 
+                    ? "bg-white shadow-sm text-teal-600" 
+                    : "text-slate-500 hover:text-slate-700"}
+                >
+                  <FileText className="h-4 w-4 mr-1" />
+                  Lista
+                </Button>
               </div>
-            )}
-            
-            {/* Documents Grid */}
-            <Card className="bg-white border border-slate-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="font-heading text-xl flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-blue-500" />
-                  I Tuoi Documenti
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {documents.length > 0 ? (
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {documents.map((doc) => {
-                      const categoryColors = {
-                        atto: 'from-blue-500 to-indigo-500',
-                        imposta: 'from-red-500 to-pink-500',
-                        contratto: 'from-emerald-500 to-green-500',
-                        altro: 'from-slate-500 to-gray-500'
-                      };
-                      const bgColor = categoryColors[doc.category] || categoryColors.altro;
-                      
-                      return (
-                        <div 
-                          key={doc.id} 
-                          className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow group"
-                        >
-                          {/* Card Header with gradient */}
-                          <div className={`bg-gradient-to-r ${bgColor} p-4`}>
-                            <div className="flex items-center justify-between">
-                              <FileText className="h-8 w-8 text-white/80" />
-                              <Badge className="bg-white/20 text-white border-0 capitalize">
-                                {doc.category}
-                              </Badge>
+            </div>
+
+            {documentViewMode === "folders" ? (
+              /* Vista Cartelle */
+              <Card className="bg-white border border-slate-200">
+                <CardContent className="p-6">
+                  <DocumentFolderBrowser 
+                    clientId={user?.id}
+                    token={token}
+                    userRole="cliente"
+                    onDocumentView={(doc) => downloadFile("documents", doc.id, doc.file_name)}
+                    onDocumentDeleted={() => fetchData()}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              /* Vista Lista Tradizionale */
+              <Card className="bg-white border border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="font-heading text-xl flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                    I Tuoi Documenti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {documents.length > 0 ? (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {documents.map((doc) => {
+                        const categoryColors = {
+                          atto: 'from-blue-500 to-indigo-500',
+                          imposta: 'from-red-500 to-pink-500',
+                          contratto: 'from-emerald-500 to-green-500',
+                          altro: 'from-slate-500 to-gray-500'
+                        };
+                        const bgColor = categoryColors[doc.category] || categoryColors.altro;
+                        
+                        return (
+                          <div 
+                            key={doc.id} 
+                            className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow group"
+                          >
+                            {/* Card Header with gradient */}
+                            <div className={`bg-gradient-to-r ${bgColor} p-4`}>
+                              <div className="flex items-center justify-between">
+                                <FileText className="h-8 w-8 text-white/80" />
+                                <Badge className="bg-white/20 text-white border-0 capitalize">
+                                  {doc.category}
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            {/* Card Body */}
+                            <div className="p-4">
+                              <h3 className="font-semibold text-slate-900 mb-1 line-clamp-2">{doc.title}</h3>
+                              <p className="text-xs text-slate-500 mb-2 truncate">{doc.file_name}</p>
+                              {doc.description && (
+                                <p className="text-sm text-slate-600 mb-3 line-clamp-2">{doc.description}</p>
+                              )}
+                              
+                              {/* Tags if available */}
+                              {doc.tags && doc.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                  {doc.tags.slice(0, 3).map((tag, i) => (
+                                    <Badge key={i} variant="outline" className="text-xs bg-slate-50">
+                                      {tag}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                              
+                              {/* Download Button */}
+                              <Button
+                                variant="outline"
+                                className="w-full border-slate-200 group-hover:bg-slate-50"
+                                onClick={() => downloadFile("documents", doc.id, doc.file_name)}
+                                data-testid={`download-doc-${doc.id}`}
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Scarica Documento
+                              </Button>
                             </div>
                           </div>
-                          
-                          {/* Card Body */}
-                          <div className="p-4">
-                            <h3 className="font-semibold text-slate-900 mb-1 line-clamp-2">{doc.title}</h3>
-                            <p className="text-xs text-slate-500 mb-2 truncate">{doc.file_name}</p>
-                            {doc.description && (
-                              <p className="text-sm text-slate-600 mb-3 line-clamp-2">{doc.description}</p>
-                            )}
-                            
-                            {/* Tags if available */}
-                            {doc.tags && doc.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mb-3">
-                                {doc.tags.slice(0, 3).map((tag, i) => (
-                                  <Badge key={i} variant="outline" className="text-xs bg-slate-50">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                              </div>
-                            )}
-                            
-                            {/* Download Button */}
-                            <Button
-                              variant="outline"
-                              className="w-full border-slate-200 group-hover:bg-slate-50"
-                              onClick={() => downloadFile("documents", doc.id, doc.file_name)}
-                              data-testid={`download-doc-${doc.id}`}
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Scarica Documento
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FileText className="h-10 w-10 text-slate-400" />
+                        );
+                      })}
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Nessun documento disponibile</h3>
-                    <p className="text-slate-500 max-w-md mx-auto">
-                      I documenti caricati dal tuo commercialista appariranno qui. 
-                      Potrai visualizzarli e scaricarli in qualsiasi momento.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  ) : (
+                    <div className="text-center py-16">
+                      <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <FileText className="h-10 w-10 text-slate-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">Nessun documento disponibile</h3>
+                      <p className="text-slate-500 max-w-md mx-auto">
+                        I documenti caricati dal tuo commercialista appariranno qui. 
+                        Potrai visualizzarli e scaricarli in qualsiasi momento.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Payslips Tab */}
