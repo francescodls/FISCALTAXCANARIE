@@ -341,7 +341,11 @@ const CommercialDashboard = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
-          <Card className="bg-white border border-slate-200 card-hover">
+          <Card 
+            className="bg-white border border-slate-200 card-hover cursor-pointer"
+            onClick={() => setActiveTab("clients")}
+            data-testid="stats-total-clients"
+          >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center mb-2">
                 <Users className="h-5 w-5 text-white" />
@@ -350,7 +354,11 @@ const CommercialDashboard = () => {
               <p className="text-xs text-slate-500">{t("dashboard.totalClients")}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white border border-slate-200 card-hover">
+          <Card 
+            className="bg-white border border-slate-200 card-hover cursor-pointer"
+            onClick={() => setActiveTab("clients")}
+            data-testid="stats-active-clients"
+          >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center mb-2">
                 <CheckCircle2 className="h-5 w-5 text-white" />
@@ -359,7 +367,11 @@ const CommercialDashboard = () => {
               <p className="text-xs text-slate-500">{t("dashboard.activeClients")}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white border border-slate-200 card-hover">
+          <Card 
+            className="bg-white border border-slate-200 card-hover cursor-pointer"
+            onClick={() => setActiveTab("pending")}
+            data-testid="stats-documents"
+          >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center mb-2">
                 <FileText className="h-5 w-5 text-white" />
@@ -368,7 +380,11 @@ const CommercialDashboard = () => {
               <p className="text-xs text-slate-500">{t("dashboard.documents")}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white border border-slate-200 card-hover">
+          <Card 
+            className="bg-white border border-slate-200 card-hover cursor-pointer"
+            onClick={() => navigate("/admin/deadlines")}
+            data-testid="stats-deadlines-due"
+          >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center mb-2">
                 <Clock className="h-5 w-5 text-white" />
@@ -377,7 +393,11 @@ const CommercialDashboard = () => {
               <p className="text-xs text-slate-500">{t("dashboard.deadlinesDue")}</p>
             </CardContent>
           </Card>
-          <Card className="bg-white border border-slate-200 card-hover">
+          <Card 
+            className="bg-white border border-slate-200 card-hover cursor-pointer"
+            onClick={() => navigate("/admin/deadlines")}
+            data-testid="stats-deadlines-overdue"
+          >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center mb-2">
                 <AlertTriangle className="h-5 w-5 text-white" />
@@ -389,6 +409,7 @@ const CommercialDashboard = () => {
           <Card 
             className="bg-white border border-slate-200 card-hover cursor-pointer"
             onClick={() => setActiveTab("pending")}
+            data-testid="stats-to-verify"
           >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center mb-2">
