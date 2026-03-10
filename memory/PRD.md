@@ -8,6 +8,28 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 21 (10 Marzo 2026) - COMPLETATA ✅
+
+**Vista Cartelle per Clienti + Eliminazione Documenti**
+
+1. **Vista Cartelle nella Dashboard Cliente:**
+   - I clienti ora vedono le stesse categorie dell'admin nella loro dashboard
+   - 8 cartelle: Documenti, Agencia Tributaria, Seguridad Social, Ayuntamiento, Contratti, Atti, Registro Mercantil, + categorie custom
+   - Toggle Cartelle/Lista per cambiare visualizzazione
+   - Filtro per anno
+   - Il pulsante "Nuova Categoria" è nascosto ai clienti (solo admin)
+
+2. **Eliminazione Documenti (Singola e Multipla):**
+   - Icona cestino su ogni documento per eliminazione singola
+   - Pulsante "Seleziona" per attivare modalità selezione multipla
+   - "Seleziona tutti" / "Deseleziona tutti" per ogni cartella
+   - Dialog di conferma con dettagli documento
+   - Funziona sia per admin che per clienti
+
+File modificati:
+- `/app/frontend/src/components/DocumentFolderBrowser.jsx`: Aggiunta eliminazione singola/multipla
+- `/app/frontend/src/pages/ClientDashboard.jsx`: Integrato DocumentFolderBrowser con toggle vista
+
 ### Fase 20 (10 Marzo 2026) - COMPLETATA ✅
 
 **Sistema Organizzazione Documentale Smart con Cartelle**
