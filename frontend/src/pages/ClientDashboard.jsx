@@ -280,22 +280,52 @@ const ClientDashboard = () => {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
+            {/* Welcome Banner */}
+            <Card className="bg-gradient-to-r from-teal-500 to-teal-600 border-0">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="text-white">
+                    <h2 className="text-2xl font-bold mb-1">Ciao, {user?.full_name}!</h2>
+                    <p className="text-teal-100">Ecco un riepilogo della tua situazione fiscale</p>
+                  </div>
+                  <div className="hidden md:flex gap-3">
+                    <Button 
+                      variant="secondary" 
+                      className="bg-white/20 hover:bg-white/30 text-white border-0"
+                      onClick={() => setActiveTab("documents")}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      I Miei Documenti
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      className="bg-white/20 hover:bg-white/30 text-white border-0"
+                      onClick={() => setActiveTab("deadlines")}
+                    >
+                      <CalendarIcon className="h-4 w-4 mr-2" />
+                      Scadenze
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="bg-white border border-slate-200 card-hover">
+              <Card className="bg-white border border-slate-200 card-hover cursor-pointer" onClick={() => setActiveTab("deadlines")}>
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-teal-500 rounded-xl flex items-center justify-center">
-                    <CalendarIcon className="h-6 w-6 text-white" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-500 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm text-slate-500">Scadenze da fare</p>
+                    <p className="text-sm text-slate-500">Scadenze Urgenti</p>
                     <p className="text-2xl font-bold text-slate-900">{stats.deadlines_da_fare || 0}</p>
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-white border border-slate-200 card-hover">
+              <Card className="bg-white border border-slate-200 card-hover cursor-pointer" onClick={() => setActiveTab("documents")}>
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center">
                     <FileText className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -304,9 +334,9 @@ const ClientDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-white border border-slate-200 card-hover">
+              <Card className="bg-white border border-slate-200 card-hover cursor-pointer" onClick={() => setActiveTab("payslips")}>
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-500 rounded-xl flex items-center justify-center">
                     <Wallet className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -317,7 +347,7 @@ const ClientDashboard = () => {
               </Card>
               <Card className="bg-white border border-slate-200 card-hover">
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-yellow-500 rounded-xl flex items-center justify-center">
                     <CheckCircle2 className="h-6 w-6 text-white" />
                   </div>
                   <div>
@@ -328,45 +358,148 @@ const ClientDashboard = () => {
               </Card>
             </div>
 
-            {/* Upcoming Deadlines */}
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-xl flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-teal-500" />
-                  Prossime Scadenze
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {upcomingDeadlines.length > 0 ? (
-                  <div className="space-y-4">
-                    {upcomingDeadlines.map((deadline) => (
-                      <div 
-                        key={deadline.id} 
-                        className="flex items-center justify-between p-4 bg-stone-50 rounded-lg"
-                      >
-                        <div className="flex items-center gap-4">
-                          {getStatusIcon(deadline.status)}
-                          <div>
-                            <p className="font-medium text-slate-900">{deadline.title}</p>
-                            <p className="text-sm text-slate-500">{deadline.description}</p>
+            {/* Two Column Layout */}
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Upcoming Deadlines */}
+              <Card className="bg-white border border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="font-heading text-lg flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-red-500" />
+                    Scadenze Imminenti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {upcomingDeadlines.length > 0 ? (
+                    <div className="space-y-3">
+                      {upcomingDeadlines.slice(0, 3).map((deadline) => (
+                        <div 
+                          key={deadline.id} 
+                          className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            {getStatusIcon(deadline.status)}
+                            <div>
+                              <p className="font-medium text-slate-900 text-sm">{deadline.title}</p>
+                              <p className="text-xs text-slate-500">{deadline.category}</p>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className={`status-${deadline.status}`}>
-                            {getStatusLabel(deadline.status)}
-                          </Badge>
-                          <Badge className="bg-teal-50 text-teal-700 border border-teal-100">
-                            {format(parseISO(deadline.due_date), "d MMM yyyy", { locale: it })}
+                          <Badge className="bg-teal-50 text-teal-700 border border-teal-100 text-xs">
+                            {format(parseISO(deadline.due_date), "d MMM", { locale: it })}
                           </Badge>
                         </div>
+                      ))}
+                      {upcomingDeadlines.length > 3 && (
+                        <Button 
+                          variant="ghost" 
+                          className="w-full text-teal-600 hover:text-teal-700"
+                          onClick={() => setActiveTab("deadlines")}
+                        >
+                          Vedi tutte le scadenze ({upcomingDeadlines.length})
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <CheckCircle2 className="h-10 w-10 text-green-400 mx-auto mb-2" />
+                      <p className="text-slate-500 text-sm">Nessuna scadenza urgente</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Documents */}
+              <Card className="bg-white border border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="font-heading text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                    Ultimi Documenti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {documents.length > 0 ? (
+                    <div className="space-y-3">
+                      {documents.slice(0, 3).map((doc) => (
+                        <div 
+                          key={doc.id} 
+                          className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <FileText className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900 text-sm truncate max-w-[180px]">{doc.title}</p>
+                              <p className="text-xs text-slate-500">{doc.category}</p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => downloadFile("documents", doc.id, doc.file_name)}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      {documents.length > 3 && (
+                        <Button 
+                          variant="ghost" 
+                          className="w-full text-teal-600 hover:text-teal-700"
+                          onClick={() => setActiveTab("documents")}
+                        >
+                          Vedi tutti i documenti ({documents.length})
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <FileText className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-slate-500 text-sm">Nessun documento disponibile</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Recent Communications */}
+            {notes.length > 0 && (
+              <Card className="bg-white border border-slate-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="font-heading text-lg flex items-center gap-2">
+                    <StickyNote className="h-5 w-5 text-amber-500" />
+                    Ultime Comunicazioni
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {notes.slice(0, 2).map((note) => (
+                      <div 
+                        key={note.id} 
+                        className="p-4 bg-amber-50 rounded-lg border-l-4 border-amber-400"
+                      >
+                        <div className="flex items-start justify-between">
+                          <h4 className="font-semibold text-slate-900 text-sm">{note.title}</h4>
+                          <span className="text-xs text-slate-400">
+                            {format(parseISO(note.created_at), "d MMM", { locale: it })}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 text-sm mt-1 line-clamp-2">{note.content}</p>
                       </div>
                     ))}
+                    {notes.length > 2 && (
+                      <Button 
+                        variant="ghost" 
+                        className="w-full text-teal-600 hover:text-teal-700"
+                        onClick={() => setActiveTab("notes")}
+                      >
+                        Vedi tutte le comunicazioni ({notes.length})
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-slate-500 text-center py-8">Nessuna scadenza imminente</p>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Deadlines Tab */}
@@ -469,53 +602,102 @@ const ClientDashboard = () => {
 
           {/* Documents Tab */}
           <TabsContent value="documents" className="space-y-6">
+            {/* Document Stats */}
+            {documents.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {['atto', 'imposta', 'contratto', 'altro'].map(cat => {
+                  const count = documents.filter(d => d.category === cat).length;
+                  return (
+                    <Card key={cat} className="bg-white border border-slate-200">
+                      <CardContent className="p-4 text-center">
+                        <p className="text-2xl font-bold text-slate-900">{count}</p>
+                        <p className="text-sm text-slate-500 capitalize">{cat === 'atto' ? 'Atti' : cat === 'imposta' ? 'Imposte' : cat === 'contratto' ? 'Contratti' : 'Altri'}</p>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Documents Grid */}
             <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-xl">I Tuoi Documenti</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="font-heading text-xl flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-500" />
+                  I Tuoi Documenti
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {documents.length > 0 ? (
-                  <div className="space-y-3">
-                    {documents.map((doc) => (
-                      <div 
-                        key={doc.id} 
-                        className="flex items-center justify-between p-4 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                            <FileText className="h-6 w-6 text-white" />
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {documents.map((doc) => {
+                      const categoryColors = {
+                        atto: 'from-blue-500 to-indigo-500',
+                        imposta: 'from-red-500 to-pink-500',
+                        contratto: 'from-emerald-500 to-green-500',
+                        altro: 'from-slate-500 to-gray-500'
+                      };
+                      const bgColor = categoryColors[doc.category] || categoryColors.altro;
+                      
+                      return (
+                        <div 
+                          key={doc.id} 
+                          className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow group"
+                        >
+                          {/* Card Header with gradient */}
+                          <div className={`bg-gradient-to-r ${bgColor} p-4`}>
+                            <div className="flex items-center justify-between">
+                              <FileText className="h-8 w-8 text-white/80" />
+                              <Badge className="bg-white/20 text-white border-0 capitalize">
+                                {doc.category}
+                              </Badge>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-slate-900">{doc.title}</p>
-                            <p className="text-sm text-slate-500">{doc.file_name}</p>
+                          
+                          {/* Card Body */}
+                          <div className="p-4">
+                            <h3 className="font-semibold text-slate-900 mb-1 line-clamp-2">{doc.title}</h3>
+                            <p className="text-xs text-slate-500 mb-2 truncate">{doc.file_name}</p>
                             {doc.description && (
-                              <p className="text-xs text-slate-400 mt-1">{doc.description}</p>
+                              <p className="text-sm text-slate-600 mb-3 line-clamp-2">{doc.description}</p>
                             )}
+                            
+                            {/* Tags if available */}
+                            {doc.tags && doc.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-3">
+                                {doc.tags.slice(0, 3).map((tag, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs bg-slate-50">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Download Button */}
+                            <Button
+                              variant="outline"
+                              className="w-full border-slate-200 group-hover:bg-slate-50"
+                              onClick={() => downloadFile("documents", doc.id, doc.file_name)}
+                              data-testid={`download-doc-${doc.id}`}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Scarica Documento
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Badge className="bg-slate-100 text-slate-600 border border-slate-200">
-                            {doc.category}
-                          </Badge>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => downloadFile("documents", doc.id, doc.file_name)}
-                            className="border-slate-200"
-                            data-testid={`download-doc-${doc.id}`}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Scarica
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center py-12">
-                    <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nessun documento disponibile</p>
-                    <p className="text-sm text-slate-400">I documenti caricati dal tuo commercialista appariranno qui</p>
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileText className="h-10 w-10 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Nessun documento disponibile</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">
+                      I documenti caricati dal tuo commercialista appariranno qui. 
+                      Potrai visualizzarli e scaricarli in qualsiasi momento.
+                    </p>
                   </div>
                 )}
               </CardContent>

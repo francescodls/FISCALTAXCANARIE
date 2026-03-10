@@ -56,7 +56,7 @@ class TestClientSelfUpdate:
         assert "cap" in data or data.get("cap") is None
         assert "provincia" in data or data.get("provincia") is None
         assert "iban" in data or data.get("iban") is None
-        print(f"✅ GET /api/auth/me returns extended profile fields")
+        print("✅ GET /api/auth/me returns extended profile fields")
         return data, headers
     
     def test_update_client_profile(self):
@@ -82,14 +82,14 @@ class TestClientSelfUpdate:
         assert data["user"]["phone"] == "+34 612 345 999"
         assert data["user"]["nie"] == "X-1234567-T"
         assert data["user"]["indirizzo"] == "Calle Test 123"
-        print(f"✅ PUT /api/auth/me - Profile updated successfully")
+        print("✅ PUT /api/auth/me - Profile updated successfully")
         
         # Verify changes persisted
         verify_response = requests.get(f"{BASE_URL}/api/auth/me", headers=headers)
         verify_data = verify_response.json()
         assert verify_data["phone"] == "+34 612 345 999"
         assert verify_data["nie"] == "X-1234567-T"
-        print(f"✅ Profile changes persisted correctly")
+        print("✅ Profile changes persisted correctly")
         
     def test_client_cannot_update_restricted_fields(self):
         """Cliente non può modificare tipo_cliente o stato"""
@@ -104,7 +104,7 @@ class TestClientSelfUpdate:
         
         # Should succeed for allowed fields
         assert response.status_code == 200
-        print(f"✅ Client can update allowed fields")
+        print("✅ Client can update allowed fields")
 
 
 class TestCommercialistaClientUpdate:
@@ -267,7 +267,7 @@ class TestModelliTributari:
         assert updated_modello.get("video_thumbnail") is not None
         assert "img.youtube.com" in updated_modello["video_thumbnail"]
         
-        print(f"✅ Modello updated with YouTube video")
+        print("✅ Modello updated with YouTube video")
         print(f"✅ Video thumbnail generated: {updated_modello['video_thumbnail']}")
     
     def test_create_modello_with_youtube(self):
@@ -301,7 +301,7 @@ class TestModelliTributari:
         delete_response = requests.delete(f"{BASE_URL}/api/modelli-tributari/{data['id']}", 
                                          headers=headers)
         assert delete_response.status_code == 200
-        print(f"✅ Cleaned up test modello")
+        print("✅ Cleaned up test modello")
 
 
 class TestModelsManagementPage:

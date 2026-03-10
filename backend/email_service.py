@@ -262,6 +262,89 @@ def get_welcome_template(client_name: str) -> str:
     </html>
     """
 
+# ==================== INVITATION TEMPLATES ====================
+
+def get_invitation_template(client_name: str, invitation_link: str) -> str:
+    """Template email per invito nuovo cliente"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f4; margin: 0; padding: 20px; }}
+            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; }}
+            .header {{ background: linear-gradient(135deg, #3caca4 0%, #2d8a84 100%); color: white; padding: 40px; text-align: center; }}
+            .header h1 {{ margin: 0; font-size: 28px; }}
+            .content {{ padding: 30px; }}
+            .content h2 {{ color: #1e293b; margin-top: 0; }}
+            .highlight-box {{ background: linear-gradient(135deg, #f0fafa 0%, #e0f7f7 100%); border: 2px solid #3caca4; padding: 20px; margin: 25px 0; border-radius: 12px; text-align: center; }}
+            .btn {{ display: inline-block; background: linear-gradient(135deg, #3caca4 0%, #2d8a84 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(60, 172, 164, 0.3); }}
+            .btn:hover {{ background: linear-gradient(135deg, #2d8a84 0%, #257a74 100%); }}
+            .features {{ margin: 25px 0; }}
+            .feature {{ display: flex; align-items: center; margin: 12px 0; padding: 10px; background: #f8fafc; border-radius: 8px; }}
+            .feature-icon {{ width: 36px; height: 36px; background: #3caca4; border-radius: 8px; margin-right: 15px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }}
+            .footer {{ background: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }}
+            .small-text {{ font-size: 12px; color: #94a3b8; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Benvenuto in Fiscal Tax Canarie!</h1>
+            </div>
+            <div class="content">
+                <h2>Ciao{' ' + client_name if client_name else ''},</h2>
+                <p>Sei stato invitato a unirti alla piattaforma <strong>Fiscal Tax Canarie</strong> per gestire le tue pratiche fiscali in modo semplice e sicuro.</p>
+                
+                <div class="highlight-box">
+                    <p style="margin: 0 0 15px 0; font-size: 16px; color: #1e293b;">Clicca il pulsante per completare la registrazione:</p>
+                    <a href="{invitation_link}" class="btn">Completa la Registrazione</a>
+                </div>
+                
+                <p style="font-weight: 600; color: #1e293b;">Cosa potrai fare:</p>
+                <div class="features">
+                    <div class="feature">
+                        <div class="feature-icon">📅</div>
+                        <div>Visualizzare le scadenze fiscali</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">📄</div>
+                        <div>Accedere ai tuoi documenti 24/7</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">💬</div>
+                        <div>Chattare con l'assistente AI</div>
+                    </div>
+                    <div class="feature">
+                        <div class="feature-icon">📊</div>
+                        <div>Monitorare lo stato delle pratiche</div>
+                    </div>
+                </div>
+                
+                <p class="small-text">
+                    Se non hai richiesto questo invito, puoi ignorare questa email.<br>
+                    Il link scade tra 7 giorni.
+                </p>
+            </div>
+            <div class="footer">
+                <p><strong>Fiscal Tax Canarie</strong> - Il tuo commercialista di fiducia alle Isole Canarie</p>
+                <p>+34 658 071 848 | info@fiscaltaxcanarie.com</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+async def send_invitation_email(client_email: str, client_name: str, invitation_link: str) -> Dict[str, Any]:
+    """Invia email di invito al nuovo cliente"""
+    html = get_invitation_template(client_name, invitation_link)
+    return await send_email(
+        to_email=client_email,
+        to_name=client_name or "Nuovo Cliente",
+        subject="Sei stato invitato su Fiscal Tax Canarie!",
+        html_content=html
+    )
+
 # ==================== NOTIFICATION FUNCTIONS ====================
 
 async def notify_document_uploaded(client_email: str, client_name: str, doc_title: str, doc_description: str = None) -> Dict[str, Any]:

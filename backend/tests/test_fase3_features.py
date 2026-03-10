@@ -188,7 +188,7 @@ class TestEmailNotifications:
         # If Brevo API is configured, it should succeed
         if data.get("success"):
             assert "message_id" in data or data.get("success") == True
-            print(f"✅ Email notification sent successfully")
+            print("✅ Email notification sent successfully")
         else:
             print(f"⚠️ Email not sent: {data.get('error', 'Unknown error')} - expected if BREVO_API_KEY not configured")
     

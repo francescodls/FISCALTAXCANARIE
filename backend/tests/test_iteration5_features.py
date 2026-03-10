@@ -63,7 +63,7 @@ class TestClientAnagraficaExtended:
             expected_fields = ["nie", "nif", "cif", "tipo_cliente"]
             for field in expected_fields:
                 assert field in client or field in client, f"Field {field} missing from client response"
-            print(f"✅ Extended fields available in client structure")
+            print("✅ Extended fields available in client structure")
     
     def test_create_test_client_for_update(self, auth_headers):
         """Create a test client for update tests"""
@@ -134,9 +134,9 @@ class TestClientAnagraficaExtended:
         client_data = get_response.json()
         
         # Verify some fields
-        assert client_data.get("nie") == "X-1234567-A", f"NIE not saved correctly"
-        assert client_data.get("iban") == "ES12 1234 5678 9012 3456 7890", f"IBAN not saved correctly"
-        print(f"✅ Extended fields persisted correctly (NIE, IBAN verified)")
+        assert client_data.get("nie") == "X-1234567-A", "NIE not saved correctly"
+        assert client_data.get("iban") == "ES12 1234 5678 9012 3456 7890", "IBAN not saved correctly"
+        print("✅ Extended fields persisted correctly (NIE, IBAN verified)")
     
     def test_update_client_tipo_cliente(self, auth_headers):
         """Test updating client type (autonomo, societa, privato)"""
@@ -155,7 +155,7 @@ class TestClientAnagraficaExtended:
             headers=auth_headers
         )
         assert update_response.status_code == 200
-        print(f"✅ Client tipo_cliente updated to societa")
+        print("✅ Client tipo_cliente updated to societa")
         
         # Revert
         requests.put(
@@ -217,7 +217,7 @@ class TestClientArchive:
         get_response = requests.get(f"{BASE_URL}/api/clients/{client_id}", headers=auth_headers)
         if get_response.status_code == 200:
             assert get_response.json().get("stato") == "cessato", "Client not marked as cessato"
-            print(f"✅ Client stato is 'cessato'")
+            print("✅ Client stato is 'cessato'")
 
 
 class TestClientLists:

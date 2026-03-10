@@ -234,7 +234,7 @@ class TestDeadlinesRecurringFeatures:
         assert "reminders_sent" in data
         assert "deadlines_processed" in data
         
-        print(f"✅ POST /api/deadlines/send-reminders - Success")
+        print("✅ POST /api/deadlines/send-reminders - Success")
         print(f"   Reminders sent: {data['reminders_sent']}")
         print(f"   Deadlines processed: {data['deadlines_processed']}")
     

@@ -31,10 +31,16 @@ import {
   Eye,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  Plus,
+  Mail,
+  Send,
+  RefreshCw
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const CommercialDashboard = () => {
   const navigate = useNavigate();
@@ -50,6 +56,11 @@ const CommercialDashboard = () => {
   const [activeTab, setActiveTab] = useState("clients");
   const [loading, setLoading] = useState(true);
   const [verifyingDoc, setVerifyingDoc] = useState(null);
+  
+  // Invite client state
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ email: "", full_name: "" });
+  const [sendingInvite, setSendingInvite] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -96,8 +107,42 @@ const CommercialDashboard = () => {
         return <Badge className="bg-amber-50 text-amber-700 border border-amber-100">Sospeso</Badge>;
       case "cessato":
         return <Badge className="bg-red-50 text-red-700 border border-red-100">Cessato</Badge>;
+      case "pending":
+        return <Badge className="bg-purple-50 text-purple-700 border border-purple-100">In attesa</Badge>;
       default:
         return <Badge className="bg-slate-100 text-slate-600 border border-slate-200">{stato}</Badge>;
+    }
+  };
+
+  // Invita nuovo cliente
+  const handleInviteClient = async (e) => {
+    e.preventDefault();
+    if (!inviteForm.email) {
+      toast.error("Inserisci un'email valida");
+      return;
+    }
+    
+    setSendingInvite(true);
+    try {
+      const response = await axios.post(`${API}/clients/invite`, inviteForm, { headers });
+      toast.success(`Invito inviato a ${inviteForm.email}!`);
+      setShowInviteDialog(false);
+      setInviteForm({ email: "", full_name: "" });
+      fetchData(); // Ricarica la lista clienti
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'invio dell'invito");
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  // Reinvia invito
+  const handleResendInvite = async (clientId, email) => {
+    try {
+      await axios.post(`${API}/clients/resend-invite/${clientId}`, {}, { headers });
+      toast.success(`Invito reinviato a ${email}`);
+    } catch (error) {
+      toast.error("Errore nel reinvio dell'invito");
     }
   };
 
@@ -201,6 +246,15 @@ const CommercialDashboard = () => {
             >
               <BarChart3 className="h-4 w-4 mr-2" />
               Modelli
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => navigate("/admin/signatures")}
+              className="border-purple-200 text-purple-600 hover:bg-purple-50"
+              data-testid="manage-signatures-btn"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Firma Digitale
             </Button>
             <div className="flex items-center gap-2 text-slate-600">
               <User className="h-5 w-5" />
@@ -343,15 +397,84 @@ const CommercialDashboard = () => {
             <Card className="bg-white border border-slate-200">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="font-heading text-xl">I Tuoi Clienti</CardTitle>
-                <div className="relative w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    placeholder="Cerca cliente..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 border-slate-200"
-                    data-testid="search-clients-input"
-                  />
+                <div className="flex items-center gap-4">
+                  <div className="relative w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Cerca cliente..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 border-slate-200"
+                      data-testid="search-clients-input"
+                    />
+                  </div>
+                  <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="invite-client-btn">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Invita Cliente
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Mail className="h-5 w-5 text-teal-500" />
+                          Invita Nuovo Cliente
+                        </DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleInviteClient} className="space-y-4">
+                        <p className="text-sm text-slate-600">
+                          Inserisci l'email del cliente. Riceverà un invito per completare la registrazione e accedere all'area clienti.
+                        </p>
+                        <div className="space-y-2">
+                          <Label>Email *</Label>
+                          <Input
+                            type="email"
+                            value={inviteForm.email}
+                            onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                            placeholder="cliente@email.com"
+                            required
+                            className="border-slate-200"
+                            data-testid="invite-email-input"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Nome (opzionale)</Label>
+                          <Input
+                            type="text"
+                            value={inviteForm.full_name}
+                            onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
+                            placeholder="Mario Rossi"
+                            className="border-slate-200"
+                            data-testid="invite-name-input"
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline" onClick={() => setShowInviteDialog(false)}>
+                            Annulla
+                          </Button>
+                          <Button 
+                            type="submit" 
+                            disabled={sendingInvite}
+                            className="bg-teal-500 hover:bg-teal-600 text-white"
+                            data-testid="send-invite-btn"
+                          >
+                            {sendingInvite ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                Invio...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Invia Invito
+                              </>
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardHeader>
               <CardContent>
@@ -370,7 +493,7 @@ const CommercialDashboard = () => {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-slate-900">{client.full_name}</p>
+                              <p className="font-medium text-slate-900">{client.full_name || "In attesa di registrazione"}</p>
                               {getStatusBadge(client.stato)}
                             </div>
                             <p className="text-sm text-slate-500">{client.email}</p>
@@ -380,6 +503,21 @@ const CommercialDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
+                          {client.stato === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleResendInvite(client.id, client.email);
+                              }}
+                              className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                              title="Reinvia invito"
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Reinvia
+                            </Button>
+                          )}
                           <div className="flex gap-2">
                             <Badge className="bg-blue-50 text-blue-700 border border-blue-100">
                               <FileText className="h-3 w-3 mr-1" />

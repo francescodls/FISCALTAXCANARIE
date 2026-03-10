@@ -9,12 +9,14 @@ import { toast } from "sonner";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import RegisterPage from "@/pages/RegisterPage";
+import CompleteRegistration from "@/pages/CompleteRegistration";
 import ClientDashboard from "@/pages/ClientDashboard";
 import CommercialDashboard from "@/pages/CommercialDashboard";
 import ClientDetail from "@/pages/ClientDetail";
 import ClientLists from "@/pages/ClientLists";
 import ModelsManagement from "@/pages/ModelsManagement";
 import DeadlinesManagement from "@/pages/DeadlinesManagement";
+import SignaturesPage from "@/pages/SignaturesPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -50,9 +52,18 @@ const AuthProvider = ({ children }) => {
     checkAuth();
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (tokenOrEmail, passwordOrUser) => {
+    // Se il primo argomento è un token (usato da CompleteRegistration)
+    if (typeof passwordOrUser === 'object' && passwordOrUser !== null) {
+      localStorage.setItem("token", tokenOrEmail);
+      setToken(tokenOrEmail);
+      setUser(passwordOrUser);
+      return passwordOrUser;
+    }
+    
+    // Login normale con email e password
     try {
-      const response = await axios.post(`${API}/auth/login`, { email, password });
+      const response = await axios.post(`${API}/auth/login`, { email: tokenOrEmail, password: passwordOrUser });
       const { access_token, user: userData } = response.data;
       localStorage.setItem("token", access_token);
       setToken(access_token);
@@ -89,6 +100,7 @@ const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    setUser,
     token,
     loading,
     login,
@@ -157,6 +169,12 @@ function AppRoutes() {
           <RegisterPage />
         </PublicRoute>
       } />
+      <Route path="/complete-registration" element={<CompleteRegistration />} />
+      <Route path="/client" element={
+        <ProtectedRoute requiredRole="cliente">
+          <ClientDashboard />
+        </ProtectedRoute>
+      } />
       <Route path="/dashboard" element={
         <ProtectedRoute requiredRole="cliente">
           <ClientDashboard />
@@ -185,6 +203,11 @@ function AppRoutes() {
       <Route path="/admin/deadlines" element={
         <ProtectedRoute requiredRole="commercialista">
           <DeadlinesManagement />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/signatures" element={
+        <ProtectedRoute requiredRole="commercialista">
+          <SignaturesPage />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

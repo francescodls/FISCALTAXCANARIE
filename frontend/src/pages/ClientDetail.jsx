@@ -36,10 +36,14 @@ import {
   AlertCircle,
   Calendar,
   Bell,
-  Send
+  Send,
+  Euro,
+  FileSignature,
+  Shield
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+import FeeManagement from "@/components/FeeManagement";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -119,6 +123,18 @@ const ClientDetail = () => {
   const [clientForm, setClientForm] = useState({});
   const [savingClient, setSavingClient] = useState(false);
   const [deletingClient, setDeletingClient] = useState(false);
+  
+  // Digital signature state
+  const [showSignDialog, setShowSignDialog] = useState(false);
+  const [signingDoc, setSigningDoc] = useState(null);
+  const [certificates, setCertificates] = useState([]);
+  const [signForm, setSignForm] = useState({
+    certificate_name: "",
+    certificate_password: "",
+    reason: "Documento firmato digitalmente",
+    location: "Isole Canarie, Spagna"
+  });
+  const [signing, setSigning] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -136,6 +152,7 @@ const ClientDetail = () => {
 
   useEffect(() => {
     fetchData();
+    fetchCertificates();
   }, [clientId]);
 
   const fetchData = async () => {
@@ -537,6 +554,55 @@ const ClientDetail = () => {
     }
   };
 
+  // Fetch certificates
+  const fetchCertificates = async () => {
+    try {
+      const response = await axios.get(`${API}/certificates`, { headers });
+      setCertificates(response.data);
+    } catch (error) {
+      console.error("Errore caricamento certificati:", error);
+    }
+  };
+
+  // Sign document
+  const handleSignDocument = async () => {
+    if (!signForm.certificate_name || !signForm.certificate_password) {
+      toast.error("Seleziona un certificato e inserisci la password");
+      return;
+    }
+    
+    setSigning(true);
+    try {
+      const formData = new FormData();
+      formData.append("certificate_name", signForm.certificate_name);
+      formData.append("certificate_password", signForm.certificate_password);
+      formData.append("reason", signForm.reason);
+      formData.append("location", signForm.location);
+      
+      await axios.post(`${API}/documents/${signingDoc.id}/sign`, formData, {
+        headers: {
+          ...headers,
+          "Content-Type": "multipart/form-data"
+        }
+      });
+      
+      toast.success("Documento firmato con successo!");
+      setShowSignDialog(false);
+      setSignForm({
+        certificate_name: "",
+        certificate_password: "",
+        reason: "Documento firmato digitalmente",
+        location: "Isole Canarie, Spagna"
+      });
+      setSigningDoc(null);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nella firma del documento");
+    } finally {
+      setSigning(false);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -682,6 +748,14 @@ const ClientDetail = () => {
             >
               <Bell className="h-4 w-4 mr-2" />
               Notifiche
+            </TabsTrigger>
+            <TabsTrigger 
+              value="fees" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-fees"
+            >
+              <Euro className="h-4 w-4 mr-2" />
+              Onorari
             </TabsTrigger>
             <TabsTrigger 
               value="anagrafica" 
@@ -880,19 +954,40 @@ const ClientDetail = () => {
                           <Badge className="bg-slate-100 text-slate-600 border border-slate-200">
                             {doc.category}
                           </Badge>
+                          {doc.signed && (
+                            <Badge className="bg-green-100 text-green-700 border border-green-200">
+                              Firmato
+                            </Badge>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => downloadFile("documents", doc.id, doc.file_name)}
                             className="border-slate-200"
+                            title="Scarica"
                           >
                             <Download className="h-4 w-4" />
                           </Button>
+                          {doc.file_name?.endsWith('.pdf') && !doc.signed && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSigningDoc(doc);
+                                setShowSignDialog(true);
+                              }}
+                              className="border-teal-200 text-teal-600 hover:bg-teal-50"
+                              title="Firma digitalmente"
+                            >
+                              <FileSignature className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => deleteDocument(doc.id)}
                             className="border-red-200 text-red-600 hover:bg-red-50"
+                            title="Elimina"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -1604,6 +1699,16 @@ const ClientDetail = () => {
             </Card>
           </TabsContent>
 
+          {/* Fees (Onorari) Tab */}
+          <TabsContent value="fees" className="space-y-6">
+            <FeeManagement 
+              clientId={clientId} 
+              clientName={client?.full_name} 
+              token={token} 
+              API={API} 
+            />
+          </TabsContent>
+
           {/* Anagrafica Tab */}
           <TabsContent value="anagrafica" className="space-y-6">
             <Card className="bg-white border border-slate-200">
@@ -1906,6 +2011,118 @@ const ClientDetail = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Digital Signature Dialog */}
+      <Dialog open={showSignDialog} onOpenChange={setShowSignDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5 text-teal-500" />
+              Firma Digitale
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Stai per firmare digitalmente: <strong>{signingDoc?.title}</strong>
+            </p>
+            
+            {certificates.length === 0 ? (
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-amber-800 font-medium">Nessun certificato disponibile</p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      Carica prima un certificato .p12 dalla sezione{" "}
+                      <button 
+                        onClick={() => navigate("/admin/signatures")}
+                        className="underline font-medium"
+                      >
+                        Firma Digitale
+                      </button>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Certificato</Label>
+                  <Select 
+                    value={signForm.certificate_name}
+                    onValueChange={(v) => setSignForm({ ...signForm, certificate_name: v })}
+                  >
+                    <SelectTrigger className="border-slate-200">
+                      <SelectValue placeholder="Seleziona certificato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {certificates.map((cert) => (
+                        <SelectItem key={cert.id} value={cert.name}>
+                          {cert.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Password Certificato</Label>
+                  <Input
+                    type="password"
+                    value={signForm.certificate_password}
+                    onChange={(e) => setSignForm({ ...signForm, certificate_password: e.target.value })}
+                    placeholder="Inserisci la password"
+                    className="border-slate-200"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Motivo della Firma</Label>
+                  <Input
+                    value={signForm.reason}
+                    onChange={(e) => setSignForm({ ...signForm, reason: e.target.value })}
+                    className="border-slate-200"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Luogo</Label>
+                  <Input
+                    value={signForm.location}
+                    onChange={(e) => setSignForm({ ...signForm, location: e.target.value })}
+                    className="border-slate-200"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setShowSignDialog(false)}>
+              Annulla
+            </Button>
+            {certificates.length > 0 && (
+              <Button 
+                onClick={handleSignDocument}
+                disabled={signing || !signForm.certificate_name || !signForm.certificate_password}
+                className="bg-teal-500 hover:bg-teal-600 text-white"
+              >
+                {signing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                    Firma in corso...
+                  </>
+                ) : (
+                  <>
+                    <FileSignature className="h-4 w-4 mr-2" />
+                    Firma Documento
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

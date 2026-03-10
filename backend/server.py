@@ -16,8 +16,10 @@ import base64
 
 # Import AI service
 from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename, search_documents_semantic
-from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note
+from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email
 from chatbot_service import chat_with_assistant
+from signing_service import sign_pdf_with_p12, verify_pdf_signature, save_certificate, list_certificates, delete_certificate
+import secrets
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -253,6 +255,45 @@ class ModelloTributarioResponse(BaseModel):
     video_youtube: Optional[str] = None
     video_thumbnail: Optional[str] = None  # Thumbnail calcolata
     created_at: str
+
+# ==================== FEE (ONORARI) MODELS ====================
+
+class FeeCreate(BaseModel):
+    description: str
+    amount: float
+    due_date: str
+    status: str = "pending"  # pending, paid
+    notes: Optional[str] = None
+
+class FeeUpdate(BaseModel):
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    due_date: Optional[str] = None
+    status: Optional[str] = None
+    paid_date: Optional[str] = None
+    notes: Optional[str] = None
+
+class FeeResponse(BaseModel):
+    id: str
+    client_id: str
+    description: str
+    amount: float
+    due_date: str
+    status: str
+    paid_date: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: str
+
+# ==================== CLIENT INVITATION MODELS ====================
+
+class ClientInvite(BaseModel):
+    email: EmailStr
+    full_name: Optional[str] = None
+
+class CompleteRegistration(BaseModel):
+    token: str
+    password: str
+    full_name: Optional[str] = None
 
 # ==================== AUTH HELPERS ====================
 
@@ -2048,6 +2089,443 @@ async def get_notifications_history(limit: int = 50, user: dict = Depends(requir
 @api_router.get("/")
 async def root():
     return {"message": "Fiscal Tax Canarie API"}
+
+# ==================== CLIENT INVITATION ROUTES ====================
+
+@api_router.post("/clients/invite")
+async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_commercialista)):
+    """
+    Crea un nuovo cliente con solo email e invia invito.
+    Il cliente riceve un link per completare la registrazione.
+    """
+    # Verifica se email già esistente
+    existing = await db.users.find_one({"email": invite_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email già registrata")
+    
+    # Genera token di invito
+    invitation_token = secrets.token_urlsafe(32)
+    
+    # Crea utente con stato "pending"
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "email": invite_data.email,
+        "password": None,  # Nessuna password ancora
+        "full_name": invite_data.full_name or "",
+        "phone": None,
+        "codice_fiscale": None,
+        "nie": None,
+        "nif": None,
+        "cif": None,
+        "indirizzo": None,
+        "citta": None,
+        "cap": None,
+        "provincia": None,
+        "iban": None,
+        "regime_fiscale": None,
+        "tipo_attivita": None,
+        "tipo_cliente": "autonomo",
+        "role": "cliente",
+        "stato": "pending",  # In attesa di completamento
+        "invitation_token": invitation_token,
+        "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
+        "invited_by": user["id"],
+        "note_interne": "",
+        "lists": [],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(user_doc)
+    
+    # Genera link di invito
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://tribute-models-docs.preview.emergentagent.com')
+    invitation_link = f"{frontend_url}/complete-registration?token={invitation_token}"
+    
+    # Invia email di invito
+    try:
+        email_result = await send_invitation_email(
+            client_email=invite_data.email,
+            client_name=invite_data.full_name or "",
+            invitation_link=invitation_link
+        )
+        
+        if not email_result.get("success"):
+            logger.warning(f"Email invito non inviata: {email_result.get('error')}")
+    except Exception as e:
+        logger.error(f"Errore invio email invito: {e}")
+    
+    await log_activity(
+        "invito_cliente",
+        f"Invito inviato a {invite_data.email}",
+        user["id"]
+    )
+    
+    return {
+        "success": True,
+        "message": f"Invito inviato a {invite_data.email}",
+        "client_id": user_id,
+        "invitation_link": invitation_link  # Solo per debug
+    }
+
+@api_router.post("/auth/complete-registration")
+async def complete_registration(data: CompleteRegistration):
+    """
+    Completa la registrazione di un cliente invitato.
+    Il cliente imposta la password e opzionalmente aggiorna il nome.
+    """
+    # Trova utente con token
+    user = await db.users.find_one({"invitation_token": data.token}, {"_id": 0})
+    
+    if not user:
+        raise HTTPException(status_code=400, detail="Token non valido o scaduto")
+    
+    if user.get("stato") != "pending":
+        raise HTTPException(status_code=400, detail="Registrazione già completata")
+    
+    # Verifica che il token non sia scaduto (7 giorni)
+    invitation_sent = user.get("invitation_sent_at")
+    if invitation_sent:
+        sent_date = datetime.fromisoformat(invitation_sent.replace('Z', '+00:00'))
+        if datetime.now(timezone.utc) - sent_date > timedelta(days=7):
+            raise HTTPException(status_code=400, detail="Token scaduto. Richiedi un nuovo invito.")
+    
+    # Aggiorna utente
+    update_data = {
+        "password": hash_password(data.password),
+        "stato": "attivo",
+        "invitation_token": None,  # Invalida token
+        "registration_completed_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    if data.full_name:
+        update_data["full_name"] = data.full_name
+    
+    await db.users.update_one({"id": user["id"]}, {"$set": update_data})
+    
+    # Invia email di benvenuto
+    try:
+        await send_welcome_email(user["email"], data.full_name or user.get("full_name", ""))
+    except Exception as e:
+        logger.error(f"Errore invio email benvenuto: {e}")
+    
+    await log_activity(
+        "registrazione_completata",
+        f"Cliente {user['email']} ha completato la registrazione",
+        user["id"]
+    )
+    
+    # Genera token di accesso
+    token = create_token(user["id"], user["email"], "cliente")
+    
+    return {
+        "success": True,
+        "message": "Registrazione completata con successo!",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user["id"],
+            "email": user["email"],
+            "full_name": data.full_name or user.get("full_name", ""),
+            "role": "cliente"
+        }
+    }
+
+@api_router.post("/clients/resend-invite/{client_id}")
+async def resend_invitation(client_id: str, user: dict = Depends(require_commercialista)):
+    """Reinvia l'invito a un cliente in stato pending"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    if client.get("stato") != "pending":
+        raise HTTPException(status_code=400, detail="Il cliente ha già completato la registrazione")
+    
+    # Genera nuovo token
+    new_token = secrets.token_urlsafe(32)
+    
+    await db.users.update_one(
+        {"id": client_id},
+        {"$set": {
+            "invitation_token": new_token,
+            "invitation_sent_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Genera link e invia email
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://tribute-models-docs.preview.emergentagent.com')
+    invitation_link = f"{frontend_url}/complete-registration?token={new_token}"
+    
+    try:
+        await send_invitation_email(
+            client_email=client["email"],
+            client_name=client.get("full_name", ""),
+            invitation_link=invitation_link
+        )
+    except Exception as e:
+        logger.error(f"Errore reinvio email invito: {e}")
+        raise HTTPException(status_code=500, detail="Errore nell'invio dell'email")
+    
+    return {"success": True, "message": f"Invito reinviato a {client['email']}"}
+
+# ==================== FEES (ONORARI) ROUTES ====================
+
+@api_router.get("/clients/{client_id}/fees", response_model=List[FeeResponse])
+async def get_client_fees(client_id: str, user: dict = Depends(require_commercialista)):
+    """Recupera tutti gli onorari di un cliente"""
+    fees = await db.fees.find({"client_id": client_id}, {"_id": 0}).sort("due_date", -1).to_list(1000)
+    return [FeeResponse(**fee) for fee in fees]
+
+@api_router.post("/clients/{client_id}/fees", response_model=FeeResponse)
+async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(require_commercialista)):
+    """Crea un nuovo onorario per un cliente"""
+    # Verifica che il cliente esista
+    client = await db.users.find_one({"id": client_id, "role": "cliente"})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    fee_id = str(uuid.uuid4())
+    fee = {
+        "id": fee_id,
+        "client_id": client_id,
+        "description": fee_data.description,
+        "amount": fee_data.amount,
+        "due_date": fee_data.due_date,
+        "status": fee_data.status,
+        "paid_date": None,
+        "notes": fee_data.notes,
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.fees.insert_one(fee)
+    
+    await log_activity(
+        "creazione_onorario",
+        f"Onorario €{fee_data.amount} creato per cliente {client_id}",
+        user["id"]
+    )
+    
+    return FeeResponse(**fee)
+
+@api_router.put("/clients/{client_id}/fees/{fee_id}", response_model=FeeResponse)
+async def update_fee(client_id: str, fee_id: str, fee_data: FeeUpdate, user: dict = Depends(require_commercialista)):
+    """Aggiorna un onorario"""
+    update_dict = {k: v for k, v in fee_data.model_dump().items() if v is not None}
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
+    
+    # Se stato diventa "paid", imposta paid_date
+    if update_dict.get("status") == "paid" and not update_dict.get("paid_date"):
+        update_dict["paid_date"] = datetime.now(timezone.utc).isoformat()
+    
+    result = await db.fees.update_one(
+        {"id": fee_id, "client_id": client_id},
+        {"$set": update_dict}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Onorario non trovato")
+    
+    fee = await db.fees.find_one({"id": fee_id}, {"_id": 0})
+    return FeeResponse(**fee)
+
+@api_router.delete("/clients/{client_id}/fees/{fee_id}")
+async def delete_fee(client_id: str, fee_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina un onorario"""
+    result = await db.fees.delete_one({"id": fee_id, "client_id": client_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Onorario non trovato")
+    
+    await log_activity("eliminazione_onorario", f"Onorario {fee_id} eliminato", user["id"])
+    
+    return {"message": "Onorario eliminato"}
+
+@api_router.get("/clients/{client_id}/fees/summary")
+async def get_fees_summary(client_id: str, user: dict = Depends(require_commercialista)):
+    """Ottiene un riepilogo degli onorari di un cliente"""
+    fees = await db.fees.find({"client_id": client_id}, {"_id": 0}).to_list(1000)
+    
+    total_pending = sum(f["amount"] for f in fees if f["status"] == "pending")
+    total_paid = sum(f["amount"] for f in fees if f["status"] == "paid")
+    total = total_pending + total_paid
+    
+    return {
+        "total": total,
+        "total_paid": total_paid,
+        "total_pending": total_pending,
+        "count_total": len(fees),
+        "count_paid": len([f for f in fees if f["status"] == "paid"]),
+        "count_pending": len([f for f in fees if f["status"] == "pending"])
+    }
+
+# ==================== DIGITAL SIGNATURE ROUTES ====================
+
+@api_router.post("/certificates/upload")
+async def upload_certificate(
+    certificate_name: str = Form(...),
+    certificate_password: str = Form(...),
+    file: UploadFile = File(...),
+    user: dict = Depends(require_commercialista)
+):
+    """Carica un certificato .p12 per la firma digitale"""
+    if not file.filename.endswith('.p12'):
+        raise HTTPException(status_code=400, detail="Il file deve essere in formato .p12")
+    
+    # Leggi il file
+    cert_data = await file.read()
+    
+    # Verifica che il certificato sia valido
+    try:
+        from cryptography.hazmat.primitives.serialization import pkcs12
+        from cryptography.hazmat.backends import default_backend
+        
+        private_key, certificate, _ = pkcs12.load_key_and_certificates(
+            cert_data,
+            certificate_password.encode('utf-8'),
+            default_backend()
+        )
+        
+        if not private_key or not certificate:
+            raise HTTPException(status_code=400, detail="Certificato non valido")
+            
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Errore verifica certificato: {str(e)}")
+    
+    # Salva il certificato
+    result = await save_certificate(cert_data, certificate_name, user["id"])
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    
+    # Salva info certificato nel DB (senza password!)
+    cert_id = str(uuid.uuid4())
+    await db.certificates.insert_one({
+        "id": cert_id,
+        "name": certificate_name,
+        "user_id": user["id"],
+        "filename": file.filename,
+        "subject": str(certificate.subject) if certificate else None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    await log_activity("caricamento_certificato", f"Certificato {certificate_name} caricato", user["id"])
+    
+    return {
+        "success": True,
+        "message": "Certificato caricato con successo",
+        "certificate_id": cert_id,
+        "certificate_name": certificate_name
+    }
+
+@api_router.get("/certificates")
+async def get_certificates(user: dict = Depends(require_commercialista)):
+    """Lista i certificati del commercialista"""
+    certs = await db.certificates.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+    return certs
+
+@api_router.delete("/certificates/{cert_name}")
+async def remove_certificate(cert_name: str, user: dict = Depends(require_commercialista)):
+    """Elimina un certificato"""
+    result = await delete_certificate(user["id"], cert_name)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    
+    # Rimuovi anche dal DB
+    await db.certificates.delete_one({"name": cert_name, "user_id": user["id"]})
+    
+    return {"message": "Certificato eliminato"}
+
+@api_router.post("/documents/{doc_id}/sign")
+async def sign_document(
+    doc_id: str,
+    certificate_name: str = Form(...),
+    certificate_password: str = Form(...),
+    reason: str = Form("Documento firmato digitalmente"),
+    location: str = Form("Isole Canarie, Spagna"),
+    user: dict = Depends(require_commercialista)
+):
+    """Firma digitalmente un documento PDF"""
+    # Recupera documento
+    document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    if not document.get("file_data"):
+        raise HTTPException(status_code=400, detail="Documento senza file allegato")
+    
+    # Recupera certificato
+    from pathlib import Path
+    cert_path = Path(__file__).parent / "certificates" / user["id"] / f"{certificate_name}.p12"
+    
+    if not cert_path.exists():
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+    
+    with open(cert_path, 'rb') as f:
+        p12_data = f.read()
+    
+    # Decodifica PDF
+    pdf_data = base64.b64decode(document["file_data"])
+    
+    # Firma il documento
+    result = await sign_pdf_with_p12(
+        pdf_data=pdf_data,
+        p12_data=p12_data,
+        p12_password=certificate_password,
+        signer_name=user.get("full_name", "Fiscal Tax Canarie"),
+        reason=reason,
+        location=location
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    
+    # Aggiorna documento con versione firmata
+    new_filename = document["file_name"].replace(".pdf", "_FIRMATO.pdf")
+    
+    await db.documents.update_one(
+        {"id": doc_id},
+        {"$set": {
+            "file_data": result["signed_pdf_data"],
+            "file_name": new_filename,
+            "signed": True,
+            "signed_by": user["id"],
+            "signed_at": result["signed_at"],
+            "signature_reason": reason,
+            "signature_location": location
+        }}
+    )
+    
+    await log_activity(
+        "firma_documento",
+        f"Documento {doc_id} firmato digitalmente",
+        user["id"]
+    )
+    
+    return {
+        "success": True,
+        "message": "Documento firmato con successo",
+        "signed_filename": new_filename,
+        "signed_at": result["signed_at"]
+    }
+
+@api_router.post("/documents/{doc_id}/verify-signature")
+async def verify_document_signature(doc_id: str, user: dict = Depends(get_current_user)):
+    """Verifica la firma digitale di un documento"""
+    document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    if not document.get("file_data"):
+        raise HTTPException(status_code=400, detail="Documento senza file allegato")
+    
+    pdf_data = base64.b64decode(document["file_data"])
+    
+    result = await verify_pdf_signature(pdf_data)
+    
+    return result
 
 # Include router and middleware
 app.include_router(api_router)
