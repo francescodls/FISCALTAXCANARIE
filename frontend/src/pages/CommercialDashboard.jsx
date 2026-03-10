@@ -62,6 +62,7 @@ const CommercialDashboard = () => {
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", full_name: "" });
   const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null); // Per mostrare il link dopo l'invio
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -124,10 +125,17 @@ const CommercialDashboard = () => {
     }
     
     setSendingInvite(true);
+    setInviteResult(null);
     try {
       const response = await axios.post(`${API}/clients/invite`, inviteForm, { headers });
       toast.success(`Invito inviato a ${inviteForm.email}!`);
-      setShowInviteDialog(false);
+      
+      // Mostra il link di invito per copiarlo manualmente se necessario
+      setInviteResult({
+        email: inviteForm.email,
+        link: response.data.invitation_link
+      });
+      
       setInviteForm({ email: "", full_name: "" });
       fetchData(); // Ricarica la lista clienti
     } catch (error) {
@@ -135,6 +143,13 @@ const CommercialDashboard = () => {
     } finally {
       setSendingInvite(false);
     }
+  };
+
+  // Chiudi dialog invito
+  const closeInviteDialog = () => {
+    setShowInviteDialog(false);
+    setInviteResult(null);
+    setInviteForm({ email: "", full_name: "" });
   };
 
   // Reinvia invito
@@ -418,7 +433,7 @@ const CommercialDashboard = () => {
                       data-testid="search-clients-input"
                     />
                   </div>
-                  <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+                  <Dialog open={showInviteDialog} onOpenChange={(open) => !open && closeInviteDialog()}>
                     <DialogTrigger asChild>
                       <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="invite-client-btn">
                         <Plus className="h-4 w-4 mr-2" />
@@ -429,60 +444,107 @@ const CommercialDashboard = () => {
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                           <Mail className="h-5 w-5 text-teal-500" />
-                          Invita Nuovo Cliente
+                          {inviteResult ? "Invito Inviato!" : "Invita Nuovo Cliente"}
                         </DialogTitle>
                       </DialogHeader>
-                      <form onSubmit={handleInviteClient} className="space-y-4">
-                        <p className="text-sm text-slate-600">
-                          Inserisci l'email del cliente. Riceverà un invito per completare la registrazione e accedere all'area clienti.
-                        </p>
-                        <div className="space-y-2">
-                          <Label>Email *</Label>
-                          <Input
-                            type="email"
-                            value={inviteForm.email}
-                            onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                            placeholder="cliente@email.com"
-                            required
-                            className="border-slate-200"
-                            data-testid="invite-email-input"
-                          />
+                      
+                      {inviteResult ? (
+                        // Mostra il link dopo l'invio
+                        <div className="space-y-4">
+                          <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                            <p className="text-green-800 font-medium mb-2">
+                              ✅ Invito inviato a {inviteResult.email}
+                            </p>
+                            <p className="text-sm text-green-700">
+                              Il cliente riceverà un'email con il link per completare la registrazione.
+                            </p>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label className="text-slate-700">Link di invito (copia manualmente se necessario):</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                value={inviteResult.link}
+                                readOnly
+                                className="text-xs bg-slate-50 border-slate-200"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(inviteResult.link);
+                                  toast.success("Link copiato!");
+                                }}
+                                className="shrink-0"
+                              >
+                                Copia
+                              </Button>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              Puoi inviare questo link manualmente via WhatsApp o altro canale.
+                            </p>
+                          </div>
+                          
+                          <DialogFooter>
+                            <Button onClick={closeInviteDialog} className="bg-teal-500 hover:bg-teal-600 text-white">
+                              Chiudi
+                            </Button>
+                          </DialogFooter>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Nome (opzionale)</Label>
-                          <Input
-                            type="text"
-                            value={inviteForm.full_name}
-                            onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
-                            placeholder="Mario Rossi"
-                            className="border-slate-200"
-                            data-testid="invite-name-input"
-                          />
-                        </div>
-                        <DialogFooter>
-                          <Button type="button" variant="outline" onClick={() => setShowInviteDialog(false)}>
-                            Annulla
-                          </Button>
-                          <Button 
-                            type="submit" 
-                            disabled={sendingInvite}
-                            className="bg-teal-500 hover:bg-teal-600 text-white"
-                            data-testid="send-invite-btn"
-                          >
-                            {sendingInvite ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                                Invio...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Invia Invito
-                              </>
-                            )}
-                          </Button>
-                        </DialogFooter>
-                      </form>
+                      ) : (
+                        // Form di invito
+                        <form onSubmit={handleInviteClient} className="space-y-4">
+                          <p className="text-sm text-slate-600">
+                            Inserisci l'email del cliente. Riceverà un invito per completare la registrazione e accedere all'area clienti.
+                          </p>
+                          <div className="space-y-2">
+                            <Label>Email *</Label>
+                            <Input
+                              type="email"
+                              value={inviteForm.email}
+                              onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                              placeholder="cliente@email.com"
+                              required
+                              className="border-slate-200"
+                              data-testid="invite-email-input"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Nome (opzionale)</Label>
+                            <Input
+                              type="text"
+                              value={inviteForm.full_name}
+                              onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
+                              placeholder="Mario Rossi"
+                              className="border-slate-200"
+                              data-testid="invite-name-input"
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button type="button" variant="outline" onClick={closeInviteDialog}>
+                              Annulla
+                            </Button>
+                            <Button 
+                              type="submit" 
+                              disabled={sendingInvite}
+                              className="bg-teal-500 hover:bg-teal-600 text-white"
+                              data-testid="send-invite-btn"
+                            >
+                              {sendingInvite ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                                  Invio...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Invia Invito
+                                </>
+                              )}
+                            </Button>
+                          </DialogFooter>
+                        </form>
+                      )}
                     </DialogContent>
                   </Dialog>
                 </div>

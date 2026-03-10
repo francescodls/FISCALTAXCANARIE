@@ -26,10 +26,13 @@ const CompleteRegistration = () => {
 
   useEffect(() => {
     const tokenParam = searchParams.get("token");
-    if (tokenParam) {
+    console.log("Token from URL:", tokenParam); // Debug
+    
+    if (tokenParam && tokenParam.length > 10) {
       setToken(tokenParam);
+      setError(""); // Resetta errore se token valido
     } else {
-      setError("Token di invito non valido. Richiedi un nuovo invito al tuo commercialista.");
+      setError("Link non valido. Il link di invito deve contenere un token. Controlla l'email ricevuta o richiedi un nuovo invito al tuo commercialista.");
     }
   }, [searchParams]);
 
@@ -72,9 +75,17 @@ const CompleteRegistration = () => {
         }
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || "Errore durante la registrazione";
-      setError(errorMessage);
-      toast.error(errorMessage);
+      const errorDetail = err.response?.data?.detail || "Errore durante la registrazione";
+      
+      // Messaggi più chiari per errori comuni
+      if (errorDetail.includes("non valido") || errorDetail.includes("scaduto")) {
+        setError("Il link di invito non è valido o è scaduto. Possibili cause:\n• Il link è stato copiato in modo incompleto\n• L'invito è scaduto (valido per 7 giorni)\n• Hai già completato la registrazione\n\nRichiedi un nuovo invito al tuo commercialista.");
+      } else if (errorDetail.includes("già completata")) {
+        setError("Hai già completato la registrazione! Puoi accedere dalla pagina di login.");
+      } else {
+        setError(errorDetail);
+      }
+      toast.error("Errore nella registrazione");
     } finally {
       setLoading(false);
     }
@@ -118,9 +129,27 @@ const CompleteRegistration = () => {
         
         <CardContent className="p-6">
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-              <p className="text-red-700 text-sm">{error}</p>
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-red-700 text-sm whitespace-pre-line">{error}</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    <button 
+                      onClick={() => navigate("/login")}
+                      className="text-sm text-red-600 hover:text-red-800 underline text-left"
+                    >
+                      → Hai già un account? Vai al Login
+                    </button>
+                    <button 
+                      onClick={() => navigate("/")}
+                      className="text-sm text-red-600 hover:text-red-800 underline text-left"
+                    >
+                      → Torna alla Home
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           

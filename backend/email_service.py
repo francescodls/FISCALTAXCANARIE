@@ -325,6 +325,15 @@ def get_invitation_template(client_name: str, invitation_link: str) -> str:
                     Se non hai richiesto questo invito, puoi ignorare questa email.<br>
                     Il link scade tra 7 giorni.
                 </p>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #f1f5f9; border-radius: 8px;">
+                    <p style="margin: 0; font-size: 12px; color: #64748b;">
+                        Se il pulsante non funziona, copia e incolla questo link nel browser:
+                    </p>
+                    <p style="margin: 8px 0 0 0; font-size: 11px; word-break: break-all; color: #3caca4;">
+                        {invitation_link}
+                    </p>
+                </div>
             </div>
             <div class="footer">
                 <p><strong>Fiscal Tax Canarie</strong> - Il tuo commercialista di fiducia alle Isole Canarie</p>
@@ -338,11 +347,34 @@ def get_invitation_template(client_name: str, invitation_link: str) -> str:
 async def send_invitation_email(client_email: str, client_name: str, invitation_link: str) -> Dict[str, Any]:
     """Invia email di invito al nuovo cliente"""
     html = get_invitation_template(client_name, invitation_link)
+    
+    # Versione testo dell'email (per client che non supportano HTML)
+    text_content = f"""
+Ciao {client_name if client_name else ''},
+
+Sei stato invitato a unirti a Fiscal Tax Canarie per gestire le tue pratiche fiscali.
+
+Per completare la registrazione, visita questo link:
+{invitation_link}
+
+Cosa potrai fare:
+- Visualizzare le scadenze fiscali
+- Accedere ai tuoi documenti 24/7
+- Chattare con l'assistente AI
+- Monitorare lo stato delle pratiche
+
+Il link scade tra 7 giorni.
+
+Fiscal Tax Canarie
++34 658 071 848 | info@fiscaltaxcanarie.com
+"""
+    
     return await send_email(
         to_email=client_email,
         to_name=client_name or "Nuovo Cliente",
         subject="Sei stato invitato su Fiscal Tax Canarie!",
-        html_content=html
+        html_content=html,
+        text_content=text_content
     )
 
 # ==================== NOTIFICATION FUNCTIONS ====================
