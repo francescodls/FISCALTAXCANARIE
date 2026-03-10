@@ -8,6 +8,38 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 19 (10 Marzo 2026) - COMPLETATA ✅
+
+**Sistema Invito Consulente del Lavoro via Email**
+
+Implementato flusso di invito simile a quello dei clienti:
+1. Admin inserisce nome ed email del consulente (NO password)
+2. Sistema invia email con link di registrazione
+3. Consulente clicca il link e imposta la propria password
+4. Account consulente attivato automaticamente
+
+Backend:
+- `POST /api/consulenti/invite`: Crea invito e invia email
+- `GET /api/consulenti/invitations`: Lista inviti pendenti
+- `POST /api/consulenti/resend-invite/{id}`: Reinvia invito
+- `POST /api/auth/complete-registration`: Ora supporta anche role=consulente_lavoro
+
+Frontend:
+- ConsulentiManagement.jsx: Nuovo form invito (solo nome + email)
+- Sezione "Inviti in attesa di registrazione" con pulsante Reinvia
+- Dialog invito mostra messaggio informativo e link di backup
+
+**Fix Caricamento Globale Documenti**
+
+- Corretto errore SelectItem con valore vuoto (value="" → value="all")
+- Corretto filtro clienti attivi (status → stato)
+- Ora mostra correttamente "22 clienti attivi" invece di "0"
+
+File modificati:
+- `/app/backend/server.py`: Nuovi endpoint invito consulenti
+- `/app/frontend/src/components/ConsulentiManagement.jsx`: Nuovo flusso invito
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Fix GlobalDocumentUpload
+
 ### Fase 18 (10 Marzo 2026) - COMPLETATA ✅
 
 **Recupero Password per Clienti**
@@ -435,15 +467,19 @@ Response:
 ```
 
 ## Next Tasks
-1. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
-2. **P2**: Refactoring `server.py` (~3700 righe) in moduli separati
-3. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
-4. **P2**: Versioning documenti con storico modifiche
-5. **P3**: Report esportabili (PDF/Excel)
+1. **P0**: Refactoring `server.py` (~4000+ righe) in moduli separati (APIRouter per risorsa)
+2. **P0**: Refactoring `ClientDetail.jsx` (>2500 righe) in sotto-componenti
+3. **P0**: Refactoring `CommercialDashboard.jsx` (>1500 righe) in sotto-componenti
+4. **P1**: Completare traduzione testi UI usando `t()` function (IT/EN/ES) per tutti i componenti
+5. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
+6. **P2**: Versioning documenti con storico modifiche
+7. **P3**: Report esportabili (PDF/Excel)
 
 ## Future Tasks
-- Completare traduzione testi UI usando `t()` function (IT/EN/ES)
-- WhatsApp Business
+- WhatsApp Business Integration
 - Promemoria automatici schedulati (cron job)
 - Valutazione accesso automatico portali governativi (AEAT, Seguridad Social)
 - Cifratura password credenziali bancarie (attualmente plaintext)
+
+## Account Predefiniti
+- **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
