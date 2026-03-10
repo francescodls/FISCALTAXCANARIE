@@ -164,6 +164,59 @@
     justify-content: center;
 }
 
+/* Clickable card hover and active states */
+.card-hover {
+    transition: all 0.2s ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.card-hover:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
+/* Active/pressed state - ensures text stays white on dark background */
+.card-hover:active {
+    background-color: #1e293b !important;
+    border-color: #1e293b !important;
+    transform: scale(0.98);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card-hover:active p,
+.card-hover:active span,
+.card-hover:active h3,
+.card-hover:active h4,
+.card-hover:active div:not([class*="bg-"]):not([class*="rounded-xl"]) {
+    color: white !important;
+}
+
+.card-hover:active .text-slate-900,
+.card-hover:active .text-slate-800,
+.card-hover:active .text-slate-700,
+.card-hover:active .text-slate-600,
+.card-hover:active .text-slate-500,
+.card-hover:active .text-xs,
+.card-hover:active .text-sm,
+.card-hover:active .text-2xl,
+.card-hover:active .font-bold {
+    color: white !important;
+}
+
+/* Touch devices - maintain active state longer */
+@media (hover: none) and (pointer: coarse) {
+    .card-hover:active {
+        transition: all 0.1s ease;
+    }
+}
+
+/* Focus state for accessibility */
+.card-hover:focus-visible {
+    outline: 2px solid #3caca4;
+    outline-offset: 2px;
+}
+
 /* Input focus states */
 input:focus, textarea:focus, select:focus {
     outline: none;
