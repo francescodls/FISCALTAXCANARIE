@@ -224,9 +224,9 @@ const ClientDashboard = () => {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="font-heading text-3xl font-bold text-slate-900 mb-2">
-            Benvenuto, {user?.full_name}
+            {t("dashboard.welcome")}, {user?.full_name}
           </h1>
-          <p className="text-slate-600">Gestisci le tue pratiche fiscali e documenti</p>
+          <p className="text-slate-600">{t("dashboard.clientPanel")}</p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -236,42 +236,42 @@ const ClientDashboard = () => {
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-overview"
             >
-              Panoramica
+              {t("dashboard.stats")}
             </TabsTrigger>
             <TabsTrigger 
               value="deadlines" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-deadlines"
             >
-              Scadenze
+              {t("deadlines.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="documents" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-documents"
             >
-              Documenti
+              {t("documents.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="payslips" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-payslips"
             >
-              Buste Paga
+              {t("payslips.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="notes" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-notes"
             >
-              Comunicazioni
+              {t("common.notes")}
             </TabsTrigger>
             <TabsTrigger 
               value="modelli" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-modelli"
             >
-              Guida Modelli
+              {t("landing.feature5Title")}
             </TabsTrigger>
             <TabsTrigger 
               value="employees" 
@@ -279,7 +279,7 @@ const ClientDashboard = () => {
               data-testid="tab-employees"
             >
               <Users className="h-4 w-4 mr-2" />
-              Dipendenti
+              {t("employees.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="profile" 
@@ -287,7 +287,7 @@ const ClientDashboard = () => {
               data-testid="tab-profile"
             >
               <User className="h-4 w-4 mr-2" />
-              I Miei Dati
+              {t("profile.personalInfo")}
             </TabsTrigger>
           </TabsList>
 

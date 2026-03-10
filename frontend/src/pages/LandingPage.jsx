@@ -16,50 +16,52 @@ import {
   BookOpen
 } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const features = [
     {
       icon: Calendar,
-      title: "Calendario Scadenze Personalizzato",
-      description: "Visualizza tutte le tue scadenze fiscali in un calendario intuitivo. Il nostro team ti tiene sempre aggiornato con promemoria automatici."
+      title: t("landing.feature1Title"),
+      description: t("landing.feature1Desc")
     },
     {
       icon: FileText,
-      title: "Documenti Sempre Disponibili",
-      description: "Accedi in sicurezza ai tuoi documenti fiscali, modelli, atti e contratti caricati dal nostro studio, disponibili 24/7."
+      title: t("landing.feature2Title"),
+      description: t("landing.feature2Desc")
     },
     {
       icon: Bell,
-      title: "Comunicazioni Dirette",
-      description: "Ricevi notifiche dal nostro studio per scadenze imminenti, aggiornamenti normativi e comunicazioni importanti."
+      title: t("landing.feature3Title"),
+      description: t("landing.feature3Desc")
     },
     {
       icon: Shield,
-      title: "Massima Sicurezza",
-      description: "I tuoi dati sono protetti con crittografia avanzata. Solo tu e il nostro team possiamo accedere ai tuoi documenti."
+      title: t("landing.feature4Title"),
+      description: t("landing.feature4Desc")
     },
     {
       icon: BookOpen,
-      title: "Guida Modelli Tributari",
-      description: "Consulta le spiegazioni dettagliate di tutti i modelli tributari delle Canarie. Capisci cosa devi presentare e quando."
+      title: t("landing.feature5Title"),
+      description: t("landing.feature5Desc")
     },
     {
       icon: TrendingUp,
-      title: "Aggiornamenti in Tempo Reale",
-      description: "Ti teniamo informato su tutte le novità fiscali e tributarie delle Isole Canarie che ti riguardano."
+      title: t("landing.feature6Title"),
+      description: t("landing.feature6Desc")
     }
   ];
 
   const benefits = [
-    "Accesso 24/7 alla tua documentazione",
-    "Scadenze fiscali sempre sotto controllo",
-    "Comunicazione diretta con il tuo commercialista",
-    "Buste paga e documenti in un unico posto",
-    "Spiegazioni chiare dei modelli tributari",
-    "Note e appunti condivisi per ogni pratica"
+    t("landing.benefit1"),
+    t("landing.benefit2"),
+    t("landing.benefit3"),
+    t("landing.benefit4"),
+    t("landing.benefit5"),
+    t("landing.benefit6")
   ];
 
   return (
@@ -81,14 +83,14 @@ const LandingPage = () => {
               className="text-slate-600 hover:text-slate-900 font-medium"
               data-testid="header-login-btn"
             >
-              Accedi
+              {t("auth.login")}
             </Button>
             <Button 
               onClick={() => navigate("/register")}
               className="bg-teal-500 hover:bg-teal-600 text-white font-semibold px-6"
               data-testid="header-register-btn"
             >
-              Registrati
+              {t("auth.register")}
             </Button>
           </div>
         </div>
@@ -100,13 +102,11 @@ const LandingPage = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8 animate-fadeIn">
               <h1 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 leading-tight">
-                Benvenuto nell'Area Clienti di{" "}
+                {t("landing.heroTitle")}{" "}
                 <span className="text-teal-500">Fiscal Tax Canarie</span>
               </h1>
               <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-xl">
-                Il tuo studio di commercialisti di fiducia alle Isole Canarie. 
-                Gestisci le tue scadenze fiscali, accedi ai documenti e rimani sempre aggiornato, 
-                tutto in un'unica piattaforma dedicata.
+                {t("landing.heroSubtitle")}
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button 
@@ -114,7 +114,7 @@ const LandingPage = () => {
                   className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-8 py-6 h-auto text-lg rounded-lg btn-press"
                   data-testid="hero-cta-btn"
                 >
-                  Accedi all'Area Clienti
+                  {t("landing.ctaButton")}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
                 <Button 
@@ -123,7 +123,7 @@ const LandingPage = () => {
                   className="border-2 border-slate-200 hover:border-slate-300 text-slate-900 font-medium px-8 py-6 h-auto text-lg rounded-lg"
                   data-testid="hero-features-btn"
                 >
-                  Scopri i Servizi
+                  {t("landing.discoverServices")}
                 </Button>
               </div>
             </div>
@@ -144,10 +144,10 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="font-heading text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-              I Nostri Servizi per Te
+              {t("landing.servicesTitle")}
             </h2>
             <p className="text-slate-600 text-lg max-w-2xl mx-auto">
-              Tutto ciò di cui hai bisogno per gestire le tue pratiche fiscali in modo semplice e sicuro
+              {t("landing.servicesSubtitle")}
             </p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 stagger-children">
@@ -180,7 +180,7 @@ const LandingPage = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
               <h2 className="font-heading text-3xl md:text-4xl font-bold text-white">
-                Perché scegliere la nostra piattaforma?
+                {t("landing.whyChoose")}
               </h2>
               <div className="space-y-4">
                 {benefits.map((benefit, index) => (
@@ -193,10 +193,10 @@ const LandingPage = () => {
             </div>
             <Card className="bg-white border-0 rounded-2xl shadow-xl p-8 md:p-10">
               <h3 className="font-heading font-bold text-2xl text-slate-900 mb-6">
-                Sei già nostro cliente?
+                {t("landing.alreadyClient")}
               </h3>
               <p className="text-slate-600 mb-8">
-                Accedi all'area riservata e gestisci tutte le tue pratiche fiscali in modo semplice e veloce
+                {t("landing.alreadyClientDesc")}
               </p>
               <div className="space-y-4">
                 <Button 
@@ -204,7 +204,7 @@ const LandingPage = () => {
                   className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-6 h-auto text-lg rounded-lg btn-press"
                   data-testid="cta-login-btn"
                 >
-                  Accedi
+                  {t("auth.login")}
                 </Button>
                 <Button 
                   variant="outline"
@@ -212,7 +212,7 @@ const LandingPage = () => {
                   className="w-full border-2 border-slate-200 hover:border-slate-300 text-slate-900 font-medium py-6 h-auto text-lg rounded-lg"
                   data-testid="cta-register-btn"
                 >
-                  Nuovo Cliente
+                  {t("landing.newClient")}
                 </Button>
               </div>
             </Card>
@@ -232,11 +232,11 @@ const LandingPage = () => {
                 <span className="font-heading font-bold text-xl">Fiscal Tax Canarie</span>
               </div>
               <p className="text-slate-400 leading-relaxed">
-                Il tuo partner di fiducia per la gestione fiscale alle Isole Canarie.
+                {t("landing.footerDesc")}
               </p>
             </div>
             <div>
-              <h4 className="font-heading font-semibold text-lg mb-4">Contatti</h4>
+              <h4 className="font-heading font-semibold text-lg mb-4">{t("landing.contacts")}</h4>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-slate-400">
                   <MapPin className="h-5 w-5" />
@@ -253,19 +253,19 @@ const LandingPage = () => {
               </div>
             </div>
             <div>
-              <h4 className="font-heading font-semibold text-lg mb-4">Link Utili</h4>
+              <h4 className="font-heading font-semibold text-lg mb-4">{t("landing.usefulLinks")}</h4>
               <div className="space-y-3">
                 <button 
                   onClick={() => navigate("/login")}
                   className="block text-slate-400 hover:text-teal-400 transition-colors"
                 >
-                  Area Clienti
+                  {t("landing.clientArea")}
                 </button>
                 <button 
                   onClick={() => navigate("/register")}
                   className="block text-slate-400 hover:text-teal-400 transition-colors"
                 >
-                  Registrati
+                  {t("auth.register")}
                 </button>
                 <a 
                   href="https://fiscaltaxcanarie.com"
@@ -273,13 +273,13 @@ const LandingPage = () => {
                   rel="noopener noreferrer"
                   className="block text-slate-400 hover:text-teal-400 transition-colors"
                 >
-                  Sito Web Principale
+                  {t("landing.mainWebsite")}
                 </a>
               </div>
             </div>
           </div>
           <div className="border-t border-slate-800 mt-12 pt-8 text-center text-slate-500">
-            <p>&copy; {new Date().getFullYear()} Fiscal Tax Canarie. Tutti i diritti riservati.</p>
+            <p>&copy; {new Date().getFullYear()} Fiscal Tax Canarie. {t("landing.allRightsReserved")}</p>
           </div>
         </div>
       </footer>

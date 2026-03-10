@@ -374,7 +374,7 @@ const CommercialDashboard = () => {
                 <Clock className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">{stats.deadlines_da_fare || 0}</p>
-              <p className="text-xs text-slate-500">Scadenze Da Fare</p>
+              <p className="text-xs text-slate-500">{t("dashboard.deadlinesDue")}</p>
             </CardContent>
           </Card>
           <Card className="bg-white border border-slate-200 card-hover">
@@ -383,7 +383,7 @@ const CommercialDashboard = () => {
                 <AlertTriangle className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">{stats.deadlines_scadute || 0}</p>
-              <p className="text-xs text-slate-500">Scadute</p>
+              <p className="text-xs text-slate-500">{t("dashboard.deadlinesOverdue")}</p>
             </CardContent>
           </Card>
           <Card 
@@ -395,7 +395,7 @@ const CommercialDashboard = () => {
                 <Eye className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">{pendingDocs.length}</p>
-              <p className="text-xs text-slate-500">Da Verificare</p>
+              <p className="text-xs text-slate-500">{t("dashboard.toVerify")}</p>
             </CardContent>
           </Card>
         </div>
@@ -409,7 +409,7 @@ const CommercialDashboard = () => {
               data-testid="tab-clients"
             >
               <Users className="h-4 w-4 mr-2" />
-              Clienti
+              {t("clients.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="pending" 
@@ -417,7 +417,7 @@ const CommercialDashboard = () => {
               data-testid="tab-pending"
             >
               <Eye className="h-4 w-4 mr-2" />
-              Da Verificare
+              {t("dashboard.toVerify")}
               {pendingDocs.length > 0 && (
                 <Badge className="ml-2 bg-red-500 text-white text-xs">{pendingDocs.length}</Badge>
               )}
@@ -428,7 +428,7 @@ const CommercialDashboard = () => {
               data-testid="tab-search"
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              Ricerca AI
+              {t("common.search")} AI
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
@@ -436,7 +436,7 @@ const CommercialDashboard = () => {
               data-testid="tab-stats"
             >
               <BarChart3 className="h-4 w-4 mr-2" />
-              Statistiche
+              {t("dashboard.stats")}
             </TabsTrigger>
             <TabsTrigger 
               value="consulenti" 
@@ -444,7 +444,7 @@ const CommercialDashboard = () => {
               data-testid="tab-consulenti"
             >
               <Briefcase className="h-4 w-4 mr-2" />
-              Consulenti
+              {t("consulenti.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="employees" 
@@ -452,7 +452,7 @@ const CommercialDashboard = () => {
               data-testid="tab-employees"
             >
               <Users className="h-4 w-4 mr-2" />
-              Dipendenti
+              {t("employees.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="activity" 
@@ -460,7 +460,7 @@ const CommercialDashboard = () => {
               data-testid="tab-activity"
             >
               <Activity className="h-4 w-4 mr-2" />
-              Attività
+              {t("dashboard.recentActivity")}
             </TabsTrigger>
           </TabsList>
 
