@@ -1354,10 +1354,32 @@ async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     if user["role"] == "cliente" and document["client_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
     
+    # Se il file è su B2, scaricalo e aggiungi file_data
+    if document.get("storage_path") and not document.get("file_data"):
+        file_content, content_type = await cloud_download(document["storage_path"])
+        if file_content:
+            document["file_data"] = base64.b64encode(file_content).decode('utf-8')
+            document["file_type"] = content_type
+    
     return document
 
 @api_router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str, user: dict = Depends(require_commercialista)):
+async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
+    """Elimina un documento. Admin può eliminare tutti, cliente solo i propri."""
+    document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    # Verifica permessi
+    if user["role"] == "cliente" and document.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Non puoi eliminare questo documento")
+    
+    # Se il file è su B2, eliminalo
+    if document.get("storage_path"):
+        from storage_service import delete_file as cloud_delete
+        await cloud_delete(document["storage_path"])
+    
     result = await db.documents.delete_one({"id": doc_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Documento non trovato")
@@ -1507,6 +1529,15 @@ async def upload_document_with_ai(
     
     # Crea documento con nome file rinominato
     doc_id = str(uuid.uuid4())
+    
+    # Prova upload su B2, fallback su MongoDB se non disponibile
+    storage_result = await cloud_upload(
+        file_data=file_content,
+        client_id=final_client_id or "unassigned",
+        original_filename=standardized_filename,
+        folder="documents"
+    )
+    
     document = {
         "id": doc_id,
         "title": ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename,
@@ -1518,7 +1549,6 @@ async def upload_document_with_ai(
         "file_name": standardized_filename,  # Nome rinominato automaticamente
         "file_name_original": file.filename,  # Nome originale per riferimento
         "file_name_suggested": suggested_filename,
-        "file_data": file_base64,
         "file_type": file.content_type,
         "uploaded_by": user["id"],
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1534,6 +1564,17 @@ async def upload_document_with_ai(
         "versions_history": [],
         "extracted_text": extracted_text[:2000] if extracted_text else None
     }
+    
+    # Salva su B2 se disponibile, altrimenti su MongoDB
+    if storage_result.get("success"):
+        document["storage_path"] = storage_result["storage_path"]
+        document["storage_provider"] = "b2"
+        document["file_size"] = storage_result.get("size", len(file_content))
+    else:
+        # Fallback: salva in MongoDB
+        document["file_data"] = file_base64
+        document["storage_provider"] = "mongodb"
+    
     await db.documents.insert_one(document)
     
     await log_activity(

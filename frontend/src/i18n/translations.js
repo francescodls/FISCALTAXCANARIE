@@ -303,7 +303,7 @@ export const translations = {
     
     // Employees
     employees: {
-      title: "I Miei Dipendenti",
+      title: "Dipendenti",
       subtitle: "Gestisci i tuoi dipendenti e richiedi assunzioni",
       requestHire: "Richiedi Assunzione",
       hireDialogTitle: "Richiedi Assunzione Dipendente",

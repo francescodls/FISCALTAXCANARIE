@@ -8,6 +8,29 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 22 (10 Marzo 2026) - COMPLETATA ✅
+
+**Rename Sezione Dipendenti + Migrazione Storage B2**
+
+1. **Rename "I Miei Dipendenti" → "Dipendenti":**
+   - Aggiornato nel pannello cliente (tab e titolo)
+   - Aggiornato nelle traduzioni i18n
+
+2. **Migrazione File MongoDB → Backblaze B2:**
+   - Storage B2 ora attivo come storage primario per i nuovi upload
+   - Upload automatico su B2, fallback su MongoDB se B2 non disponibile
+   - Download automatico da B2 quando `storage_path` presente
+   - Endpoint `/api/storage/status` per vedere stato storage
+   - Endpoint `/api/storage/migrate-to-cloud` per migrare file esistenti
+   - 1 documento migrato con successo (0.21 MB)
+   - Eliminazione documenti ora rimuove anche da B2
+
+File modificati:
+- `/app/frontend/src/i18n/translations.js`: Rename
+- `/app/frontend/src/components/EmployeeManagementClient.jsx`: Rename
+- `/app/backend/server.py`: Upload/download con B2, eliminazione con B2
+- `/app/backend/b2_service.py`: NUOVO - Servizio B2 alternativo (non usato)
+
 ### Fase 21 (10 Marzo 2026) - COMPLETATA ✅
 
 **Vista Cartelle per Clienti + Eliminazione Documenti**

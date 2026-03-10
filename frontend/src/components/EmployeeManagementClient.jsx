@@ -261,7 +261,7 @@ const EmployeeManagementClient = ({ token, clientId }) => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-heading text-2xl font-bold text-slate-900">I Miei Dipendenti</h2>
+          <h2 className="font-heading text-2xl font-bold text-slate-900">Dipendenti</h2>
           <p className="text-slate-600">Gestisci i tuoi dipendenti e richiedi assunzioni</p>
         </div>
         <Dialog open={showHireDialog} onOpenChange={setShowHireDialog}>
