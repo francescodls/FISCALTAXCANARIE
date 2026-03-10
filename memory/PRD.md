@@ -8,6 +8,30 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 10 (10 Marzo 2026) - COMPLETATA ✅
+
+**Refactoring Flusso di Invito Clienti**
+
+1. **Nuovo Flusso di Invito**
+   - Il commercialista inserisce l'email di NOTIFICA del cliente
+   - Il cliente riceve un link e sceglie la propria EMAIL DI ACCESSO durante la registrazione
+   - L'email di notifica viene salvata come contatto secondario (`email_notifica`)
+
+2. **Collection `invitations`**
+   - Nuova collection per gestire gli inviti separatamente dagli utenti
+   - Schema: `{id, notification_email, suggested_name, invitation_token, invited_by, status: "pending"|"completed", expires_at}`
+   - L'invito scade dopo 7 giorni
+
+3. **Endpoint Modificati**
+   - `POST /api/clients/invite` - Crea record in `invitations` (non più in `users`)
+   - `POST /api/auth/complete-registration` - Accetta campo `email` per l'email di accesso scelta dal cliente
+   - `POST /api/clients/resend-invite/{invite_id}` - Usa `invite_id` dalla collection `invitations`
+   - `GET /api/invitations` - Lista inviti pendenti
+
+4. **Frontend Aggiornato**
+   - Dashboard: sezione "Inviti in attesa di registrazione" con pulsante "Reinvia"
+   - CompleteRegistration: nuovo campo "La tua Email di Accesso"
+
 ### Fase 9 (10 Marzo 2026) - COMPLETATA ✅
 
 **Sistema Backup & Storage Cloud**
@@ -134,11 +158,15 @@ Response:
 - **pyHanko**: Firma digitale PDF con certificati .p12
 
 ## Next Tasks
-1. **P2**: Versioning documenti con storico modifiche
-2. **P3**: Report esportabili (PDF/Excel)
-3. **P3**: Sistema di audit trail completo
+1. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
+2. **P2**: Refactoring `server.py` (~2800 righe) in moduli separati (`routers/auth.py`, `routers/clients.py`, etc.)
+3. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
+4. **P2**: Versioning documenti con storico modifiche
+5. **P3**: Report esportabili (PDF/Excel)
 
 ## Future Tasks
+- Integrazione firma elettronica avanzata
 - WhatsApp Business
 - Multilingua (IT/ES)
 - Promemoria automatici schedulati (cron job)
+- Valutazione accesso automatico portali governativi (AEAT, Seguridad Social)
