@@ -5,48 +5,71 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 1-6 - COMPLETATE ✅
+### Fase 1-7 - COMPLETATE ✅
 (vedere changelog precedente)
 
-### Fase 7 (9 Marzo 2026) - COMPLETATA ✅
+### Fase 8 (10 Marzo 2026) - COMPLETATA ✅
 
-**Scadenze Ricorrenti con Promemoria Automatici**
+**Flusso Invito Cliente**
+1. **Endpoint invito**
+   - `POST /api/clients/invite` - Crea cliente con solo email
+   - `POST /api/auth/complete-registration` - Cliente completa registrazione con token
+   - `POST /api/clients/resend-invite/{client_id}` - Reinvia invito
+   - Email template dedicato con link univoco
+   - Stato `pending` fino a completamento
 
-1. **Scadenze ricorrenti**
-   - Frequenze: mensile, trimestrale, annuale
-   - Data fine ricorrenza opzionale
-   - Calcolo automatico `next_occurrence` basato su frequenza
-   - Rigenerazione automatica dopo completamento
+2. **Frontend invito**
+   - Pulsante "Invita Cliente" in dashboard commercialista
+   - Dialog con campo email e nome opzionale
+   - Pulsante "Reinvia" per clienti in attesa
+   - Pagina `/complete-registration` per completare registrazione
 
-2. **Assegnazione a liste di clienti**
-   - Campo `list_ids` per assegnare a multiple liste
-   - Selezione multipla con checkbox
-   - Email inviate a tutti i clienti delle liste selezionate
+**Sezione Onorari (solo Commercialista)**
+1. **Collection `fees` in MongoDB**
+   - CRUD completo onorari per cliente
+   - Stati: pending, paid
+   - Tracking data scadenza e data pagamento
 
-3. **Promemoria automatici**
-   - Default: 7, 3, 1 giorni prima + giorno stesso
-   - Campo `reminder_days` personalizzabile
-   - `last_reminder_sent` per evitare duplicati
-   - Endpoint `POST /api/deadlines/send-reminders` per invio manuale
+2. **Endpoint onorari**
+   - `GET/POST /api/clients/{client_id}/fees`
+   - `PUT/DELETE /api/clients/{client_id}/fees/{fee_id}`
+   - `GET /api/clients/{client_id}/fees/summary` - Totali e conteggi
 
-4. **Pagina dedicata `/admin/deadlines`**
-   - Creazione scadenze per liste
-   - Pulsante "Invia Promemoria Ora"
-   - Visualizzazione scadenze assegnate a liste
-   - Badge "ricorrente" con frequenza
+3. **Frontend onorari**
+   - Tab "Onorari" in pagina dettaglio cliente
+   - Card riassuntive (Totale Pagato, In Attesa, Totale Generale)
+   - Storico con azioni (Segna Pagato, Modifica, Elimina)
+   - Form creazione con descrizione, importo, scadenza, note
 
-5. **Form scadenza aggiornato in ClientDetail**
-   - Switch "Scadenza ricorrente"
-   - Dropdown frequenza (mensile/trimestrale/annuale)
-   - Data fine ricorrenza opzionale
-   - Switch "Promemoria automatici"
-   - Switch "Invia notifica email immediata"
-   - Pulsante dinamico "Crea Scadenza Ricorrente"
+**Firma Digitale con Certificati .p12**
+1. **Servizio firma (pyHanko)**
+   - `signing_service.py` con pyHanko
+   - Upload e gestione certificati .p12
+   - Firma PDF con metadati (firmatario, motivo, luogo)
+   - Verifica firme
+
+2. **Endpoint firma**
+   - `POST /api/certificates/upload` - Carica certificato
+   - `GET /api/certificates` - Lista certificati
+   - `DELETE /api/certificates/{cert_name}` - Elimina certificato
+   - `POST /api/documents/{doc_id}/sign` - Firma documento
+
+3. **Frontend firma**
+   - Pagina `/admin/signatures` per gestione certificati
+   - Pulsante "Firma" su documenti PDF
+   - Dialog con selezione certificato e password
+   - Badge "Firmato" su documenti firmati
+
+**Miglioramenti UI/UX Dashboard Cliente**
+1. **Welcome Banner** con gradiente teal
+2. **Card statistiche** con icone colorate e gradienti
+3. **Layout due colonne** (Scadenze Imminenti + Ultimi Documenti)
+4. **Sezione documenti** con design a card e categorie colorate
 
 ## Account Predefiniti
 - **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
 
-## API Endpoints Scadenze (Aggiornati)
+## API Endpoints Nuovi (Fase 8)
 
 ```
 POST /api/deadlines
@@ -113,9 +136,27 @@ Response:
 }
 ```
 
+## Database Schema Fees (Onorari)
+
+```json
+{
+  "id": "uuid",
+  "client_id": "uuid",
+  "description": "string",
+  "amount": 150.00,
+  "due_date": "YYYY-MM-DD",
+  "status": "pending|paid",
+  "paid_date": "YYYY-MM-DD",
+  "notes": "string",
+  "created_by": "uuid",
+  "created_at": "ISO datetime"
+}
+```
+
 ## Integrazioni
 - **OpenAI GPT-4o-mini**: Chatbot, analisi documenti, ricerca semantica
 - **Brevo**: Email transazionali e promemoria
+- **pyHanko**: Firma digitale PDF con certificati .p12
 
 ## Next Tasks
 1. **P2**: Versioning documenti con storico modifiche
@@ -123,7 +164,6 @@ Response:
 3. **P3**: Sistema di audit trail completo
 
 ## Future Tasks
-- Firma elettronica
 - WhatsApp Business
 - Multilingua (IT/ES)
 - Promemoria automatici schedulati (cron job)
