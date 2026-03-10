@@ -418,3 +418,41 @@ async def send_welcome_email(client_email: str, client_name: str) -> Dict[str, A
         subject="Benvenuto in Fiscal Tax Canarie!",
         html_content=html
     )
+
+async def send_generic_email(to_email: str, subject: str, html_body: str) -> Dict[str, Any]:
+    """Invia email generica con contenuto HTML personalizzato"""
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f4; margin: 0; padding: 20px; }}
+            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; }}
+            .header {{ background: #3caca4; color: white; padding: 30px; text-align: center; }}
+            .header h1 {{ margin: 0; font-size: 24px; }}
+            .content {{ padding: 30px; color: #1e293b; }}
+            .footer {{ background: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Fiscal Tax Canarie</h1>
+            </div>
+            <div class="content">
+                {html_body}
+            </div>
+            <div class="footer">
+                <p>Fiscal Tax Canarie - Il tuo commercialista di fiducia alle Isole Canarie</p>
+                <p>+34 658 071 848 | info@fiscaltaxcanarie.com</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    return await send_email(
+        to_email=to_email,
+        to_name="",
+        subject=subject,
+        html_content=html_content
+    )

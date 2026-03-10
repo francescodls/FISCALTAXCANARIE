@@ -16,7 +16,7 @@ import base64
 
 # Import AI service
 from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename, search_documents_semantic
-from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email
+from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email, send_generic_email
 from chatbot_service import chat_with_assistant
 from signing_service import sign_pdf_with_p12, verify_pdf_signature, save_certificate, list_certificates, delete_certificate
 from storage_service import upload_file as cloud_upload, download_file as cloud_download, is_storage_enabled, init_b2_storage
@@ -325,6 +325,54 @@ class ConsulenteCreate(BaseModel):
 
 class ClientAssignment(BaseModel):
     client_ids: List[str]  # Lista di ID clienti da assegnare
+
+# ==================== EMPLOYEE (DIPENDENTI) MODELS ====================
+
+class EmployeeHireRequest(BaseModel):
+    """Richiesta di assunzione dipendente dal cliente"""
+    full_name: str
+    start_date: str  # Data inizio lavoro
+    job_title: str  # Mansione
+    work_hours: str  # Orario di lavoro (es. "8:00-17:00")
+    work_location: str  # Luogo di lavoro
+    work_days: str  # Giorni lavorativi (es. "Lunedì-Venerdì")
+    salary: Optional[float] = None  # Stipendio (opzionale)
+    contract_type: Optional[str] = None  # Tipo contratto (tempo determinato/indeterminato)
+    notes: Optional[str] = None  # Note aggiuntive
+
+class EmployeeUpdate(BaseModel):
+    full_name: Optional[str] = None
+    job_title: Optional[str] = None
+    work_hours: Optional[str] = None
+    work_location: Optional[str] = None
+    work_days: Optional[str] = None
+    salary: Optional[float] = None
+    contract_type: Optional[str] = None
+    status: Optional[str] = None  # active, terminated, pending
+    termination_date: Optional[str] = None
+    notes: Optional[str] = None
+
+class EmployeeTerminationRequest(BaseModel):
+    """Richiesta di licenziamento dipendente"""
+    reason: Optional[str] = None
+    termination_date: str
+
+# ==================== NOTIFICATION MODELS ====================
+
+class NotificationCreate(BaseModel):
+    type: str  # hire_request, termination_request, document_upload
+    title: str
+    message: str
+    client_id: str
+    employee_id: Optional[str] = None
+
+# Email destinatari per notifiche dipendenti
+EMPLOYEE_NOTIFICATION_EMAILS = [
+    "amministrazione@fiscaltaxcanarie.com",
+    "segreteria@fiscaltaxcanarie.com",
+    "bruno@fiscaltaxcanarie.com",
+    "francesco@fiscaltaxcanarie.com"
+]
 
 # ==================== AUTH HELPERS ====================
 
@@ -3195,6 +3243,428 @@ async def get_consulente_stats(user: dict = Depends(require_consulente_lavoro)):
         "clients_assigned": len(assigned_ids),
         "total_payslips": total_payslips
     }
+
+# ==================== EMPLOYEE (DIPENDENTI) ENDPOINTS ====================
+
+async def send_employee_notification_email(subject: str, body: str):
+    """Invia email di notifica per operazioni sui dipendenti"""
+    try:
+        for email in EMPLOYEE_NOTIFICATION_EMAILS:
+            await send_generic_email(email, subject, body)
+        logger.info(f"Email notifica dipendenti inviata a {len(EMPLOYEE_NOTIFICATION_EMAILS)} destinatari")
+    except Exception as e:
+        logger.error(f"Errore invio email notifica dipendenti: {e}")
+
+async def create_employee_notification(
+    notification_type: str,
+    title: str,
+    message: str,
+    client_id: str,
+    employee_id: str = None,
+    send_email: bool = True
+):
+    """Crea una notifica per operazioni sui dipendenti"""
+    notification_id = str(uuid.uuid4())
+    notification = {
+        "id": notification_id,
+        "type": notification_type,
+        "title": title,
+        "message": message,
+        "client_id": client_id,
+        "employee_id": employee_id,
+        "read": False,
+        "read_by": [],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.employee_notifications.insert_one(notification)
+    
+    # Invia email
+    if send_email:
+        await send_employee_notification_email(
+            f"[Fiscal Tax] {title}",
+            f"""
+            <h2>{title}</h2>
+            <p>{message}</p>
+            <p><small>Notifica generata automaticamente da Fiscal Tax Canarie</small></p>
+            """
+        )
+    
+    return notification_id
+
+@api_router.post("/employees/hire-request")
+async def request_employee_hire(
+    hire_data: EmployeeHireRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Cliente richiede assunzione di un dipendente"""
+    if user["role"] != "cliente":
+        raise HTTPException(status_code=403, detail="Solo i clienti possono richiedere assunzioni")
+    
+    employee_id = str(uuid.uuid4())
+    employee_doc = {
+        "id": employee_id,
+        "client_id": user["id"],
+        "full_name": hire_data.full_name,
+        "start_date": hire_data.start_date,
+        "job_title": hire_data.job_title,
+        "work_hours": hire_data.work_hours,
+        "work_location": hire_data.work_location,
+        "work_days": hire_data.work_days,
+        "salary": hire_data.salary,
+        "contract_type": hire_data.contract_type,
+        "notes": hire_data.notes,
+        "status": "pending",  # pending, active, terminated
+        "termination_date": None,
+        "termination_reason": None,
+        "documents": [],  # Documenti del dipendente
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.employees.insert_one(employee_doc)
+    
+    # Crea notifica
+    client_name = user.get("full_name", user.get("email"))
+    await create_employee_notification(
+        "hire_request",
+        "Nuova richiesta di assunzione",
+        f"Il cliente {client_name} ha richiesto l'assunzione di {hire_data.full_name} come {hire_data.job_title}. Data inizio: {hire_data.start_date}.",
+        user["id"],
+        employee_id
+    )
+    
+    await log_activity(
+        "richiesta_assunzione",
+        f"Richiesta assunzione dipendente: {hire_data.full_name}",
+        user["id"]
+    )
+    
+    return {"success": True, "employee_id": employee_id, "message": "Richiesta di assunzione inviata"}
+
+@api_router.post("/employees/{employee_id}/documents")
+async def upload_employee_document(
+    employee_id: str,
+    file: UploadFile = File(...),
+    document_type: str = Form(...),  # id_document, nie, contract, timesheet, other
+    description: str = Form(None),
+    user: dict = Depends(get_current_user)
+):
+    """Carica documento per un dipendente (cliente, consulente o admin)"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi
+    can_access = False
+    if user["role"] == "commercialista":
+        can_access = True
+    elif user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        can_access = employee["client_id"] in assigned
+    elif user["role"] == "cliente":
+        can_access = employee["client_id"] == user["id"]
+    
+    if not can_access:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo dipendente")
+    
+    # Leggi file
+    file_content = await file.read()
+    file_base64 = base64.b64encode(file_content).decode("utf-8")
+    
+    doc_id = str(uuid.uuid4())
+    doc = {
+        "id": doc_id,
+        "document_type": document_type,
+        "description": description,
+        "file_name": file.filename,
+        "file_data": file_base64,
+        "file_type": file.content_type,
+        "uploaded_by": user["id"],
+        "uploaded_by_role": user["role"],
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.employees.update_one(
+        {"id": employee_id},
+        {"$push": {"documents": doc}}
+    )
+    
+    # Notifica se caricato dal cliente
+    if user["role"] == "cliente":
+        client_name = user.get("full_name", user.get("email"))
+        doc_type_names = {
+            "id_document": "Documento di identità",
+            "nie": "NIE",
+            "contract": "Contratto",
+            "timesheet": "Registro orario",
+            "other": "Documento"
+        }
+        await create_employee_notification(
+            "document_upload",
+            "Nuovo documento dipendente caricato",
+            f"Il cliente {client_name} ha caricato un documento ({doc_type_names.get(document_type, document_type)}) per il dipendente {employee['full_name']}.",
+            user["id"],
+            employee_id
+        )
+    
+    return {"success": True, "document_id": doc_id}
+
+@api_router.post("/employees/{employee_id}/terminate")
+async def request_employee_termination(
+    employee_id: str,
+    termination: EmployeeTerminationRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Cliente richiede licenziamento di un dipendente"""
+    if user["role"] != "cliente":
+        raise HTTPException(status_code=403, detail="Solo i clienti possono richiedere licenziamenti")
+    
+    employee = await db.employees.find_one({"id": employee_id, "client_id": user["id"]}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Aggiorna stato a "termination_pending"
+    await db.employees.update_one(
+        {"id": employee_id},
+        {"$set": {
+            "status": "termination_pending",
+            "termination_date": termination.termination_date,
+            "termination_reason": termination.reason,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Crea notifica
+    client_name = user.get("full_name", user.get("email"))
+    await create_employee_notification(
+        "termination_request",
+        "Richiesta di licenziamento",
+        f"Il cliente {client_name} ha richiesto il licenziamento di {employee['full_name']}. Data cessazione: {termination.termination_date}. Motivo: {termination.reason or 'Non specificato'}.",
+        user["id"],
+        employee_id
+    )
+    
+    return {"success": True, "message": "Richiesta di licenziamento inviata"}
+
+@api_router.put("/employees/{employee_id}")
+async def update_employee(
+    employee_id: str,
+    update_data: EmployeeUpdate,
+    user: dict = Depends(require_commercialista_or_consulente)
+):
+    """Aggiorna dati dipendente (solo consulente o admin)"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi consulente
+    if user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        if employee["client_id"] not in assigned:
+            raise HTTPException(status_code=403, detail="Non hai accesso a questo dipendente")
+    
+    update_fields = {k: v for k, v in update_data.dict().items() if v is not None}
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.employees.update_one(
+        {"id": employee_id},
+        {"$set": update_fields}
+    )
+    
+    return {"success": True, "message": "Dipendente aggiornato"}
+
+@api_router.get("/employees")
+async def get_employees(
+    client_id: str = None,
+    status: str = None,
+    user: dict = Depends(get_current_user)
+):
+    """Lista dipendenti in base al ruolo"""
+    query = {}
+    
+    if user["role"] == "cliente":
+        # Cliente vede solo i propri dipendenti
+        query["client_id"] = user["id"]
+    elif user["role"] == "consulente_lavoro":
+        # Consulente vede dipendenti dei clienti assegnati
+        assigned = user.get("assigned_clients", [])
+        if client_id and client_id in assigned:
+            query["client_id"] = client_id
+        else:
+            query["client_id"] = {"$in": assigned}
+    elif user["role"] == "commercialista":
+        # Admin vede tutti, può filtrare per client_id
+        if client_id:
+            query["client_id"] = client_id
+    
+    if status:
+        query["status"] = status
+    
+    employees = await db.employees.find(query, {"_id": 0, "documents.file_data": 0}).to_list(500)
+    
+    # Aggiungi info cliente
+    for emp in employees:
+        client = await db.users.find_one({"id": emp["client_id"]}, {"_id": 0, "full_name": 1, "email": 1})
+        emp["client_name"] = client.get("full_name", client.get("email")) if client else "N/A"
+    
+    return employees
+
+@api_router.get("/employees/{employee_id}")
+async def get_employee_detail(
+    employee_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Dettaglio singolo dipendente"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi
+    can_access = False
+    if user["role"] == "commercialista":
+        can_access = True
+    elif user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        can_access = employee["client_id"] in assigned
+    elif user["role"] == "cliente":
+        can_access = employee["client_id"] == user["id"]
+    
+    if not can_access:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo dipendente")
+    
+    # Aggiungi info cliente
+    client = await db.users.find_one({"id": employee["client_id"]}, {"_id": 0, "full_name": 1, "email": 1})
+    employee["client_name"] = client.get("full_name", client.get("email")) if client else "N/A"
+    
+    # Rimuovi file_data dai documenti per la risposta (troppo pesante)
+    if "documents" in employee:
+        for doc in employee["documents"]:
+            doc.pop("file_data", None)
+    
+    return employee
+
+@api_router.get("/employees/{employee_id}/documents/{doc_id}/download")
+async def download_employee_document(
+    employee_id: str,
+    doc_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Download documento dipendente"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi
+    can_access = False
+    if user["role"] == "commercialista":
+        can_access = True
+    elif user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        can_access = employee["client_id"] in assigned
+    elif user["role"] == "cliente":
+        can_access = employee["client_id"] == user["id"]
+    
+    if not can_access:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo dipendente")
+    
+    # Trova documento
+    doc = next((d for d in employee.get("documents", []) if d["id"] == doc_id), None)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    return {
+        "file_name": doc["file_name"],
+        "file_data": doc["file_data"],
+        "file_type": doc["file_type"]
+    }
+
+@api_router.delete("/employees/{employee_id}/documents/{doc_id}")
+async def delete_employee_document(
+    employee_id: str,
+    doc_id: str,
+    user: dict = Depends(require_commercialista_or_consulente)
+):
+    """Elimina documento dipendente"""
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi consulente
+    if user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        if employee["client_id"] not in assigned:
+            raise HTTPException(status_code=403, detail="Non hai accesso a questo dipendente")
+    
+    await db.employees.update_one(
+        {"id": employee_id},
+        {"$pull": {"documents": {"id": doc_id}}}
+    )
+    
+    return {"success": True, "message": "Documento eliminato"}
+
+# ==================== EMPLOYEE NOTIFICATIONS ====================
+
+@api_router.get("/employee-notifications")
+async def get_employee_notifications(
+    unread_only: bool = False,
+    user: dict = Depends(require_commercialista_or_consulente)
+):
+    """Lista notifiche dipendenti per admin/consulente"""
+    query = {}
+    
+    if user["role"] == "consulente_lavoro":
+        # Consulente vede solo notifiche dei clienti assegnati
+        assigned = user.get("assigned_clients", [])
+        query["client_id"] = {"$in": assigned}
+    
+    if unread_only:
+        query["$or"] = [
+            {"read": False},
+            {"read_by": {"$ne": user["id"]}}
+        ]
+    
+    notifications = await db.employee_notifications.find(
+        query, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return notifications
+
+@api_router.get("/employee-notifications/count")
+async def get_employee_notifications_count(user: dict = Depends(require_commercialista_or_consulente)):
+    """Conta notifiche non lette"""
+    query = {"read_by": {"$ne": user["id"]}}
+    
+    if user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        query["client_id"] = {"$in": assigned}
+    
+    count = await db.employee_notifications.count_documents(query)
+    return {"unread_count": count}
+
+@api_router.post("/employee-notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    user: dict = Depends(require_commercialista_or_consulente)
+):
+    """Segna notifica come letta"""
+    await db.employee_notifications.update_one(
+        {"id": notification_id},
+        {"$addToSet": {"read_by": user["id"]}}
+    )
+    return {"success": True}
+
+@api_router.post("/employee-notifications/read-all")
+async def mark_all_notifications_read(user: dict = Depends(require_commercialista_or_consulente)):
+    """Segna tutte le notifiche come lette"""
+    query = {}
+    if user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        query["client_id"] = {"$in": assigned}
+    
+    await db.employee_notifications.update_many(
+        query,
+        {"$addToSet": {"read_by": user["id"]}}
+    )
+    return {"success": True}
 
 # Include router and middleware
 app.include_router(api_router)

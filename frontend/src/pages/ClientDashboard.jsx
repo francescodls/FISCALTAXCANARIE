@@ -31,8 +31,9 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit, Save } from "lucide-react";
+import { Edit, Save, Users } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
+import EmployeeManagementClient from "@/components/EmployeeManagementClient";
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
@@ -269,6 +270,14 @@ const ClientDashboard = () => {
               data-testid="tab-modelli"
             >
               Guida Modelli
+            </TabsTrigger>
+            <TabsTrigger 
+              value="employees" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-employees"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Dipendenti
             </TabsTrigger>
             <TabsTrigger 
               value="profile" 
@@ -915,6 +924,11 @@ const ClientDashboard = () => {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Employees Tab */}
+          <TabsContent value="employees" className="space-y-6">
+            <EmployeeManagementClient token={token} clientId={user?.id} />
           </TabsContent>
 
           {/* Profile Tab */}

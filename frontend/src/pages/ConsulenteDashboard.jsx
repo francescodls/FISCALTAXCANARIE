@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -20,11 +21,13 @@ import {
   Trash2,
   Eye,
   FileText,
-  ChevronRight
+  ChevronRight,
+  Briefcase
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import LanguageSelector from "@/components/LanguageSelector";
+import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 
 const ConsulenteDashboard = () => {
   const navigate = useNavigate();
@@ -188,7 +191,7 @@ const ConsulenteDashboard = () => {
           <h1 className="font-heading text-3xl font-bold text-slate-900 mb-2">
             Dashboard Consulente
           </h1>
-          <p className="text-slate-600">Gestisci le buste paga dei clienti assegnati</p>
+          <p className="text-slate-600">Gestisci le buste paga e i dipendenti dei clienti assegnati</p>
         </div>
 
         {/* Stats Cards */}
@@ -217,24 +220,44 @@ const ConsulenteDashboard = () => {
           </Card>
         </div>
 
-        {clients.length === 0 ? (
-          <Card className="bg-white border border-slate-200">
-            <CardContent className="p-12 text-center">
-              <Users className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-slate-700 mb-2">Nessun cliente assegnato</h3>
-              <p className="text-slate-500">
-                L'amministratore non ti ha ancora assegnato clienti da gestire.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid md:grid-cols-3 gap-6">
-            {/* Client List */}
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-lg">Clienti Assegnati</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
+        {/* Tabs for Payslips and Employees */}
+        <Tabs defaultValue="payslips" className="space-y-6">
+          <TabsList className="bg-slate-100 p-1">
+            <TabsTrigger 
+              value="payslips"
+              className="text-slate-600 data-[state=active]:bg-indigo-500 data-[state=active]:text-white px-4"
+            >
+              <Wallet className="h-4 w-4 mr-2" />
+              Buste Paga
+            </TabsTrigger>
+            <TabsTrigger 
+              value="employees"
+              className="text-slate-600 data-[state=active]:bg-indigo-500 data-[state=active]:text-white px-4"
+            >
+              <Briefcase className="h-4 w-4 mr-2" />
+              Dipendenti
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="payslips">
+            {clients.length === 0 ? (
+              <Card className="bg-white border border-slate-200">
+                <CardContent className="p-12 text-center">
+                  <Users className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-slate-700 mb-2">Nessun cliente assegnato</h3>
+                  <p className="text-slate-500">
+                    L'amministratore non ti ha ancora assegnato clienti da gestire.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid md:grid-cols-3 gap-6">
+                {/* Client List */}
+                <Card className="bg-white border border-slate-200">
+                  <CardHeader>
+                    <CardTitle className="font-heading text-lg">Clienti Assegnati</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
                 <div className="divide-y divide-slate-100">
                   {clients.map((client) => (
                     <div
@@ -403,6 +426,12 @@ const ConsulenteDashboard = () => {
             </div>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="employees">
+            <EmployeeManagementAdmin token={token} userRole="consulente_lavoro" />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

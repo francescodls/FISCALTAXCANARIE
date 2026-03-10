@@ -45,6 +45,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import ConsulentiManagement from "@/components/ConsulentiManagement";
 import LanguageSelector from "@/components/LanguageSelector";
+import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 
 const CommercialDashboard = () => {
   const navigate = useNavigate();
@@ -442,6 +443,14 @@ const CommercialDashboard = () => {
             >
               <Briefcase className="h-4 w-4 mr-2" />
               Consulenti
+            </TabsTrigger>
+            <TabsTrigger 
+              value="employees" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-employees"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Dipendenti
             </TabsTrigger>
             <TabsTrigger 
               value="activity" 
@@ -1054,6 +1063,11 @@ const CommercialDashboard = () => {
           {/* Consulenti Tab */}
           <TabsContent value="consulenti">
             <ConsulentiManagement token={token} />
+          </TabsContent>
+
+          {/* Employees Tab */}
+          <TabsContent value="employees">
+            <EmployeeManagementAdmin token={token} userRole="commercialista" />
           </TabsContent>
         </Tabs>
       </main>
