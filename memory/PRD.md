@@ -8,13 +8,28 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 14 (10 Marzo 2026) - COMPLETATA ✅
+
+**Modifica Form Assunzione Dipendente (lato cliente)**
+
+Modifiche richieste e implementate:
+1. ❌ **Rimosso** campo "Tipo Contratto"
+2. ❌ **Rimosso** campo "Stipendio (€/mese)"
+3. ✅ **Aggiunto** campo "Ore Settimanali di Lavoro" con max 40 ore (validazione frontend + backend)
+4. ✅ **Aggiunto** campo upload "Documento di Riconoscimento" (passaporto, carta identità)
+5. ✅ **Aggiunto** campo upload "NIE (Número de Identidad de Extranjero)"
+
+File modificati:
+- `/app/backend/server.py`: Aggiornato modello `EmployeeHireRequest` e `EmployeeUpdate`, aggiunta validazione max 40 ore
+- `/app/frontend/src/components/EmployeeManagementClient.jsx`: Aggiornato form con nuovi campi e upload documenti automatico
+
 ### Fase 13 (10 Marzo 2026) - COMPLETATA ✅
 
 **Gestione Dipendenti**
 
 1. **Lato Cliente - Richiesta Assunzione:**
    - Form completo per richiedere assunzione dipendente
-   - Campi: nome, data inizio, mansione, orario, luogo lavoro, giorni lavorativi, tipo contratto, stipendio, note
+   - Campi: nome, data inizio, mansione, orario, luogo lavoro, giorni lavorativi, ore settimanali
    - Upload documenti: documento identità, NIE
    - Richiesta licenziamento con data e motivo
 

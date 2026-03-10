@@ -336,8 +336,7 @@ class EmployeeHireRequest(BaseModel):
     work_hours: str  # Orario di lavoro (es. "8:00-17:00")
     work_location: str  # Luogo di lavoro
     work_days: str  # Giorni lavorativi (es. "Lunedì-Venerdì")
-    salary: Optional[float] = None  # Stipendio (opzionale)
-    contract_type: Optional[str] = None  # Tipo contratto (tempo determinato/indeterminato)
+    weekly_hours: Optional[int] = None  # Ore settimanali di lavoro (max 40)
     notes: Optional[str] = None  # Note aggiuntive
 
 class EmployeeUpdate(BaseModel):
@@ -346,8 +345,7 @@ class EmployeeUpdate(BaseModel):
     work_hours: Optional[str] = None
     work_location: Optional[str] = None
     work_days: Optional[str] = None
-    salary: Optional[float] = None
-    contract_type: Optional[str] = None
+    weekly_hours: Optional[int] = None  # Ore settimanali di lavoro (max 40)
     status: Optional[str] = None  # active, terminated, pending
     termination_date: Optional[str] = None
     notes: Optional[str] = None
@@ -3300,6 +3298,10 @@ async def request_employee_hire(
     if user["role"] != "cliente":
         raise HTTPException(status_code=403, detail="Solo i clienti possono richiedere assunzioni")
     
+    # Validazione ore settimanali (max 40)
+    if hire_data.weekly_hours and hire_data.weekly_hours > 40:
+        raise HTTPException(status_code=400, detail="Le ore settimanali non possono superare 40")
+    
     employee_id = str(uuid.uuid4())
     employee_doc = {
         "id": employee_id,
@@ -3310,8 +3312,7 @@ async def request_employee_hire(
         "work_hours": hire_data.work_hours,
         "work_location": hire_data.work_location,
         "work_days": hire_data.work_days,
-        "salary": hire_data.salary,
-        "contract_type": hire_data.contract_type,
+        "weekly_hours": hire_data.weekly_hours,
         "notes": hire_data.notes,
         "status": "pending",  # pending, active, terminated
         "termination_date": None,

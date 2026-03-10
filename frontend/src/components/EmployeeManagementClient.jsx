@@ -24,7 +24,9 @@ import {
   AlertCircle,
   CheckCircle2,
   UserX,
-  Eye
+  Eye,
+  CreditCard,
+  FileCheck
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -38,6 +40,8 @@ const EmployeeManagementClient = ({ token, clientId }) => {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
+  const idDocRef = useRef(null);
+  const nieDocRef = useRef(null);
 
   const [hireForm, setHireForm] = useState({
     full_name: "",
@@ -46,9 +50,10 @@ const EmployeeManagementClient = ({ token, clientId }) => {
     work_hours: "08:00-17:00",
     work_location: "",
     work_days: "Lunedì-Venerdì",
-    salary: "",
-    contract_type: "indeterminato",
-    notes: ""
+    weekly_hours: "",
+    notes: "",
+    id_document: null,
+    nie_document: null
   });
 
   const [terminateForm, setTerminateForm] = useState({
@@ -86,13 +91,61 @@ const EmployeeManagementClient = ({ token, clientId }) => {
       toast.error("Compila i campi obbligatori");
       return;
     }
+    
+    // Validazione ore settimanali (max 40)
+    if (hireForm.weekly_hours && parseInt(hireForm.weekly_hours) > 40) {
+      toast.error("Le ore settimanali non possono superare 40");
+      return;
+    }
+    
     setSubmitting(true);
     try {
+      // Prima crea la richiesta di assunzione
       const payload = {
-        ...hireForm,
-        salary: hireForm.salary ? parseFloat(hireForm.salary) : null
+        full_name: hireForm.full_name,
+        start_date: hireForm.start_date,
+        job_title: hireForm.job_title,
+        work_hours: hireForm.work_hours,
+        work_location: hireForm.work_location,
+        work_days: hireForm.work_days,
+        weekly_hours: hireForm.weekly_hours ? parseInt(hireForm.weekly_hours) : null,
+        notes: hireForm.notes
       };
-      await axios.post(`${API}/employees/hire-request`, payload, { headers });
+      const response = await axios.post(`${API}/employees/hire-request`, payload, { headers });
+      const employeeId = response.data.employee_id;
+      
+      // Poi carica i documenti allegati (se presenti)
+      const uploadPromises = [];
+      
+      if (hireForm.id_document) {
+        const idFormData = new FormData();
+        idFormData.append("file", hireForm.id_document);
+        idFormData.append("document_type", "id_document");
+        idFormData.append("description", "Documento di riconoscimento");
+        uploadPromises.push(
+          axios.post(`${API}/employees/${employeeId}/documents`, idFormData, {
+            headers: { ...headers, "Content-Type": "multipart/form-data" }
+          })
+        );
+      }
+      
+      if (hireForm.nie_document) {
+        const nieFormData = new FormData();
+        nieFormData.append("file", hireForm.nie_document);
+        nieFormData.append("document_type", "nie");
+        nieFormData.append("description", "NIE - Número de Identidad de Extranjero");
+        uploadPromises.push(
+          axios.post(`${API}/employees/${employeeId}/documents`, nieFormData, {
+            headers: { ...headers, "Content-Type": "multipart/form-data" }
+          })
+        );
+      }
+      
+      // Attendi il caricamento dei documenti
+      if (uploadPromises.length > 0) {
+        await Promise.all(uploadPromises);
+      }
+      
       toast.success("Richiesta di assunzione inviata con successo!");
       setShowHireDialog(false);
       setHireForm({
@@ -102,10 +155,14 @@ const EmployeeManagementClient = ({ token, clientId }) => {
         work_hours: "08:00-17:00",
         work_location: "",
         work_days: "Lunedì-Venerdì",
-        salary: "",
-        contract_type: "indeterminato",
-        notes: ""
+        weekly_hours: "",
+        notes: "",
+        id_document: null,
+        nie_document: null
       });
+      // Reset file inputs
+      if (idDocRef.current) idDocRef.current.value = "";
+      if (nieDocRef.current) nieDocRef.current.value = "";
       fetchEmployees();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Errore nell'invio della richiesta");
@@ -281,33 +338,55 @@ const EmployeeManagementClient = ({ token, clientId }) => {
                     data-testid="hire-work-location"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Tipo Contratto</Label>
-                  <Select
-                    value={hireForm.contract_type}
-                    onValueChange={(v) => setHireForm({ ...hireForm, contract_type: v })}
-                  >
-                    <SelectTrigger data-testid="hire-contract-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="indeterminato">Tempo Indeterminato</SelectItem>
-                      <SelectItem value="determinato">Tempo Determinato</SelectItem>
-                      <SelectItem value="stagionale">Stagionale</SelectItem>
-                      <SelectItem value="part-time">Part-Time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Stipendio (€/mese)</Label>
+                <div className="col-span-2 space-y-2">
+                  <Label>Ore Settimanali di Lavoro (max 40)</Label>
                   <Input
                     type="number"
-                    value={hireForm.salary}
-                    onChange={(e) => setHireForm({ ...hireForm, salary: e.target.value })}
-                    placeholder="1500"
-                    data-testid="hire-salary"
+                    min="1"
+                    max="40"
+                    value={hireForm.weekly_hours}
+                    onChange={(e) => setHireForm({ ...hireForm, weekly_hours: e.target.value })}
+                    placeholder="Es: 40"
+                    data-testid="hire-weekly-hours"
                   />
                 </div>
+                
+                {/* Sezione Documenti */}
+                <div className="col-span-2 border-t pt-4 mt-2">
+                  <h4 className="font-medium text-slate-700 mb-3 flex items-center gap-2">
+                    <FileCheck className="h-4 w-4 text-teal-500" />
+                    Documenti Allegati
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-slate-500" />
+                    Documento di Riconoscimento
+                  </Label>
+                  <Input
+                    type="file"
+                    ref={idDocRef}
+                    onChange={(e) => setHireForm({ ...hireForm, id_document: e.target.files?.[0] || null })}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    data-testid="hire-id-document"
+                  />
+                  <p className="text-xs text-slate-500">Passaporto, carta d'identità, etc.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-slate-500" />
+                    NIE (Número de Identidad)
+                  </Label>
+                  <Input
+                    type="file"
+                    ref={nieDocRef}
+                    onChange={(e) => setHireForm({ ...hireForm, nie_document: e.target.files?.[0] || null })}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    data-testid="hire-nie-document"
+                  />
+                  <p className="text-xs text-slate-500">Documento NIE del dipendente</p>
+                </div>
+                
                 <div className="col-span-2 space-y-2">
                   <Label>Note Aggiuntive</Label>
                   <Textarea
@@ -375,6 +454,12 @@ const EmployeeManagementClient = ({ token, clientId }) => {
                     <Clock className="h-4 w-4" />
                     <span>{employee.work_hours} | {employee.work_days}</span>
                   </div>
+                  {employee.weekly_hours && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Briefcase className="h-4 w-4" />
+                      <span>{employee.weekly_hours} ore/settimana</span>
+                    </div>
+                  )}
                   {employee.documents && (
                     <div className="flex items-center gap-2 text-slate-600">
                       <FileText className="h-4 w-4" />
