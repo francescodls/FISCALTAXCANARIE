@@ -433,7 +433,13 @@ const CommercialDashboard = () => {
                       data-testid="search-clients-input"
                     />
                   </div>
-                  <Dialog open={showInviteDialog} onOpenChange={(open) => !open && closeInviteDialog()}>
+                  <Dialog open={showInviteDialog} onOpenChange={(open) => {
+                    if (open) {
+                      setShowInviteDialog(true);
+                    } else {
+                      closeInviteDialog();
+                    }
+                  }}>
                     <DialogTrigger asChild>
                       <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="invite-client-btn">
                         <Plus className="h-4 w-4 mr-2" />
