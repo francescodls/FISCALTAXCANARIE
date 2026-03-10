@@ -134,7 +134,7 @@ const CompleteRegistration = () => {
             Completa la Registrazione
           </CardTitle>
           <CardDescription className="text-slate-600">
-            Imposta la tua password per accedere all'area clienti
+            Scegli la tua email di accesso e imposta una password sicura
           </CardDescription>
         </CardHeader>
         
@@ -179,6 +179,28 @@ const CompleteRegistration = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-slate-700">
+                  La tua Email di Accesso *
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-5 w-5 text-slate-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="tuaemail@esempio.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                    className="pl-10 border-slate-200 focus:border-teal-500 focus:ring-teal-500"
+                    data-testid="email-input"
+                  />
+                </div>
+                <p className="text-xs text-slate-400">
+                  Questa sarà l'email con cui accederai al tuo account
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="full_name" className="text-slate-700">
                   Nome Completo (opzionale)

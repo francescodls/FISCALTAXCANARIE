@@ -63,6 +63,7 @@ const CommercialDashboard = () => {
   const [inviteForm, setInviteForm] = useState({ email: "", full_name: "" });
   const [sendingInvite, setSendingInvite] = useState(false);
   const [inviteResult, setInviteResult] = useState(null); // Per mostrare il link dopo l'invio
+  const [pendingInvitations, setPendingInvitations] = useState([]); // Inviti pendenti
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -73,16 +74,18 @@ const CommercialDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, clientsRes, logsRes, pendingRes] = await Promise.all([
+      const [statsRes, clientsRes, logsRes, pendingRes, invitationsRes] = await Promise.all([
         axios.get(`${API}/stats`, { headers }),
         axios.get(`${API}/clients`, { headers }),
         axios.get(`${API}/activity-logs?limit=20`, { headers }),
-        axios.get(`${API}/documents/pending-verification`, { headers })
+        axios.get(`${API}/documents/pending-verification`, { headers }),
+        axios.get(`${API}/invitations`, { headers })
       ]);
       setStats(statsRes.data);
       setClients(clientsRes.data);
       setActivityLogs(logsRes.data);
       setPendingDocs(pendingRes.data);
+      setPendingInvitations(invitationsRes.data);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
     } finally {
@@ -152,13 +155,14 @@ const CommercialDashboard = () => {
     setInviteForm({ email: "", full_name: "" });
   };
 
-  // Reinvia invito
-  const handleResendInvite = async (clientId, email) => {
+  // Reinvia invito - usa invite_id dalla collection invitations
+  const handleResendInvite = async (inviteId, email) => {
     try {
-      await axios.post(`${API}/clients/resend-invite/${clientId}`, {}, { headers });
+      await axios.post(`${API}/clients/resend-invite/${inviteId}`, {}, { headers });
       toast.success(`Invito reinviato a ${email}`);
+      fetchData(); // Ricarica per aggiornare la lista
     } catch (error) {
-      toast.error("Errore nel reinvio dell'invito");
+      toast.error(error.response?.data?.detail || "Errore nel reinvio dell'invito");
     }
   };
 
@@ -556,6 +560,51 @@ const CommercialDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Sezione Inviti Pendenti */}
+                {pendingInvitations.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Inviti in attesa di registrazione ({pendingInvitations.length})
+                    </h3>
+                    <div className="space-y-2 mb-4">
+                      {pendingInvitations.map((invitation) => (
+                        <div 
+                          key={invitation.id} 
+                          className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-100"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                              <Mail className="h-5 w-5 text-purple-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {invitation.suggested_name || "Cliente"}
+                              </p>
+                              <p className="text-sm text-slate-500">{invitation.notification_email}</p>
+                              <p className="text-xs text-slate-400">
+                                Invitato il {format(parseISO(invitation.invitation_sent_at), "dd/MM/yyyy HH:mm", { locale: it })}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResendInvite(invitation.id, invitation.notification_email)}
+                            className="border-purple-200 text-purple-600 hover:bg-purple-100"
+                            data-testid={`resend-invite-${invitation.id}`}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Reinvia
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-b border-slate-200"></div>
+                  </div>
+                )}
+
+                {/* Lista Clienti Registrati */}
                 {filteredClients.length > 0 ? (
                   <div className="space-y-3">
                     {filteredClients.map((client) => (
@@ -581,21 +630,6 @@ const CommercialDashboard = () => {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          {client.stato === "pending" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleResendInvite(client.id, client.email);
-                              }}
-                              className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                              title="Reinvia invito"
-                            >
-                              <RefreshCw className="h-4 w-4 mr-1" />
-                              Reinvia
-                            </Button>
-                          )}
                           <div className="flex gap-2">
                             <Badge className="bg-blue-50 text-blue-700 border border-blue-100">
                               <FileText className="h-3 w-3 mr-1" />
