@@ -294,6 +294,7 @@ class ClientInvite(BaseModel):
 
 class CompleteRegistration(BaseModel):
     token: str
+    email: EmailStr  # Email scelta dal cliente per l'account
     password: str
     full_name: Optional[str] = None
 
@@ -2097,47 +2098,26 @@ async def root():
 @api_router.post("/clients/invite")
 async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_commercialista)):
     """
-    Crea un nuovo cliente con solo email e invia invito.
-    Il cliente riceve un link per completare la registrazione.
+    Crea un invito per un nuovo cliente.
+    L'email inserita serve SOLO per inviare la notifica.
+    Il cliente sceglierà la sua email di accesso durante la registrazione.
     """
-    # Verifica se email già esistente
-    existing = await db.users.find_one({"email": invite_data.email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email già registrata")
-    
     # Genera token di invito
     invitation_token = secrets.token_urlsafe(32)
     
-    # Crea utente con stato "pending"
-    user_id = str(uuid.uuid4())
-    user_doc = {
-        "id": user_id,
-        "email": invite_data.email,
-        "password": None,  # Nessuna password ancora
-        "full_name": invite_data.full_name or "",
-        "phone": None,
-        "codice_fiscale": None,
-        "nie": None,
-        "nif": None,
-        "cif": None,
-        "indirizzo": None,
-        "citta": None,
-        "cap": None,
-        "provincia": None,
-        "iban": None,
-        "regime_fiscale": None,
-        "tipo_attivita": None,
-        "tipo_cliente": "autonomo",
-        "role": "cliente",
-        "stato": "pending",  # In attesa di completamento
+    # Crea record di invito (non un utente completo)
+    invite_id = str(uuid.uuid4())
+    invite_doc = {
+        "id": invite_id,
+        "notification_email": invite_data.email,  # Email per inviare notifica
+        "suggested_name": invite_data.full_name or "",  # Nome suggerito
         "invitation_token": invitation_token,
         "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
         "invited_by": user["id"],
-        "note_interne": "",
-        "lists": [],
+        "status": "pending",  # pending, completed, expired
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    await db.users.insert_one(user_doc)
+    await db.invitations.insert_one(invite_doc)
     
     # Genera link di invito
     frontend_url = os.environ.get('FRONTEND_URL', 'https://tribute-models-docs.preview.emergentagent.com')
@@ -2165,69 +2145,96 @@ async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_
     return {
         "success": True,
         "message": f"Invito inviato a {invite_data.email}",
-        "client_id": user_id,
-        "invitation_link": invitation_link  # Solo per debug
+        "invite_id": invite_id,
+        "invitation_link": invitation_link
     }
 
 @api_router.post("/auth/complete-registration")
 async def complete_registration(data: CompleteRegistration):
     """
     Completa la registrazione di un cliente invitato.
-    Il cliente imposta la password e opzionalmente aggiorna il nome.
+    Il cliente sceglie la sua email di accesso, imposta la password e il nome.
+    L'email originale (di notifica) viene salvata come email secondaria.
     """
-    # Trova utente con token
-    user = await db.users.find_one({"invitation_token": data.token}, {"_id": 0})
+    # Trova l'invito con il token
+    invitation = await db.invitations.find_one({"invitation_token": data.token}, {"_id": 0})
     
-    if not user:
-        # Verifica se esiste un utente con questo token che ha già completato la registrazione
-        # (il token potrebbe essere stato usato)
-        existing_by_token_null = await db.users.find_one({
-            "invitation_token": None, 
-            "stato": "attivo"
-        }, {"_id": 0})
-        
+    if not invitation:
         raise HTTPException(
             status_code=400, 
             detail="Token non valido o già utilizzato. Se hai già completato la registrazione, usa il Login."
         )
     
-    if user.get("stato") != "pending":
-        raise HTTPException(status_code=400, detail="Registrazione già completata. Usa il Login per accedere.")
+    if invitation.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Invito già utilizzato. Usa il Login per accedere.")
     
     # Verifica che il token non sia scaduto (7 giorni)
-    invitation_sent = user.get("invitation_sent_at")
+    invitation_sent = invitation.get("invitation_sent_at")
     if invitation_sent:
         sent_date = datetime.fromisoformat(invitation_sent.replace('Z', '+00:00'))
         if datetime.now(timezone.utc) - sent_date > timedelta(days=7):
-            raise HTTPException(status_code=400, detail="Token scaduto. Richiedi un nuovo invito.")
+            raise HTTPException(status_code=400, detail="Invito scaduto. Richiedi un nuovo invito al commercialista.")
     
-    # Aggiorna utente
-    update_data = {
+    # Verifica che l'email scelta non sia già registrata
+    existing_user = await db.users.find_one({"email": data.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Questa email è già registrata. Scegli un'altra email o usa il Login.")
+    
+    # Crea il nuovo utente con l'email scelta dal cliente
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "email": data.email,  # Email scelta dal cliente per l'account
+        "email_notifica": invitation.get("notification_email"),  # Email originale per notifiche
         "password": hash_password(data.password),
+        "full_name": data.full_name or invitation.get("suggested_name", ""),
+        "phone": None,
+        "codice_fiscale": None,
+        "nie": None,
+        "nif": None,
+        "cif": None,
+        "indirizzo": None,
+        "citta": None,
+        "cap": None,
+        "provincia": None,
+        "iban": None,
+        "regime_fiscale": None,
+        "tipo_attivita": None,
+        "tipo_cliente": "autonomo",
+        "role": "cliente",
         "stato": "attivo",
-        "invitation_token": None,  # Invalida token
+        "invited_by": invitation.get("invited_by"),
+        "note_interne": "",
+        "lists": [],
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "registration_completed_at": datetime.now(timezone.utc).isoformat()
     }
+    await db.users.insert_one(user_doc)
     
-    if data.full_name:
-        update_data["full_name"] = data.full_name
-    
-    await db.users.update_one({"id": user["id"]}, {"$set": update_data})
+    # Aggiorna l'invito come completato
+    await db.invitations.update_one(
+        {"id": invitation["id"]},
+        {"$set": {
+            "status": "completed",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+            "user_id": user_id
+        }}
+    )
     
     # Invia email di benvenuto
     try:
-        await send_welcome_email(user["email"], data.full_name or user.get("full_name", ""))
+        await send_welcome_email(data.email, data.full_name or invitation.get("suggested_name", ""))
     except Exception as e:
         logger.error(f"Errore invio email benvenuto: {e}")
     
     await log_activity(
         "registrazione_completata",
-        f"Cliente {user['email']} ha completato la registrazione",
-        user["id"]
+        f"Cliente {data.email} ha completato la registrazione",
+        user_id
     )
     
     # Genera token di accesso
-    token = create_token(user["id"], user["email"], "cliente")
+    token = create_token(user_id, data.email, "cliente")
     
     return {
         "success": True,
@@ -2235,29 +2242,30 @@ async def complete_registration(data: CompleteRegistration):
         "access_token": token,
         "token_type": "bearer",
         "user": {
-            "id": user["id"],
-            "email": user["email"],
-            "full_name": data.full_name or user.get("full_name", ""),
+            "id": user_id,
+            "email": data.email,
+            "full_name": data.full_name or invitation.get("suggested_name", ""),
             "role": "cliente"
         }
     }
 
-@api_router.post("/clients/resend-invite/{client_id}")
-async def resend_invitation(client_id: str, user: dict = Depends(require_commercialista)):
-    """Reinvia l'invito a un cliente in stato pending"""
-    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+@api_router.post("/clients/resend-invite/{invite_id}")
+async def resend_invitation(invite_id: str, user: dict = Depends(require_commercialista)):
+    """Reinvia l'invito"""
+    # Cerca l'invito
+    invitation = await db.invitations.find_one({"id": invite_id}, {"_id": 0})
     
-    if not client:
-        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
     
-    if client.get("stato") != "pending":
-        raise HTTPException(status_code=400, detail="Il cliente ha già completato la registrazione")
+    if invitation.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="L'invito è già stato utilizzato")
     
     # Genera nuovo token
     new_token = secrets.token_urlsafe(32)
     
-    await db.users.update_one(
-        {"id": client_id},
+    await db.invitations.update_one(
+        {"id": invite_id},
         {"$set": {
             "invitation_token": new_token,
             "invitation_sent_at": datetime.now(timezone.utc).isoformat()
@@ -2270,15 +2278,26 @@ async def resend_invitation(client_id: str, user: dict = Depends(require_commerc
     
     try:
         await send_invitation_email(
-            client_email=client["email"],
-            client_name=client.get("full_name", ""),
+            client_email=invitation["notification_email"],
+            client_name=invitation.get("suggested_name", ""),
             invitation_link=invitation_link
         )
     except Exception as e:
         logger.error(f"Errore reinvio email invito: {e}")
         raise HTTPException(status_code=500, detail="Errore nell'invio dell'email")
     
-    return {"success": True, "message": f"Invito reinviato a {client['email']}"}
+    return {"success": True, "message": f"Invito reinviato a {invitation['notification_email']}", "invitation_link": invitation_link}
+
+# ==================== INVITATIONS LIST ====================
+
+@api_router.get("/invitations")
+async def get_invitations(user: dict = Depends(require_commercialista)):
+    """Lista tutti gli inviti pendenti"""
+    invitations = await db.invitations.find(
+        {"invited_by": user["id"], "status": "pending"},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return invitations
 
 # ==================== FEES (ONORARI) ROUTES ====================
 

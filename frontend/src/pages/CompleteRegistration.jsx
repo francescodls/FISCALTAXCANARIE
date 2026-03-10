@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { User, Lock, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { User, Lock, CheckCircle, AlertCircle, ArrowRight, Mail } from "lucide-react";
 
 const CompleteRegistration = () => {
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ const CompleteRegistration = () => {
   
   const [token, setToken] = useState("");
   const [formData, setFormData] = useState({
+    email: "",
     password: "",
     confirmPassword: "",
     full_name: ""
@@ -40,7 +41,13 @@ const CompleteRegistration = () => {
     e.preventDefault();
     setError("");
     
-    // Validazione
+    // Validazione email
+    if (!formData.email || !formData.email.includes("@")) {
+      setError("Inserisci un'email valida");
+      return;
+    }
+    
+    // Validazione password
     if (formData.password.length < 8) {
       setError("La password deve essere di almeno 8 caratteri");
       return;
@@ -56,6 +63,7 @@ const CompleteRegistration = () => {
     try {
       const response = await axios.post(`${API}/auth/complete-registration`, {
         token: token,
+        email: formData.email,
         password: formData.password,
         full_name: formData.full_name || null
       });
@@ -81,6 +89,8 @@ const CompleteRegistration = () => {
       if (errorDetail.includes("già utilizzato") || errorDetail.includes("già completata") || errorDetail.includes("Login")) {
         setError("Hai già completato la registrazione con questo link!\n\nPuoi accedere direttamente dalla pagina di Login.");
         setSuccess(false);
+      } else if (errorDetail.includes("già registrata")) {
+        setError("Questa email è già registrata. Scegli un'altra email oppure vai al Login se hai già un account.");
       } else if (errorDetail.includes("non valido") || errorDetail.includes("scaduto")) {
         setError("Il link di invito non è valido o è scaduto. Possibili cause:\n• Il link è stato copiato in modo incompleto\n• L'invito è scaduto (valido per 7 giorni)\n\nRichiedi un nuovo invito al tuo commercialista.");
       } else {
