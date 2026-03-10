@@ -8,6 +8,42 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 13 (10 Marzo 2026) - COMPLETATA ✅
+
+**Gestione Dipendenti**
+
+1. **Lato Cliente - Richiesta Assunzione:**
+   - Form completo per richiedere assunzione dipendente
+   - Campi: nome, data inizio, mansione, orario, luogo lavoro, giorni lavorativi, tipo contratto, stipendio, note
+   - Upload documenti: documento identità, NIE
+   - Richiesta licenziamento con data e motivo
+
+2. **Lato Admin/Consulente - Gestione:**
+   - Dashboard dipendenti con statistiche colorate per stato
+   - 🟢 Verde = Attivo | 🟠 Arancione = In attesa | 🔴 Rosso = Cessato
+   - Attivazione dipendenti (pending → active)
+   - Conferma licenziamenti (termination_pending → terminated)
+   - Upload documentazione: contratto, registro orario, altro
+   - Filtro per stato
+
+3. **Sistema Notifiche:**
+   - Notifiche in-app con badge conteggio
+   - Email automatiche a:
+     - amministrazione@fiscaltaxcanarie.com
+     - segreteria@fiscaltaxcanarie.com
+     - bruno@fiscaltaxcanarie.com
+     - francesco@fiscaltaxcanarie.com
+   - Notifiche per: richieste assunzione, licenziamento, upload documenti
+
+4. **Endpoint API:**
+   - `POST /api/employees/hire-request` - Richiesta assunzione
+   - `GET /api/employees` - Lista dipendenti
+   - `POST /api/employees/{id}/documents` - Upload documento
+   - `POST /api/employees/{id}/terminate` - Richiesta licenziamento
+   - `PUT /api/employees/{id}` - Aggiorna stato (solo admin/consulente)
+   - `GET /api/employee-notifications` - Lista notifiche
+   - `GET /api/employee-notifications/count` - Conteggio non lette
+
 ### Fase 12 (10 Marzo 2026) - COMPLETATA ✅
 
 **Miglioramenti UI e Multilingua**
@@ -236,27 +272,45 @@ Response:
 
 ## Integrazioni
 - **OpenAI GPT-4o-mini**: Chatbot, analisi documenti, ricerca semantica
-- **Brevo**: Email transazionali e promemoria
+- **Brevo**: Email transazionali, promemoria, notifiche dipendenti
 - **pyHanko**: Firma digitale PDF con certificati .p12
 - **Backblaze B2**: Storage cloud file
 
 ## Ruoli Utente
-- **commercialista**: Accesso completo, gestione clienti/documenti/consulenti
-- **cliente**: Accesso ai propri documenti, chatbot, scadenze
-- **consulente_lavoro**: Dashboard limitata, solo clienti assegnati, solo buste paga
+- **commercialista**: Accesso completo, gestione clienti/documenti/consulenti/dipendenti
+- **cliente**: Accesso ai propri documenti, chatbot, scadenze, gestione dipendenti
+- **consulente_lavoro**: Dashboard limitata, clienti assegnati, buste paga, gestione dipendenti clienti assegnati
+
+## Database Schema Employees
+
+```json
+{
+  "id": "uuid",
+  "client_id": "uuid (proprietario)",
+  "full_name": "string",
+  "start_date": "YYYY-MM-DD",
+  "job_title": "string",
+  "work_hours": "08:00-17:00",
+  "work_location": "string",
+  "work_days": "Lunedì-Venerdì",
+  "salary": "number",
+  "contract_type": "indeterminato|determinato|stagionale|part-time",
+  "status": "pending|active|termination_pending|terminated",
+  "documents": [{ "id", "document_type", "file_data", ... }],
+  "created_at": "ISO datetime"
+}
+```
 
 ## Next Tasks
-1. **P1**: Completare traduzione testi UI usando `t()` function (IT/EN/ES)
-2. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
-3. **P2**: Refactoring `server.py` (~3100 righe) in moduli separati
-4. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
+1. **P1**: Migrazione file esistenti da MongoDB a Backblaze B2
+2. **P2**: Refactoring `server.py` (~3700 righe) in moduli separati
+3. **P2**: Refactoring `ClientDetail.jsx` (>2000 righe) in sotto-componenti
 4. **P2**: Versioning documenti con storico modifiche
 5. **P3**: Report esportabili (PDF/Excel)
 
 ## Future Tasks
-- Integrazione firma elettronica avanzata
+- Completare traduzione testi UI usando `t()` function (IT/EN/ES)
 - WhatsApp Business
-- Multilingua (IT/ES)
 - Promemoria automatici schedulati (cron job)
 - Valutazione accesso automatico portali governativi (AEAT, Seguridad Social)
 - Cifratura password credenziali bancarie (attualmente plaintext)
