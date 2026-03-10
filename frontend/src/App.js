@@ -17,6 +17,7 @@ import ClientLists from "@/pages/ClientLists";
 import ModelsManagement from "@/pages/ModelsManagement";
 import DeadlinesManagement from "@/pages/DeadlinesManagement";
 import SignaturesPage from "@/pages/SignaturesPage";
+import BackupPage from "@/pages/BackupPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -208,6 +209,11 @@ function AppRoutes() {
       <Route path="/admin/signatures" element={
         <ProtectedRoute requiredRole="commercialista">
           <SignaturesPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/backup" element={
+        <ProtectedRoute requiredRole="commercialista">
+          <BackupPage />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />

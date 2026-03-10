@@ -700,6 +700,40 @@ const ClientDetail = () => {
                     <StickyNote className="h-4 w-4 mr-2" />
                     {notes.length} Appunti
                   </Badge>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const response = await axios.get(`${API}/backup/client/${clientId}`, {
+                          headers,
+                          responseType: 'blob'
+                        });
+                        const contentDisposition = response.headers['content-disposition'];
+                        let filename = `backup_${client?.full_name || 'cliente'}.zip`;
+                        if (contentDisposition) {
+                          const matches = contentDisposition.match(/filename="(.+)"/);
+                          if (matches) filename = matches[1];
+                        }
+                        const blob = new Blob([response.data]);
+                        const downloadUrl = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = downloadUrl;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(downloadUrl);
+                        document.body.removeChild(a);
+                        toast.success("Backup scaricato!");
+                      } catch (error) {
+                        toast.error("Errore download backup");
+                      }
+                    }}
+                    className="border-green-200 text-green-600 hover:bg-green-50"
+                    title="Scarica backup cliente"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Backup
+                  </Button>
                 </div>
               </div>
             </CardContent>

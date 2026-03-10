@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -19,6 +19,8 @@ from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate
 from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email
 from chatbot_service import chat_with_assistant
 from signing_service import sign_pdf_with_p12, verify_pdf_signature, save_certificate, list_certificates, delete_certificate
+from storage_service import upload_file as cloud_upload, download_file as cloud_download, is_storage_enabled, init_storage
+from backup_service import create_client_backup, create_full_backup, export_database_json
 import secrets
 
 ROOT_DIR = Path(__file__).parent
@@ -2526,6 +2528,225 @@ async def verify_document_signature(doc_id: str, user: dict = Depends(get_curren
     result = await verify_pdf_signature(pdf_data)
     
     return result
+
+# ==================== BACKUP & EXPORT ROUTES ====================
+
+@api_router.get("/backup/client/{client_id}")
+async def download_client_backup(client_id: str, user: dict = Depends(require_commercialista)):
+    """
+    Scarica backup completo di un cliente (ZIP con tutti i documenti)
+    """
+    result = await create_client_backup(db, client_id)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Errore creazione backup"))
+    
+    # Log backup
+    await log_activity("backup_cliente", f"Backup cliente {client_id} scaricato", user["id"])
+    
+    return Response(
+        content=result["backup_data"],
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{result["filename"]}"',
+            "X-Backup-Size": str(result["size_bytes"]),
+            "X-Documents-Count": str(result["statistics"]["documents"]),
+            "X-Payslips-Count": str(result["statistics"]["payslips"])
+        }
+    )
+
+@api_router.get("/backup/full")
+async def download_full_backup(user: dict = Depends(require_commercialista)):
+    """
+    Scarica backup completo di TUTTI i dati dello studio (ZIP)
+    Include tutti i clienti, documenti, configurazioni, etc.
+    """
+    result = await create_full_backup(db, user["id"])
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Errore creazione backup"))
+    
+    # Salva log backup nel DB
+    await db.backups.insert_one({
+        "id": str(uuid.uuid4()),
+        "filename": result["filename"],
+        "type": "full",
+        "size_bytes": result["size_bytes"],
+        "statistics": result["statistics"],
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    await log_activity("backup_completo", f"Backup completo scaricato ({result['size_mb']} MB)", user["id"])
+    
+    return Response(
+        content=result["backup_data"],
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{result["filename"]}"',
+            "X-Backup-Size": str(result["size_bytes"]),
+            "X-Backup-Size-MB": str(result["size_mb"]),
+            "X-Clients-Count": str(result["statistics"]["clients"]),
+            "X-Documents-Count": str(result["statistics"]["documents"])
+        }
+    )
+
+@api_router.get("/backup/export-json")
+async def export_json(user: dict = Depends(require_commercialista)):
+    """
+    Esporta tutto il database in formato JSON (senza file binari).
+    Utile per analisi dati o migrazione.
+    """
+    result = await export_database_json(db, user["id"])
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Errore export"))
+    
+    await log_activity("export_json", "Database esportato in JSON", user["id"])
+    
+    return Response(
+        content=result["data"],
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{result["filename"]}"'
+        }
+    )
+
+@api_router.get("/backup/history")
+async def get_backup_history(user: dict = Depends(require_commercialista)):
+    """Recupera storico dei backup effettuati"""
+    backups = await db.backups.find({}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return backups
+
+@api_router.get("/storage/status")
+async def get_storage_status(user: dict = Depends(require_commercialista)):
+    """Verifica stato dello storage cloud"""
+    storage_enabled = is_storage_enabled()
+    
+    # Calcola statistiche storage
+    docs_count = await db.documents.count_documents({})
+    payslips_count = await db.payslips.count_documents({})
+    
+    # Calcola dimensione approssimativa
+    pipeline = [
+        {"$project": {"size": {"$strLenBytes": {"$ifNull": ["$file_data", ""]}}}},
+        {"$group": {"_id": None, "total": {"$sum": "$size"}}}
+    ]
+    
+    docs_size = await db.documents.aggregate(pipeline).to_list(1)
+    payslips_size = await db.payslips.aggregate(pipeline).to_list(1)
+    
+    total_docs_bytes = docs_size[0]["total"] if docs_size else 0
+    total_payslips_bytes = payslips_size[0]["total"] if payslips_size else 0
+    total_bytes = total_docs_bytes + total_payslips_bytes
+    
+    return {
+        "cloud_storage_enabled": storage_enabled,
+        "storage_provider": "Emergent Object Storage" if storage_enabled else "MongoDB (locale)",
+        "statistics": {
+            "documents_count": docs_count,
+            "payslips_count": payslips_count,
+            "total_files": docs_count + payslips_count,
+            "estimated_size_bytes": total_bytes,
+            "estimated_size_mb": round(total_bytes / (1024 * 1024), 2),
+            "estimated_size_gb": round(total_bytes / (1024 * 1024 * 1024), 3)
+        },
+        "limits": {
+            "max_file_size_mb": 16 if not storage_enabled else 100,
+            "recommended_action": "Configura EMERGENT_LLM_KEY per abilitare storage cloud illimitato" if not storage_enabled else None
+        }
+    }
+
+@api_router.post("/storage/migrate-to-cloud")
+async def migrate_to_cloud(
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Avvia migrazione dei file da MongoDB a cloud storage.
+    Operazione in background per non bloccare l'API.
+    """
+    if not is_storage_enabled():
+        raise HTTPException(
+            status_code=400, 
+            detail="Storage cloud non configurato. Imposta EMERGENT_LLM_KEY nel file .env"
+        )
+    
+    # Conta file da migrare
+    docs_to_migrate = await db.documents.count_documents({"storage_path": {"$exists": False}, "file_data": {"$exists": True}})
+    payslips_to_migrate = await db.payslips.count_documents({"storage_path": {"$exists": False}, "file_data": {"$exists": True}})
+    
+    if docs_to_migrate == 0 and payslips_to_migrate == 0:
+        return {"message": "Nessun file da migrare. Tutti i file sono già su cloud storage."}
+    
+    # Avvia migrazione in background
+    async def migrate_files():
+        migrated = 0
+        errors = 0
+        
+        # Migra documenti
+        async for doc in db.documents.find({"storage_path": {"$exists": False}, "file_data": {"$exists": True}}):
+            try:
+                file_data = base64.b64decode(doc["file_data"])
+                result = await cloud_upload(
+                    file_data=file_data,
+                    client_id=doc.get("client_id", "unknown"),
+                    original_filename=doc.get("file_name", "document.pdf"),
+                    folder="documents"
+                )
+                if result.get("success"):
+                    await db.documents.update_one(
+                        {"id": doc["id"]},
+                        {"$set": {"storage_path": result["storage_path"]}, "$unset": {"file_data": ""}}
+                    )
+                    migrated += 1
+            except Exception as e:
+                logger.error(f"Errore migrazione documento {doc.get('id')}: {e}")
+                errors += 1
+        
+        # Migra buste paga
+        async for ps in db.payslips.find({"storage_path": {"$exists": False}, "file_data": {"$exists": True}}):
+            try:
+                file_data = base64.b64decode(ps["file_data"])
+                result = await cloud_upload(
+                    file_data=file_data,
+                    client_id=ps.get("client_id", "unknown"),
+                    original_filename=ps.get("file_name", "payslip.pdf"),
+                    folder="payslips"
+                )
+                if result.get("success"):
+                    await db.payslips.update_one(
+                        {"id": ps["id"]},
+                        {"$set": {"storage_path": result["storage_path"]}, "$unset": {"file_data": ""}}
+                    )
+                    migrated += 1
+            except Exception as e:
+                logger.error(f"Errore migrazione busta paga {ps.get('id')}: {e}")
+                errors += 1
+        
+        # Log risultato
+        await db.migrations.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "storage_migration",
+            "files_migrated": migrated,
+            "errors": errors,
+            "completed_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Migrazione completata: {migrated} file migrati, {errors} errori")
+    
+    background_tasks.add_task(migrate_files)
+    
+    await log_activity("migrazione_storage", f"Avviata migrazione di {docs_to_migrate + payslips_to_migrate} file", user["id"])
+    
+    return {
+        "message": "Migrazione avviata in background",
+        "files_to_migrate": {
+            "documents": docs_to_migrate,
+            "payslips": payslips_to_migrate,
+            "total": docs_to_migrate + payslips_to_migrate
+        }
+    }
 
 # Include router and middleware
 app.include_router(api_router)

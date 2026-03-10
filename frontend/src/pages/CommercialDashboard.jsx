@@ -35,7 +35,8 @@ import {
   Plus,
   Mail,
   Send,
-  RefreshCw
+  RefreshCw,
+  HardDrive
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -255,6 +256,15 @@ const CommercialDashboard = () => {
             >
               <FileText className="h-4 w-4 mr-2" />
               Firma Digitale
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => navigate("/admin/backup")}
+              className="border-green-200 text-green-600 hover:bg-green-50"
+              data-testid="manage-backup-btn"
+            >
+              <HardDrive className="h-4 w-4 mr-2" />
+              Backup
             </Button>
             <div className="flex items-center gap-2 text-slate-600">
               <User className="h-5 w-5" />

@@ -5,71 +5,46 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 1-7 - COMPLETATE ✅
+### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
-### Fase 8 (10 Marzo 2026) - COMPLETATA ✅
+### Fase 9 (10 Marzo 2026) - COMPLETATA ✅
 
-**Flusso Invito Cliente**
-1. **Endpoint invito**
-   - `POST /api/clients/invite` - Crea cliente con solo email
-   - `POST /api/auth/complete-registration` - Cliente completa registrazione con token
-   - `POST /api/clients/resend-invite/{client_id}` - Reinvia invito
-   - Email template dedicato con link univoco
-   - Stato `pending` fino a completamento
+**Sistema Backup & Storage Cloud**
 
-2. **Frontend invito**
-   - Pulsante "Invita Cliente" in dashboard commercialista
-   - Dialog con campo email e nome opzionale
-   - Pulsante "Reinvia" per clienti in attesa
-   - Pagina `/complete-registration` per completare registrazione
+1. **Storage Cloud (Emergent Object Storage)**
+   - Integrazione con storage cloud illimitato
+   - Limite file: 100 MB (vs 16 MB di MongoDB)
+   - Migrazione file da MongoDB a cloud
+   - Endpoint `/api/storage/status` per statistiche
 
-**Sezione Onorari (solo Commercialista)**
-1. **Collection `fees` in MongoDB**
-   - CRUD completo onorari per cliente
-   - Stati: pending, paid
-   - Tracking data scadenza e data pagamento
+2. **Backup Completo (ZIP)**
+   - Endpoint `GET /api/backup/full` - Tutti i clienti, documenti, configurazioni
+   - Endpoint `GET /api/backup/client/{id}` - Backup singolo cliente
+   - Struttura organizzata per cartelle
+   - Include metadati JSON + file originali
 
-2. **Endpoint onorari**
-   - `GET/POST /api/clients/{client_id}/fees`
-   - `PUT/DELETE /api/clients/{client_id}/fees/{fee_id}`
-   - `GET /api/clients/{client_id}/fees/summary` - Totali e conteggi
+3. **Export Database (JSON)**
+   - Endpoint `GET /api/backup/export-json`
+   - Tutti i dati senza file binari
+   - Utile per migrazione/analisi
 
-3. **Frontend onorari**
-   - Tab "Onorari" in pagina dettaglio cliente
-   - Card riassuntive (Totale Pagato, In Attesa, Totale Generale)
-   - Storico con azioni (Segna Pagato, Modifica, Elimina)
-   - Form creazione con descrizione, importo, scadenza, note
+4. **Frontend Backup**
+   - Pagina `/admin/backup` dedicata
+   - Status storage cloud con statistiche
+   - Pulsanti download backup
+   - Storico backup effettuati
+   - Pulsante backup singolo cliente
 
-**Firma Digitale con Certificati .p12**
-1. **Servizio firma (pyHanko)**
-   - `signing_service.py` con pyHanko
-   - Upload e gestione certificati .p12
-   - Firma PDF con metadati (firmatario, motivo, luogo)
-   - Verifica firme
-
-2. **Endpoint firma**
-   - `POST /api/certificates/upload` - Carica certificato
-   - `GET /api/certificates` - Lista certificati
-   - `DELETE /api/certificates/{cert_name}` - Elimina certificato
-   - `POST /api/documents/{doc_id}/sign` - Firma documento
-
-3. **Frontend firma**
-   - Pagina `/admin/signatures` per gestione certificati
-   - Pulsante "Firma" su documenti PDF
-   - Dialog con selezione certificato e password
-   - Badge "Firmato" su documenti firmati
-
-**Miglioramenti UI/UX Dashboard Cliente**
-1. **Welcome Banner** con gradiente teal
-2. **Card statistiche** con icone colorate e gradienti
-3. **Layout due colonne** (Scadenze Imminenti + Ultimi Documenti)
-4. **Sezione documenti** con design a card e categorie colorate
+5. **Migrazione Cloud**
+   - Endpoint `POST /api/storage/migrate-to-cloud`
+   - Migrazione automatica in background
+   - Rimuove file_data da MongoDB dopo migrazione
 
 ## Account Predefiniti
 - **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
 
-## API Endpoints Nuovi (Fase 8)
+## API Endpoints Nuovi (Fase 9)
 
 ```
 POST /api/deadlines
