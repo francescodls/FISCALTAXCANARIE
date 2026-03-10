@@ -19,7 +19,7 @@ from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate
 from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email
 from chatbot_service import chat_with_assistant
 from signing_service import sign_pdf_with_p12, verify_pdf_signature, save_certificate, list_certificates, delete_certificate
-from storage_service import upload_file as cloud_upload, download_file as cloud_download, is_storage_enabled, init_storage
+from storage_service import upload_file as cloud_upload, download_file as cloud_download, is_storage_enabled, init_b2_storage
 from backup_service import create_client_backup, create_full_backup, export_database_json
 import secrets
 
@@ -2620,14 +2620,43 @@ async def get_backup_history(user: dict = Depends(require_commercialista)):
 
 @api_router.get("/storage/status")
 async def get_storage_status(user: dict = Depends(require_commercialista)):
-    """Verifica stato dello storage cloud"""
+    """Verifica stato dello storage cloud Backblaze B2"""
+    from storage_service import get_storage_stats
+    
     storage_enabled = is_storage_enabled()
     
-    # Calcola statistiche storage
+    # Se Backblaze è attivo, ottieni statistiche da B2
+    if storage_enabled:
+        b2_stats = await get_storage_stats()
+        
+        # Conta anche file locali in MongoDB non ancora migrati
+        local_docs = await db.documents.count_documents({"storage_path": {"$exists": False}, "file_data": {"$exists": True}})
+        local_payslips = await db.payslips.count_documents({"storage_path": {"$exists": False}, "file_data": {"$exists": True}})
+        
+        return {
+            "cloud_storage_enabled": True,
+            "storage_provider": "Backblaze B2",
+            "bucket_name": b2_stats.get("bucket_name", "fiscaltaxcanarie"),
+            "statistics": {
+                "cloud_documents": b2_stats.get("statistics", {}).get("documents_count", 0),
+                "cloud_payslips": b2_stats.get("statistics", {}).get("payslips_count", 0),
+                "local_documents_pending": local_docs,
+                "local_payslips_pending": local_payslips,
+                "total_cloud_files": b2_stats.get("statistics", {}).get("total_files", 0),
+                "total_size_mb": b2_stats.get("statistics", {}).get("total_size_mb", 0),
+                "total_size_gb": b2_stats.get("statistics", {}).get("total_size_gb", 0)
+            },
+            "limits": {
+                "max_file_size_mb": 5000,  # B2 supporta fino a 5GB
+                "storage_limit": "Illimitato (pay-per-use)"
+            },
+            "migration_pending": local_docs + local_payslips
+        }
+    
+    # Fallback: solo MongoDB
     docs_count = await db.documents.count_documents({})
     payslips_count = await db.payslips.count_documents({})
     
-    # Calcola dimensione approssimativa
     pipeline = [
         {"$project": {"size": {"$strLenBytes": {"$ifNull": ["$file_data", ""]}}}},
         {"$group": {"_id": None, "total": {"$sum": "$size"}}}
@@ -2641,8 +2670,8 @@ async def get_storage_status(user: dict = Depends(require_commercialista)):
     total_bytes = total_docs_bytes + total_payslips_bytes
     
     return {
-        "cloud_storage_enabled": storage_enabled,
-        "storage_provider": "Emergent Object Storage" if storage_enabled else "MongoDB (locale)",
+        "cloud_storage_enabled": False,
+        "storage_provider": "MongoDB (locale)",
         "statistics": {
             "documents_count": docs_count,
             "payslips_count": payslips_count,
@@ -2652,8 +2681,8 @@ async def get_storage_status(user: dict = Depends(require_commercialista)):
             "estimated_size_gb": round(total_bytes / (1024 * 1024 * 1024), 3)
         },
         "limits": {
-            "max_file_size_mb": 16 if not storage_enabled else 100,
-            "recommended_action": "Configura EMERGENT_LLM_KEY per abilitare storage cloud illimitato" if not storage_enabled else None
+            "max_file_size_mb": 16,
+            "recommended_action": "Configura B2_KEY_ID e B2_APPLICATION_KEY per abilitare Backblaze B2"
         }
     }
 

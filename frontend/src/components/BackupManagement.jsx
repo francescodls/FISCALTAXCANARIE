@@ -122,6 +122,7 @@ const BackupManagement = ({ token, API }) => {
 
   const stats = storageStatus?.statistics || {};
   const isCloudEnabled = storageStatus?.cloud_storage_enabled;
+  const migrationPending = storageStatus?.migration_pending || 0;
 
   return (
     <div className="space-y-6">
@@ -133,7 +134,7 @@ const BackupManagement = ({ token, API }) => {
               {isCloudEnabled ? (
                 <>
                   <Cloud className="h-5 w-5 text-green-600" />
-                  <span className="text-green-700">Cloud Storage Attivo</span>
+                  <span className="text-green-700">Backblaze B2 Attivo</span>
                 </>
               ) : (
                 <>
@@ -144,29 +145,41 @@ const BackupManagement = ({ token, API }) => {
             </CardTitle>
             <CardDescription>
               {storageStatus?.storage_provider}
+              {storageStatus?.bucket_name && ` - Bucket: ${storageStatus.bucket_name}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">File totali:</span>
-                <Badge variant="outline">{stats.total_files || 0}</Badge>
+                <span className="text-sm text-slate-600">File su cloud:</span>
+                <Badge variant="outline">{stats.total_cloud_files || stats.total_files || 0}</Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Dimensione stimata:</span>
+                <span className="text-sm text-slate-600">Dimensione:</span>
                 <Badge variant="outline">
-                  {stats.estimated_size_mb < 1 
-                    ? `${Math.round(stats.estimated_size_bytes / 1024)} KB`
-                    : stats.estimated_size_gb >= 1 
-                      ? `${stats.estimated_size_gb} GB`
-                      : `${stats.estimated_size_mb} MB`
+                  {(stats.total_size_mb || stats.estimated_size_mb || 0) < 1 
+                    ? `${Math.round((stats.total_size_bytes || stats.estimated_size_bytes || 0) / 1024)} KB`
+                    : (stats.total_size_gb || stats.estimated_size_gb || 0) >= 1 
+                      ? `${stats.total_size_gb || stats.estimated_size_gb} GB`
+                      : `${stats.total_size_mb || stats.estimated_size_mb} MB`
                   }
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">Limite file singolo:</span>
-                <Badge variant="outline">{storageStatus?.limits?.max_file_size_mb} MB</Badge>
+                <span className="text-sm text-slate-600">Limite file:</span>
+                <Badge variant="outline">
+                  {storageStatus?.limits?.max_file_size_mb >= 1000 
+                    ? `${storageStatus.limits.max_file_size_mb / 1000} GB`
+                    : `${storageStatus?.limits?.max_file_size_mb || 16} MB`
+                  }
+                </Badge>
               </div>
+              {migrationPending > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-amber-600">File da migrare:</span>
+                  <Badge className="bg-amber-100 text-amber-700">{migrationPending}</Badge>
+                </div>
+              )}
             </div>
             
             {!isCloudEnabled && storageStatus?.limits?.recommended_action && (
@@ -178,7 +191,7 @@ const BackupManagement = ({ token, API }) => {
               </div>
             )}
             
-            {isCloudEnabled && (
+            {isCloudEnabled && migrationPending > 0 && (
               <Button 
                 onClick={startMigration}
                 disabled={migrating}
@@ -192,10 +205,17 @@ const BackupManagement = ({ token, API }) => {
                 ) : (
                   <>
                     <Zap className="h-4 w-4 mr-2" />
-                    Migra File su Cloud
+                    Migra {migrationPending} File su Backblaze B2
                   </>
                 )}
               </Button>
+            )}
+            
+            {isCloudEnabled && migrationPending === 0 && (
+              <div className="mt-4 p-3 bg-green-100 rounded-lg border border-green-200 text-center">
+                <CheckCircle className="h-5 w-5 text-green-600 inline mr-2" />
+                <span className="text-sm text-green-800 font-medium">Tutti i file sono su cloud!</span>
+              </div>
             )}
           </CardContent>
         </Card>
