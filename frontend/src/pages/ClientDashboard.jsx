@@ -34,10 +34,12 @@ import { Label } from "@/components/ui/label";
 import { Edit, Save, Users } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementClient from "@/components/EmployeeManagementClient";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
   const { user, token, logout, setUser } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("overview");
   const [stats, setStats] = useState({});
   const [deadlines, setDeadlines] = useState([]);
@@ -212,7 +214,7 @@ const ClientDashboard = () => {
               data-testid="logout-btn"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Esci
+              {t("common.logout")}
             </Button>
           </div>
         </div>

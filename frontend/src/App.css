@@ -189,6 +189,29 @@ input:focus, textarea:focus, select:focus {
     transform: scale(0.98);
 }
 
+/* Teal button with black active state */
+.btn-teal-active {
+    transition: all 0.15s ease;
+}
+
+.btn-teal-active:active {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+/* For Tailwind buttons - apply via tailwind classes */
+.bg-teal-500:active,
+.bg-teal-600:active {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+}
+
+/* Tab triggers with teal active state */
+[data-state="active"].data-\[state\=active\]\:bg-teal-500:active {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+}
+
 .btn-secondary {
     background: white;
     color: #0f172a;

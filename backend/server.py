@@ -3666,6 +3666,100 @@ async def mark_all_notifications_read(user: dict = Depends(require_commercialist
     )
     return {"success": True}
 
+# ==================== CLIENT NOTIFICATIONS HISTORY ====================
+
+async def log_client_notification(
+    client_id: str,
+    notification_type: str,
+    title: str,
+    message: str,
+    sent_by: str,
+    email_sent: bool = False,
+    email_recipients: List[str] = None
+):
+    """Salva una notifica nella cronologia del cliente"""
+    notification_id = str(uuid.uuid4())
+    notification = {
+        "id": notification_id,
+        "client_id": client_id,
+        "type": notification_type,  # document, deadline, note, welcome, invite, employee
+        "title": title,
+        "message": message,
+        "sent_by": sent_by,
+        "email_sent": email_sent,
+        "email_recipients": email_recipients or [],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.client_notifications_history.insert_one(notification)
+    return notification_id
+
+@api_router.get("/clients/{client_id}/notifications-history")
+async def get_client_notifications_history(
+    client_id: str,
+    limit: int = 50,
+    user: dict = Depends(require_commercialista_or_consulente)
+):
+    """Ottiene la cronologia delle notifiche inviate a un cliente"""
+    # Verifica permessi consulente
+    if user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        if client_id not in assigned:
+            raise HTTPException(status_code=403, detail="Non hai accesso a questo cliente")
+    
+    notifications = await db.client_notifications_history.find(
+        {"client_id": client_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    
+    return notifications
+
+@api_router.post("/clients/{client_id}/send-notification")
+async def send_client_notification(
+    client_id: str,
+    title: str = Form(...),
+    message: str = Form(...),
+    send_email: bool = Form(False),
+    user: dict = Depends(require_commercialista_or_consulente)
+):
+    """Invia una notifica personalizzata a un cliente"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    # Verifica permessi consulente
+    if user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        if client_id not in assigned:
+            raise HTTPException(status_code=403, detail="Non hai accesso a questo cliente")
+    
+    email_sent = False
+    email_recipients = []
+    
+    if send_email and client.get("email"):
+        try:
+            await send_generic_email(
+                client["email"],
+                f"[Fiscal Tax] {title}",
+                f"<h2>{title}</h2><p>{message}</p>"
+            )
+            email_sent = True
+            email_recipients = [client["email"]]
+        except Exception as e:
+            logger.error(f"Errore invio email: {e}")
+    
+    # Salva nella cronologia
+    await log_client_notification(
+        client_id=client_id,
+        notification_type="manual",
+        title=title,
+        message=message,
+        sent_by=user["id"],
+        email_sent=email_sent,
+        email_recipients=email_recipients
+    )
+    
+    return {"success": True, "email_sent": email_sent}
+
 # Include router and middleware
 app.include_router(api_router)
 

@@ -46,10 +46,12 @@ import { Label } from "@/components/ui/label";
 import ConsulentiManagement from "@/components/ConsulentiManagement";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
+  const { t } = useLanguage();
   const [stats, setStats] = useState({});
   const [clients, setClients] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
@@ -322,7 +324,7 @@ const CommercialDashboard = () => {
               data-testid="logout-btn"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Esci
+              {t("common.logout")}
             </Button>
           </div>
         </div>
@@ -332,9 +334,9 @@ const CommercialDashboard = () => {
       <main className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="font-heading text-3xl font-bold text-slate-900 mb-2">
-            Dashboard Amministratore
+            {t("dashboard.adminPanel")}
           </h1>
-          <p className="text-slate-600">Gestisci i tuoi clienti e le loro pratiche fiscali</p>
+          <p className="text-slate-600">{t("clients.title")}</p>
         </div>
 
         {/* Stats Cards */}
@@ -345,7 +347,7 @@ const CommercialDashboard = () => {
                 <Users className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">{stats.clients_count || 0}</p>
-              <p className="text-xs text-slate-500">Clienti Totali</p>
+              <p className="text-xs text-slate-500">{t("dashboard.totalClients")}</p>
             </CardContent>
           </Card>
           <Card className="bg-white border border-slate-200 card-hover">
@@ -354,7 +356,7 @@ const CommercialDashboard = () => {
                 <CheckCircle2 className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">{stats.clients_active || 0}</p>
-              <p className="text-xs text-slate-500">Clienti Attivi</p>
+              <p className="text-xs text-slate-500">{t("dashboard.activeClients")}</p>
             </CardContent>
           </Card>
           <Card className="bg-white border border-slate-200 card-hover">
@@ -363,7 +365,7 @@ const CommercialDashboard = () => {
                 <FileText className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">{stats.documents_count || 0}</p>
-              <p className="text-xs text-slate-500">Documenti</p>
+              <p className="text-xs text-slate-500">{t("dashboard.documents")}</p>
             </CardContent>
           </Card>
           <Card className="bg-white border border-slate-200 card-hover">
@@ -466,12 +468,12 @@ const CommercialDashboard = () => {
           <TabsContent value="clients">
             <Card className="bg-white border border-slate-200">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="font-heading text-xl">I Tuoi Clienti</CardTitle>
+                <CardTitle className="font-heading text-xl">{t("clients.myClients")}</CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="relative w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
-                      placeholder="Cerca cliente..."
+                      placeholder={t("clients.searchClients")}
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10 border-slate-200"
@@ -483,10 +485,10 @@ const CommercialDashboard = () => {
                       <SelectValue placeholder="Filtra tipo" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tutti i tipi</SelectItem>
-                      <SelectItem value="autonomo">Autonomo</SelectItem>
-                      <SelectItem value="societa">Società</SelectItem>
-                      <SelectItem value="privato">Privato</SelectItem>
+                      <SelectItem value="all">{t("clients.allTypes")}</SelectItem>
+                      <SelectItem value="autonomo">{t("clients.autonomous")}</SelectItem>
+                      <SelectItem value="societa">{t("clients.company")}</SelectItem>
+                      <SelectItem value="privato">{t("clients.private")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Dialog open={showInviteDialog} onOpenChange={(open) => {
