@@ -5,6 +5,7 @@ import { useAuth, API } from "@/App";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,7 +45,6 @@ import {
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import ConsulentiManagement from "@/components/ConsulentiManagement";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
@@ -74,6 +74,7 @@ const CommercialDashboard = () => {
   const [pendingInvitations, setPendingInvitations] = useState([]); // Inviti pendenti
   const [tipoClienteFilter, setTipoClienteFilter] = useState("all"); // Filtro per tipo cliente
   const [clientLists, setClientLists] = useState([]); // Liste/Categorie clienti
+  const [showGlobalUpload, setShowGlobalUpload] = useState(false); // Dialog caricamento globale
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -299,6 +300,15 @@ const CommercialDashboard = () => {
             </Button>
             <Button 
               variant="outline"
+              onClick={() => setShowGlobalUpload(true)}
+              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+              data-testid="global-upload-btn"
+            >
+              <FolderUp className="h-4 w-4 mr-2" />
+              Carica Documenti
+            </Button>
+            <Button 
+              variant="outline"
               onClick={() => navigate("/admin/models")}
               className="border-teal-200 text-teal-600 hover:bg-teal-50"
               data-testid="manage-models-btn"
@@ -495,14 +505,6 @@ const CommercialDashboard = () => {
             >
               <Activity className="h-4 w-4 mr-2" />
               {t("dashboard.recentActivity")}
-            </TabsTrigger>
-            <TabsTrigger 
-              value="global-upload" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
-              data-testid="tab-global-upload"
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Caricamento Globale
             </TabsTrigger>
           </TabsList>
 
@@ -1113,12 +1115,25 @@ const CommercialDashboard = () => {
           <TabsContent value="employees">
             <EmployeeManagementAdmin token={token} userRole="commercialista" />
           </TabsContent>
-
-          {/* Global Upload Tab */}
-          <TabsContent value="global-upload">
-            <GlobalDocumentUpload token={token} clients={clients} clientLists={clientLists} />
-          </TabsContent>
         </Tabs>
+
+        {/* Global Upload Dialog */}
+        <Dialog open={showGlobalUpload} onOpenChange={setShowGlobalUpload}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="font-heading text-xl flex items-center gap-2">
+                <FolderUp className="h-5 w-5 text-teal-500" />
+                Caricamento Globale Documenti
+              </DialogTitle>
+            </DialogHeader>
+            <GlobalDocumentUpload 
+              token={token} 
+              clients={clients} 
+              clientLists={clientLists} 
+              onClose={() => setShowGlobalUpload(false)}
+            />
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
@@ -1193,7 +1208,7 @@ const PendingDocCard = ({ doc, clients, onVerify, verifying }) => {
 };
 
 // Componente per caricamento globale documenti
-const GlobalDocumentUpload = ({ token, clients, clientLists }) => {
+const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadMode, setUploadMode] = useState("all"); // all, category, selected
   const [selectedClients, setSelectedClients] = useState([]);
@@ -1259,38 +1274,33 @@ const GlobalDocumentUpload = ({ token, clients, clientLists }) => {
       toast.success(`Documento caricato con successo a ${successCount} clienti`);
       setSelectedFile(null);
       setDocumentTitle("");
+      if (onClose) onClose();
     } else {
       toast.warning(`Caricato a ${successCount} clienti, ${errorCount} errori`);
     }
   };
 
   return (
-    <Card className="bg-white border border-slate-200">
-      <CardHeader>
-        <CardTitle className="font-heading text-xl flex items-center gap-2">
-          <FolderUp className="h-5 w-5 text-teal-500" />
-          Caricamento Globale Documenti
-        </CardTitle>
-        <p className="text-sm text-slate-500 mt-1">
-          Carica un documento a più clienti contemporaneamente
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Selezione modalità */}
-        <div className="space-y-3">
-          <Label className="text-slate-700 font-medium">Destinatari</Label>
-          <div className="grid grid-cols-3 gap-3">
-            <Card 
-              className={`p-4 cursor-pointer transition-all ${uploadMode === "all" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
-              onClick={() => setUploadMode("all")}
-            >
-              <div className="flex items-center gap-2">
-                <Users className={`h-5 w-5 ${uploadMode === "all" ? "text-teal-600" : "text-slate-400"}`} />
-                <span className={`font-medium ${uploadMode === "all" ? "text-teal-700" : "text-slate-600"}`}>
-                  Tutti i Clienti
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
+    <div className="space-y-6">
+      <p className="text-sm text-slate-500">
+        Carica un documento a più clienti contemporaneamente
+      </p>
+      
+      {/* Selezione modalità */}
+      <div className="space-y-3">
+        <Label className="text-slate-700 font-medium">Destinatari</Label>
+        <div className="grid grid-cols-3 gap-3">
+          <Card 
+            className={`p-4 cursor-pointer transition-all ${uploadMode === "all" ? "border-teal-500 bg-teal-50" : "border-slate-200 hover:border-slate-300"}`}
+            onClick={() => setUploadMode("all")}
+          >
+            <div className="flex items-center gap-2">
+              <Users className={`h-5 w-5 ${uploadMode === "all" ? "text-teal-600" : "text-slate-400"}`} />
+              <span className={`font-medium ${uploadMode === "all" ? "text-teal-700" : "text-slate-600"}`}>
+                Tutti i Clienti
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-1">
                 {clients.filter(c => c.status === "active").length} clienti attivi
               </p>
             </Card>
@@ -1456,8 +1466,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists }) => {
             </>
           )}
         </Button>
-      </CardContent>
-    </Card>
+      </div>
   );
 };
 
