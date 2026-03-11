@@ -8,6 +8,29 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 29 (11 Marzo 2026) - COMPLETATA ✅
+
+**Fix Stile Pulsanti - Effetto Click**
+
+**Problema:** I pulsanti teal (#3caca4) non avevano effetto visivo al click.
+
+**Soluzione:**
+- Aggiunte classi Tailwind `active:bg-slate-900 active:scale-95 transition-all` a 21 pulsanti
+- Aggiornato `App.css` con regole CSS per lo stato `:active`
+- Aggiornato `tailwind.config.js` con colore `teal.active`
+
+**File modificati:**
+- `/app/frontend/src/pages/CommercialDashboard.jsx`
+- `/app/frontend/src/pages/ClientDetail.jsx`
+- `/app/frontend/src/pages/ClientDashboard.jsx`
+- `/app/frontend/src/components/ChatBot.jsx`
+- `/app/frontend/src/components/BackupManagement.jsx`
+- `/app/frontend/src/components/*.jsx` (vari)
+- `/app/frontend/src/App.css`
+- `/app/frontend/tailwind.config.js`
+
+**Effetto:** Al click, i pulsanti teal diventano scuri (slate-900) con leggera riduzione di scala (95%).
+
 ### Fase 28 (11 Marzo 2026) - IN CORSO 🔄
 
 **Refactoring Backend - Struttura Base Creata**

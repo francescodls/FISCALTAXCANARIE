@@ -1062,7 +1062,7 @@ const ClientDashboard = () => {
                 {!editingProfile ? (
                   <Button
                     onClick={() => setEditingProfile(true)}
-                    className="bg-teal-500 hover:bg-teal-600 text-white"
+                    className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                   >
                     <Edit className="h-4 w-4 mr-2" />
                     Modifica
@@ -1245,7 +1245,7 @@ const ClientDashboard = () => {
                       <Button
                         type="submit"
                         disabled={savingProfile}
-                        className="bg-teal-500 hover:bg-teal-600 text-white"
+                        className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                       >
                         <Save className="h-4 w-4 mr-2" />
                         {savingProfile ? "Salvataggio..." : "Salva Modifiche"}

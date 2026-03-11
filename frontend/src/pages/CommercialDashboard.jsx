@@ -650,7 +650,7 @@ const CommercialDashboard = () => {
                     }
                   }}>
                     <DialogTrigger asChild>
-                      <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="create-client-btn">
+                      <Button className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all" data-testid="create-client-btn">
                         <Plus className="h-4 w-4 mr-2" />
                         Nuovo Cliente
                       </Button>
@@ -710,7 +710,7 @@ const CommercialDashboard = () => {
                             </Button>
                             <Button 
                               onClick={() => closeCreateDialogAndNavigate(createResult.client_id)} 
-                              className="bg-teal-500 hover:bg-teal-600 text-white"
+                              className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                             >
                               <ChevronRight className="h-4 w-4 mr-2" />
                               Vai alla Cartella
@@ -831,7 +831,7 @@ const CommercialDashboard = () => {
                             <Button 
                               type="submit" 
                               disabled={creatingClient}
-                              className="bg-teal-500 hover:bg-teal-600 text-white"
+                              className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                               data-testid="create-client-submit-btn"
                             >
                               {creatingClient ? (
@@ -1037,7 +1037,7 @@ const CommercialDashboard = () => {
                     <Button 
                       onClick={handleDocSearch}
                       disabled={searchingDocs || !docSearchTerm.trim()}
-                      className="bg-teal-500 hover:bg-teal-600 text-white"
+                      className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                     >
                       {searchingDocs ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />

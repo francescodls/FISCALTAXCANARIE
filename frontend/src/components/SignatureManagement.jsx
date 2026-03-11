@@ -161,7 +161,7 @@ const SignatureManagement = ({ token, clientId = null, clientName = "" }) => {
         </div>
         <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
           <DialogTrigger asChild>
-            <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="upload-cert-btn">
+            <Button className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all" data-testid="upload-cert-btn">
               <Upload className="h-4 w-4 mr-2" />
               Carica Certificato
             </Button>
@@ -234,7 +234,7 @@ const SignatureManagement = ({ token, clientId = null, clientName = "" }) => {
                 <Button 
                   type="submit" 
                   disabled={uploading}
-                  className="bg-teal-500 hover:bg-teal-600 text-white"
+                  className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                   data-testid="upload-cert-submit-btn"
                 >
                   {uploading ? (

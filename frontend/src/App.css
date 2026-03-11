@@ -254,15 +254,35 @@ input:focus, textarea:focus, select:focus {
 
 /* For Tailwind buttons - apply via tailwind classes */
 .bg-teal-500:active,
-.bg-teal-600:active {
-    background-color: #000000 !important;
+.bg-teal-600:active,
+.hover\:bg-teal-600:active,
+button.bg-teal-500:active,
+button.bg-teal-600:active {
+    background-color: #1a1a1a !important;
     color: #ffffff !important;
+    transform: scale(0.98);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Ensure active state works on all teal buttons */
+[class*="bg-teal-500"]:active,
+[class*="bg-teal-600"]:active {
+    background-color: #1a1a1a !important;
+    color: #ffffff !important;
+    transform: scale(0.98);
 }
 
 /* Tab triggers with teal active state */
 [data-state="active"].data-\[state\=active\]\:bg-teal-500:active {
     background-color: #000000 !important;
     color: #ffffff !important;
+}
+
+/* Focus visible state for accessibility */
+.bg-teal-500:focus-visible,
+.bg-teal-600:focus-visible {
+    outline: 2px solid #3caca4;
+    outline-offset: 2px;
 }
 
 .btn-secondary {

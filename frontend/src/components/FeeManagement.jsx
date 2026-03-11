@@ -218,7 +218,7 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
         </h3>
         <Button 
           onClick={() => setShowForm(true)}
-          className="bg-teal-500 hover:bg-teal-600 text-white"
+          className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
           data-testid="add-fee-btn"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -311,7 +311,7 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
               <Button 
                 type="submit" 
                 disabled={saving}
-                className="bg-teal-500 hover:bg-teal-600 text-white"
+                className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                 data-testid="fee-save-btn"
               >
                 {saving ? "Salvataggio..." : (editingFee ? "Aggiorna" : "Crea")}

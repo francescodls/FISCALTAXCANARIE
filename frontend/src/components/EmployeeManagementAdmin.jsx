@@ -564,7 +564,7 @@ const EmployeeManagementAdmin = ({ token, userRole, clientId = null, isAdmin = f
               <Button type="button" variant="outline" onClick={() => setShowUploadDialog(false)}>
                 Annulla
               </Button>
-              <Button type="submit" disabled={submitting} className="bg-teal-500 hover:bg-teal-600 text-white">
+              <Button type="submit" disabled={submitting} className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all">
                 {submitting ? "Caricamento..." : "Carica"}
               </Button>
             </DialogFooter>

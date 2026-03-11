@@ -1947,7 +1947,7 @@ const ClientDetail = () => {
                   {!editingClient ? (
                     <Button
                       onClick={() => setEditingClient(true)}
-                      className="bg-teal-500 hover:bg-teal-600 text-white"
+                      className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       Modifica
@@ -2184,7 +2184,7 @@ const ClientDetail = () => {
                       <Button
                         type="submit"
                         disabled={savingClient}
-                        className="bg-teal-500 hover:bg-teal-600 text-white"
+                        className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                       >
                         {savingClient ? "Salvataggio..." : "Salva Modifiche"}
                       </Button>
@@ -2251,7 +2251,7 @@ const ClientDetail = () => {
                   <Button
                     onClick={handleAddEmail}
                     disabled={addingEmail}
-                    className="bg-teal-500 hover:bg-teal-600 text-white"
+                    className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                     data-testid="add-email-btn"
                   >
                     {addingEmail ? "..." : <Plus className="h-4 w-4" />}
@@ -2571,7 +2571,7 @@ const ClientDetail = () => {
               <Button 
                 onClick={handleSignDocument}
                 disabled={signing || !signForm.certificate_name || !signForm.certificate_password}
-                className="bg-teal-500 hover:bg-teal-600 text-white"
+                className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
               >
                 {signing ? (
                   <>

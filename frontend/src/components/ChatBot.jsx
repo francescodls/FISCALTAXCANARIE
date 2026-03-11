@@ -101,7 +101,7 @@ const ChatBot = ({ token, userName }) => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-6 w-14 h-14 bg-teal-500 hover:bg-teal-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 z-50"
+        className="fixed bottom-20 right-6 w-14 h-14 bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white rounded-full transition-all shadow-lg flex items-center justify-center transition-all hover:scale-110 z-50"
         data-testid="chatbot-trigger"
       >
         <MessageCircle className="h-6 w-6" />
@@ -203,7 +203,7 @@ const ChatBot = ({ token, userName }) => {
               <Button
                 type="submit"
                 disabled={isLoading || !inputValue.trim()}
-                className="bg-teal-500 hover:bg-teal-600 text-white rounded-full w-10 h-10 p-0"
+                className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white rounded-full transition-all w-10 h-10 p-0"
                 data-testid="chatbot-send"
               >
                 <Send className="h-4 w-4" />

@@ -63,6 +63,7 @@ module.exports = {
                     700: '#28746e',
                     800: '#1e5853',
                     900: '#143c38',
+                    active: '#1a1a1a', // Colore per stato active/pressed
                 },
                 chart: {
                     '1': 'hsl(var(--chart-1))',

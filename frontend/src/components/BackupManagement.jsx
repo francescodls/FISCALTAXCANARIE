@@ -273,7 +273,7 @@ const BackupManagement = ({ token, API }) => {
                 <Button
                   onClick={() => downloadBackup('full')}
                   disabled={downloading === 'full'}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-white"
+                  className="w-full bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                   data-testid="download-full-backup-btn"
                 >
                   {downloading === 'full' ? (

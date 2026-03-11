@@ -737,7 +737,7 @@ const DocumentFolderBrowser = ({
             <Button
               onClick={handleUpdateCategory}
               disabled={saving}
-              className="bg-teal-500 hover:bg-teal-600 text-white"
+              className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
             >
               {saving ? "Salvataggio..." : "Salva Modifiche"}
             </Button>
@@ -795,7 +795,7 @@ const DocumentFolderBrowser = ({
             <Button
               onClick={handleCreateCategory}
               disabled={creatingCategory || !newCategoryName.trim()}
-              className="bg-teal-500 hover:bg-teal-600 text-white"
+              className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
             >
               {creatingCategory ? "Creazione..." : "Crea Categoria"}
             </Button>
