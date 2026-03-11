@@ -8,6 +8,30 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 24 (11 Marzo 2026) - COMPLETATA ✅
+
+**Fix Accesso Cartella Clienti Invitati**
+
+**Problema:** L'amministratore non poteva accedere alla cartella del cliente "invitato" perché questi apparivano sia nella sezione "Inviti in attesa di registrazione" (non cliccabile) che nella lista principale, creando confusione.
+
+**Soluzione:**
+1. **Backend:** Modificato endpoint `/api/invitations` per aggiungere flag `has_client_folder` che indica se l'invito ha già una cartella cliente associata.
+
+2. **Frontend:** Modificata `CommercialDashboard.jsx` per filtrare gli inviti nella sezione "Inviti in attesa":
+   - Gli inviti CON cartella cliente (`has_client_folder=true`) vengono nascosti dalla sezione inviti
+   - Questi clienti appaiono SOLO nella lista principale con badge "Invitato"
+   - Cliccando si accede normalmente alla cartella del cliente
+
+**Risultato:**
+- ✅ L'admin può ora cliccare su un cliente "invitato" nella lista principale
+- ✅ Si apre la cartella del cliente con tutti i tab (Documenti, Anagrafica, Dipendenti, ecc.)
+- ✅ L'admin può caricare documenti, modificare anagrafica, aggiungere note prima che il cliente completi la registrazione
+- ✅ La sezione "Inviti in attesa" mostra solo inviti senza cartella (es. consulenti del lavoro)
+
+File modificati:
+- `/app/backend/server.py`: Aggiunto campo `has_client_folder` all'endpoint `/api/invitations`
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Filtro inviti per nascondere quelli con cartella
+
 ### Fase 23 (10 Marzo 2026) - COMPLETATA ✅
 
 **Sistema Notifiche Dipendenti con Badge Rosso**

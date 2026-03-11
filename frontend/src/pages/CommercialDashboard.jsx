@@ -707,15 +707,15 @@ const CommercialDashboard = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Sezione Inviti Pendenti */}
-                {pendingInvitations.length > 0 && (
+                {/* Sezione Inviti Pendenti - Solo per inviti senza cartella cliente */}
+                {pendingInvitations.filter(inv => !inv.has_client_folder).length > 0 && (
                   <div className="mb-6">
                     <h3 className="text-sm font-medium text-purple-700 mb-3 flex items-center gap-2">
                       <Mail className="h-4 w-4" />
-                      Inviti in attesa di registrazione ({pendingInvitations.length})
+                      Inviti in attesa di registrazione ({pendingInvitations.filter(inv => !inv.has_client_folder).length})
                     </h3>
                     <div className="space-y-2 mb-4">
-                      {pendingInvitations.map((invitation) => (
+                      {pendingInvitations.filter(inv => !inv.has_client_folder).map((invitation) => (
                         <div 
                           key={invitation.id} 
                           className="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-100"

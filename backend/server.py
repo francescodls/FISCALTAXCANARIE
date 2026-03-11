@@ -3076,11 +3076,28 @@ async def resend_invitation(invite_id: str, user: dict = Depends(require_commerc
 
 @api_router.get("/invitations")
 async def get_invitations(user: dict = Depends(require_commercialista)):
-    """Lista tutti gli inviti pendenti"""
+    """
+    Lista gli inviti pendenti.
+    Include client_id per permettere al frontend di navigare alla cartella del cliente.
+    """
     invitations = await db.invitations.find(
         {"invited_by": user["id"], "status": "pending"},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
+    
+    # Per ogni invito con client_id, verifica che il cliente esista ancora
+    # e aggiungi informazioni utili
+    for inv in invitations:
+        if inv.get("client_id"):
+            client = await db.users.find_one(
+                {"id": inv["client_id"], "role": "cliente"},
+                {"_id": 0, "full_name": 1, "stato": 1}
+            )
+            if client:
+                inv["has_client_folder"] = True
+                inv["client_name"] = client.get("full_name", "")
+                inv["client_stato"] = client.get("stato", "")
+    
     return invitations
 
 # ==================== FEES (ONORARI) ROUTES ====================
