@@ -3264,6 +3264,42 @@ async def get_invitations(user: dict = Depends(require_commercialista)):
     
     return invitations
 
+@api_router.delete("/invitations/{invitation_id}")
+async def delete_invitation(invitation_id: str, user: dict = Depends(require_commercialista)):
+    """
+    Elimina un invito in attesa di registrazione.
+    Se l'invito ha un client_id associato (cliente già creato con stato 'invitato'),
+    elimina anche il profilo cliente.
+    """
+    # Trova l'invito
+    invitation = await db.invitations.find_one({"id": invitation_id, "invited_by": user["id"]})
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
+    
+    # Se l'invito ha un client_id, elimina anche il cliente associato
+    if invitation.get("client_id"):
+        client = await db.users.find_one({"id": invitation["client_id"], "stato": "invitato"})
+        if client:
+            # Elimina documenti del cliente
+            await db.documents.delete_many({"client_id": invitation["client_id"]})
+            # Elimina il cliente
+            await db.users.delete_one({"id": invitation["client_id"]})
+            logger.info(f"Eliminato cliente invitato {invitation['client_id']} insieme all'invito")
+    
+    # Elimina l'invito
+    result = await db.invitations.delete_one({"id": invitation_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Errore durante l'eliminazione")
+    
+    await log_activity(
+        "eliminazione_invito",
+        f"Invito eliminato: {invitation.get('notification_email', invitation.get('suggested_name', 'N/A'))}",
+        user["id"]
+    )
+    
+    return {"message": "Invito eliminato con successo"}
+
 # ==================== FEES (ONORARI) ROUTES ====================
 
 @api_router.get("/clients/{client_id}/fees", response_model=List[FeeResponse])
@@ -4129,6 +4165,30 @@ async def delete_consulente(consulente_id: str, user: dict = Depends(require_com
     await db.users.delete_one({"id": consulente_id})
     
     return {"success": True, "message": "Consulente eliminato"}
+
+@api_router.delete("/consulenti/invitations/{invitation_id}")
+async def delete_consulente_invitation(invitation_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina un invito per consulente del lavoro in attesa"""
+    invitation = await db.invitations.find_one({
+        "id": invitation_id, 
+        "invited_by": user["id"],
+        "role": "consulente_lavoro"
+    })
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invito non trovato")
+    
+    result = await db.invitations.delete_one({"id": invitation_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Errore durante l'eliminazione")
+    
+    await log_activity(
+        "eliminazione_invito_consulente",
+        f"Invito consulente eliminato: {invitation.get('notification_email', 'N/A')}",
+        user["id"]
+    )
+    
+    return {"message": "Invito eliminato con successo"}
 
 @api_router.post("/consulenti/{consulente_id}/assign-clients")
 async def assign_clients_to_consulente(

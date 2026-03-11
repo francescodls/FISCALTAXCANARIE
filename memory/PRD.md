@@ -8,6 +8,26 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 27 (11 Marzo 2026) - COMPLETATA ✅
+
+**Eliminazione Inviti in Attesa**
+
+**Richiesta:** L'utente ha chiesto di aggiungere la possibilità di eliminare gli inviti in attesa di registrazione per clienti e consulenti del lavoro.
+
+**Backend:**
+- `DELETE /api/invitations/{invitation_id}`: Elimina invito cliente. Se l'invito ha un `client_id` associato (cliente già creato con stato "invitato"), elimina anche il profilo cliente e i suoi documenti.
+- `DELETE /api/consulenti/invitations/{invitation_id}`: Elimina invito consulente del lavoro.
+
+**Frontend:**
+- `CommercialDashboard.jsx`: Aggiunto pulsante cestino rosso accanto a "Reinvia" nella sezione "Inviti in attesa di registrazione" per i clienti.
+- `ConsulentiManagement.jsx`: Aggiunto pulsante cestino rosso accanto a "Reinvia" per gli inviti dei consulenti.
+- Conferma con `window.confirm` prima dell'eliminazione.
+
+File modificati:
+- `/app/backend/server.py`: Nuovi endpoint DELETE
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Funzione `handleDeleteInvite` e UI
+- `/app/frontend/src/components/ConsulentiManagement.jsx`: Funzione `handleDeleteConsulentInvite` e UI
+
 ### Fase 26 (11 Marzo 2026) - COMPLETATA ✅
 
 **Ricostruzione Completa Sistema Caricamento Globale Documenti**

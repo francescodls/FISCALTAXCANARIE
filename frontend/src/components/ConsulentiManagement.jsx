@@ -99,6 +99,19 @@ const ConsulentiManagement = ({ token }) => {
     }
   };
 
+  const handleDeleteConsulentInvite = async (inviteId, name) => {
+    if (!window.confirm(`Sei sicuro di voler eliminare l'invito per "${name}"? Questa azione non può essere annullata.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`${API}/consulenti/invitations/${inviteId}`, { headers });
+      toast.success("Invito eliminato con successo");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'eliminazione dell'invito");
+    }
+  };
+
   const closeInviteDialog = () => {
     setShowInviteDialog(false);
     setInviteResult(null);
@@ -295,16 +308,27 @@ const ConsulentiManagement = ({ token }) => {
                       <p className="text-sm text-slate-500">{invite.notification_email}</p>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleResendInvite(invite.id, invite.notification_email)}
-                    className="border-amber-300 text-amber-700 hover:bg-amber-100"
-                    data-testid={`resend-invite-${invite.id}`}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                    Reinvia
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleResendInvite(invite.id, invite.notification_email)}
+                      className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                      data-testid={`resend-invite-${invite.id}`}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Reinvia
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteConsulentInvite(invite.id, invite.suggested_name || invite.notification_email)}
+                      className="border-red-200 text-red-600 hover:bg-red-50"
+                      data-testid={`delete-invite-${invite.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -40,7 +40,8 @@ import {
   HardDrive,
   Briefcase,
   Upload,
-  FolderUp
+  FolderUp,
+  Trash2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -299,6 +300,20 @@ const CommercialDashboard = () => {
       fetchData(); // Ricarica per aggiornare la lista
     } catch (error) {
       toast.error(error.response?.data?.detail || "Errore nel reinvio dell'invito");
+    }
+  };
+
+  // Elimina invito cliente
+  const handleDeleteInvite = async (inviteId, name) => {
+    if (!window.confirm(`Sei sicuro di voler eliminare l'invito per "${name}"? Questa azione non può essere annullata.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`${API}/invitations/${inviteId}`, { headers });
+      toast.success("Invito eliminato con successo");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'eliminazione dell'invito");
     }
   };
 
@@ -866,16 +881,27 @@ const CommercialDashboard = () => {
                               </p>
                             </div>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleResendInvite(invitation.id, invitation.notification_email)}
-                            className="border-purple-200 text-purple-600 hover:bg-purple-100"
-                            data-testid={`resend-invite-${invitation.id}`}
-                          >
-                            <RefreshCw className="h-4 w-4 mr-1" />
-                            Reinvia
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleResendInvite(invitation.id, invitation.notification_email)}
+                              className="border-purple-200 text-purple-600 hover:bg-purple-100"
+                              data-testid={`resend-invite-${invitation.id}`}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-1" />
+                              Reinvia
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteInvite(invitation.id, invitation.suggested_name || invitation.notification_email)}
+                              className="border-red-200 text-red-600 hover:bg-red-50"
+                              data-testid={`delete-invite-${invitation.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
