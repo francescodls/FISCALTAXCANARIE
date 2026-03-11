@@ -367,24 +367,24 @@ const ConsulentiManagement = ({ token }) => {
             </Card>
           ))}
         </div>
-      ) : pendingInvitations.length === 0 ? (
+      ) : (
         <Card className="bg-white border border-slate-200">
           <CardContent className="p-12 text-center">
             <Briefcase className="h-16 w-16 text-slate-300 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-slate-700 mb-2">Nessun consulente</h3>
             <p className="text-slate-500 mb-4">
-              Invita un consulente del lavoro per delegare la gestione delle buste paga.
+              Crea un consulente del lavoro per delegare la gestione delle buste paga.
             </p>
             <Button
-              onClick={() => setShowInviteDialog(true)}
+              onClick={() => setShowCreateDialog(true)}
               className="bg-indigo-500 hover:bg-indigo-600 text-white"
             >
-              <Mail className="h-4 w-4 mr-2" />
-              Invita il primo consulente
+              <Plus className="h-4 w-4 mr-2" />
+              Crea il primo consulente
             </Button>
           </CardContent>
         </Card>
-      ) : null}
+      )}
 
       {/* Dialog assegnazione clienti */}
       <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
