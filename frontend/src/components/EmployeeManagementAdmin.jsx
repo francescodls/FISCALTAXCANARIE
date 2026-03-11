@@ -131,6 +131,23 @@ const EmployeeManagementAdmin = ({ token, userRole, clientId = null, isAdmin = f
     }
   };
 
+  const deleteEmployee = async (employeeId, employeeName) => {
+    if (!window.confirm(`Sei sicuro di voler eliminare il dipendente "${employeeName}"? Verranno eliminati anche tutti i documenti associati. Questa azione non può essere annullata.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`${API}/employees/${employeeId}`, { headers });
+      toast.success("Dipendente eliminato con successo");
+      fetchEmployees();
+      if (selectedEmployee?.id === employeeId) {
+        setSelectedEmployee(null);
+        setShowDetailDialog(false);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'eliminazione del dipendente");
+    }
+  };
+
   const handleDocumentUpload = async (e) => {
     e.preventDefault();
     if (!uploadForm.file) {
@@ -467,6 +484,14 @@ const EmployeeManagementAdmin = ({ token, userRole, clientId = null, isAdmin = f
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   Carica Documento
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => deleteEmployee(selectedEmployee.id, selectedEmployee.full_name)}
+                  className="border-red-200 text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Elimina Dipendente
                 </Button>
               </div>
 

@@ -136,6 +136,29 @@ const CommercialDashboard = () => {
     }
   };
 
+  const deleteEmployeeNotification = async (notificationId) => {
+    try {
+      await axios.delete(`${API}/employee-notifications/${notificationId}`, { headers });
+      fetchEmployeeNotifications();
+      toast.success("Notifica eliminata");
+    } catch (error) {
+      toast.error("Errore nell'eliminazione della notifica");
+    }
+  };
+
+  const deleteAllEmployeeNotifications = async () => {
+    if (!window.confirm("Sei sicuro di voler eliminare tutte le notifiche? Questa azione non può essere annullata.")) {
+      return;
+    }
+    try {
+      await axios.delete(`${API}/employee-notifications`, { headers });
+      fetchEmployeeNotifications();
+      toast.success("Tutte le notifiche eliminate");
+    } catch (error) {
+      toast.error("Errore nell'eliminazione delle notifiche");
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -1339,6 +1362,15 @@ const CommercialDashboard = () => {
                         Segna tutte come lette
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={deleteAllEmployeeNotifications}
+                      className="border-slate-200 text-slate-600 hover:bg-slate-100"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Elimina tutte
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1390,6 +1422,14 @@ const CommercialDashboard = () => {
                               Segna letta
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteEmployeeNotification(notif.id)}
+                            className="text-red-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}

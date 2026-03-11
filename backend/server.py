@@ -4368,6 +4368,44 @@ async def mark_all_employee_notifications_read(user: dict = Depends(require_comm
     )
     return {"success": True, "marked_count": result.modified_count}
 
+@api_router.delete("/employee-notifications/{notification_id}")
+async def delete_employee_notification(notification_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina una notifica dipendente"""
+    result = await db.employee_notifications.delete_one({"id": notification_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Notifica non trovata")
+    return {"success": True, "message": "Notifica eliminata"}
+
+@api_router.delete("/employee-notifications")
+async def delete_all_employee_notifications(user: dict = Depends(require_commercialista)):
+    """Elimina tutte le notifiche dipendenti"""
+    result = await db.employee_notifications.delete_many({})
+    return {"success": True, "deleted_count": result.deleted_count}
+
+@api_router.delete("/employees/{employee_id}")
+async def delete_employee(employee_id: str, user: dict = Depends(require_commercialista_or_consulente)):
+    """Elimina un dipendente"""
+    employee = await db.employees.find_one({"id": employee_id})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Elimina documenti associati al dipendente
+    await db.employee_documents.delete_many({"employee_id": employee_id})
+    
+    # Elimina notifiche associate
+    await db.employee_notifications.delete_many({"employee_id": employee_id})
+    
+    # Elimina il dipendente
+    await db.employees.delete_one({"id": employee_id})
+    
+    await log_activity(
+        "eliminazione_dipendente",
+        f"Dipendente eliminato: {employee.get('full_name', 'N/A')}",
+        user["id"]
+    )
+    
+    return {"success": True, "message": "Dipendente eliminato con successo"}
+
 @api_router.post("/employees/hire-request")
 async def request_employee_hire(
     hire_data: EmployeeHireRequest,
