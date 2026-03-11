@@ -1469,18 +1469,34 @@ const PendingDocCard = ({ doc, clients, onVerify, verifying }) => {
 
 // Componente per caricamento globale documenti
 const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [selectedClient, setSelectedClient] = useState(""); // Cliente singolo opzionale
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [notifyClients, setNotifyClients] = useState(true);
 
   const headers = { Authorization: `Bearer ${token}` };
+  const MAX_FILES = 20; // Massimo 20 file alla volta
 
   const activeClients = clients.filter(c => c.stato === "attivo" || c.stato === "invitato");
 
+  const handleFilesSelect = (files) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length > MAX_FILES) {
+      toast.warning(`Puoi selezionare massimo ${MAX_FILES} file alla volta`);
+      setSelectedFiles(fileArray.slice(0, MAX_FILES));
+    } else {
+      setSelectedFiles(fileArray);
+    }
+  };
+
+  const removeFile = (index) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.error("Seleziona un file da caricare");
+    if (selectedFiles.length === 0) {
+      toast.error("Seleziona almeno un file da caricare");
       return;
     }
 
@@ -1496,45 +1512,56 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
     }
 
     setUploading(true);
+    const totalUploads = selectedFiles.length * targetClients.length;
+    setUploadProgress({ current: 0, total: totalUploads });
+    
     let successCount = 0;
     let errorCount = 0;
+    let currentUpload = 0;
 
-    for (const clientId of targetClients) {
-      try {
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        formData.append("auto_classify", "true"); // L'AI classificherà automaticamente
-        formData.append("notify_client", notifyClients);
+    // Per ogni file, carica a ogni cliente target
+    for (const file of selectedFiles) {
+      for (const clientId of targetClients) {
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("auto_classify", "true"); // L'AI classificherà automaticamente
+          formData.append("notify_client", notifyClients);
 
-        await axios.post(`${API}/clients/${clientId}/documents`, formData, {
-          headers: { ...headers, "Content-Type": "multipart/form-data" }
-        });
-        successCount++;
-      } catch (error) {
-        console.error(`Errore upload per cliente ${clientId}:`, error);
-        errorCount++;
+          await axios.post(`${API}/clients/${clientId}/documents`, formData, {
+            headers: { ...headers, "Content-Type": "multipart/form-data" }
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Errore upload ${file.name} per cliente ${clientId}:`, error);
+          errorCount++;
+        }
+        currentUpload++;
+        setUploadProgress({ current: currentUpload, total: totalUploads });
       }
     }
 
     setUploading(false);
+    setUploadProgress({ current: 0, total: 0 });
     
     if (errorCount === 0) {
+      const fileText = selectedFiles.length > 1 ? `${selectedFiles.length} documenti` : "Documento";
       const clientText = selectedClient 
         ? "al cliente selezionato" 
-        : `a ${successCount} clienti`;
-      toast.success(`Documento caricato con successo ${clientText}`);
-      setSelectedFile(null);
+        : `a ${targetClients.length} clienti`;
+      toast.success(`${fileText} caricato/i con successo ${clientText}`);
+      setSelectedFiles([]);
       setSelectedClient("");
       if (onClose) onClose();
     } else {
-      toast.warning(`Caricato a ${successCount} clienti, ${errorCount} errori`);
+      toast.warning(`${successCount} upload riusciti, ${errorCount} errori`);
     }
   };
 
   return (
     <div className="space-y-6">
       <p className="text-sm text-slate-500">
-        Carica un documento. L'intelligenza artificiale lo rinominerà e classificherà automaticamente.
+        Carica fino a {MAX_FILES} documenti alla volta. L'intelligenza artificiale li rinominerà e classificherà automaticamente.
       </p>
       
       {/* Selezione cliente opzionale */}
@@ -1555,17 +1582,17 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
         </Select>
         <p className="text-xs text-slate-500">
           {selectedClient 
-            ? "Il documento verrà caricato solo al cliente selezionato" 
-            : `Il documento verrà caricato a tutti i ${activeClients.length} clienti attivi`}
+            ? "I documenti verranno caricati solo al cliente selezionato" 
+            : `I documenti verranno caricati a tutti i ${activeClients.length} clienti attivi`}
         </p>
       </div>
 
-      {/* Upload file con drag & drop */}
+      {/* Upload file multipli con drag & drop */}
       <div className="space-y-2">
-        <Label>File da caricare *</Label>
+        <Label>File da caricare * (max {MAX_FILES})</Label>
         <div 
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            selectedFile ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-400'
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+            selectedFiles.length > 0 ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-400'
           }`}
           onDragOver={(e) => {
             e.preventDefault();
@@ -1575,7 +1602,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
           onDragLeave={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (!selectedFile) {
+            if (selectedFiles.length === 0) {
               e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
             }
           }}
@@ -1585,32 +1612,56 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
             e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
             const files = e.dataTransfer.files;
             if (files && files.length > 0) {
-              setSelectedFile(files[0]);
+              handleFilesSelect(files);
             }
           }}
         >
           <input
             type="file"
-            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            onChange={(e) => handleFilesSelect(e.target.files)}
             className="hidden"
             id="global-upload-input"
             accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+            multiple
           />
           <label htmlFor="global-upload-input" className="cursor-pointer block">
-            <Upload className="h-10 w-10 text-slate-400 mx-auto mb-3" />
-            {selectedFile ? (
-              <div>
-                <p className="text-sm font-medium text-teal-600">{selectedFile.name}</p>
-                <p className="text-xs text-slate-500 mt-1">Clicca per cambiare file</p>
-              </div>
-            ) : (
-              <div>
-                <p className="text-sm text-slate-600 font-medium">Trascina qui il file</p>
-                <p className="text-xs text-slate-400 mt-1">oppure clicca per selezionare</p>
-              </div>
-            )}
+            <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+            <p className="text-sm text-slate-600 font-medium">Trascina qui i file</p>
+            <p className="text-xs text-slate-400 mt-1">oppure clicca per selezionare (max {MAX_FILES} file)</p>
           </label>
         </div>
+        
+        {/* Lista file selezionati */}
+        {selectedFiles.length > 0 && (
+          <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
+            <p className="text-sm font-medium text-slate-700">
+              {selectedFiles.length} file selezionati:
+            </p>
+            {selectedFiles.map((file, index) => (
+              <div 
+                key={index} 
+                className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <FileText className="h-4 w-4 text-teal-500 shrink-0" />
+                  <span className="text-sm text-slate-700 truncate">{file.name}</span>
+                  <span className="text-xs text-slate-400 shrink-0">
+                    ({(file.size / 1024).toFixed(0)} KB)
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeFile(index)}
+                  className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Info AI */}
@@ -1620,7 +1671,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
           <div>
             <p className="text-sm text-blue-800 font-medium">Classificazione Intelligente</p>
             <p className="text-xs text-blue-700 mt-1">
-              L'AI analizzerà il documento e lo classificherà automaticamente nella categoria corretta
+              L'AI analizzerà ogni documento e lo classificherà automaticamente nella categoria corretta
             </p>
           </div>
         </div>
@@ -1636,14 +1687,30 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
           className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
         />
         <Label htmlFor="notify-clients" className="text-sm cursor-pointer">
-          Notifica {selectedClient ? "il cliente" : "i clienti"} via email del nuovo documento
+          Notifica {selectedClient ? "il cliente" : "i clienti"} via email dei nuovi documenti
         </Label>
       </div>
+
+      {/* Progress bar durante upload */}
+      {uploading && uploadProgress.total > 0 && (
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm text-slate-600">
+            <span>Caricamento in corso...</span>
+            <span>{uploadProgress.current} / {uploadProgress.total}</span>
+          </div>
+          <div className="w-full bg-slate-200 rounded-full h-2">
+            <div 
+              className="bg-teal-500 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+      )}
 
       {/* Pulsante upload */}
       <Button
         onClick={handleUpload}
-        disabled={uploading || !selectedFile}
+        disabled={uploading || selectedFiles.length === 0}
         className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold h-12"
       >
         {uploading ? (
@@ -1654,7 +1721,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
         ) : (
           <>
             <Upload className="h-4 w-4 mr-2" />
-            Carica Documento
+            Carica {selectedFiles.length > 0 ? `${selectedFiles.length} Documenti` : 'Documenti'}
           </>
         )}
       </Button>

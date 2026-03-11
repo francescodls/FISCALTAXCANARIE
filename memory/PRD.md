@@ -8,6 +8,28 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 25 (11 Marzo 2026) - COMPLETATA ✅
+
+**Caricamento Globale Documenti Multiplo**
+
+**Richiesta:** L'utente ha chiesto di poter caricare almeno 10 documenti alla volta nel caricamento globale.
+
+**Implementazione:**
+- Modificato componente `GlobalDocumentUpload` per supportare upload di file multipli (max 20)
+- Aggiunto attributo `multiple` all'input file
+- Lista visuale dei file selezionati con possibilità di rimuoverli singolarmente
+- Progress bar durante l'upload che mostra lo stato (X / Y upload completati)
+- Feedback migliorato per upload multipli
+
+**UI aggiornata:**
+- "Carica fino a 20 documenti alla volta"
+- Area drag & drop con "Trascina qui i file (max 20 file)"
+- Lista scrollabile dei file selezionati con dimensione e pulsante rimozione
+- Pulsante "Carica X Documenti" dinamico
+
+File modificato:
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Componente `GlobalDocumentUpload`
+
 ### Fase 24 (11 Marzo 2026) - COMPLETATA ✅
 
 **Nuovo Flusso "Crea Nuovo Cliente"**
