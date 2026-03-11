@@ -85,6 +85,19 @@ const EmployeeManagementClient = ({ token, clientId }) => {
     }
   };
 
+  const handleDeleteEmployee = async (employeeId, employeeName) => {
+    if (!window.confirm(`Sei sicuro di voler eliminare definitivamente "${employeeName}"? Questa azione eliminerà anche tutti i documenti associati e non può essere annullata.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`${API}/employees/${employeeId}`, { headers });
+      toast.success("Dipendente eliminato con successo");
+      fetchEmployees();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'eliminazione del dipendente");
+    }
+  };
+
   const handleHireRequest = async (e) => {
     e.preventDefault();
     if (!hireForm.full_name || !hireForm.start_date || !hireForm.job_title || !hireForm.work_location) {
@@ -496,6 +509,15 @@ const EmployeeManagementClient = ({ token, clientId }) => {
                       <UserX className="h-4 w-4" />
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteEmployee(employee.id, employee.full_name)}
+                    className="border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200"
+                    data-testid={`delete-employee-${employee.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </CardContent>
             </Card>

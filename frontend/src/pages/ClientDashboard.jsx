@@ -27,17 +27,20 @@ import {
   AlertTriangle,
   Circle,
   Bell,
-  Mail
+  Mail,
+  FileCheck,
+  Key
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit, Save, Users, Folder } from "lucide-react";
+import { Edit, Save, Users, Folder, Edit2 } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementClient from "@/components/EmployeeManagementClient";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { DialogFooter } from "@/components/ui/dialog";
 
 const ClientDashboard = () => {
   const navigate = useNavigate();
@@ -60,6 +63,16 @@ const ClientDashboard = () => {
   const [editingProfile, setEditingProfile] = useState(false);
   const [profileForm, setProfileForm] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
+  
+  // Rinomina documento state
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameDoc, setRenameDoc] = useState(null);
+  const [newFileName, setNewFileName] = useState("");
+  const [renamingDoc, setRenamingDoc] = useState(false);
+  
+  // Certificati digitali state
+  const [certificates, setCertificates] = useState([]);
+  const [loadingCertificates, setLoadingCertificates] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -86,14 +99,15 @@ const ClientDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, deadlinesRes, docsRes, payslipsRes, notesRes, modelliRes, notificationsRes] = await Promise.all([
+      const [statsRes, deadlinesRes, docsRes, payslipsRes, notesRes, modelliRes, notificationsRes, certsRes] = await Promise.all([
         axios.get(`${API}/stats`, { headers }),
         axios.get(`${API}/deadlines`, { headers }),
         axios.get(`${API}/documents`, { headers }),
         axios.get(`${API}/payslips`, { headers }),
         axios.get(`${API}/notes`, { headers }),
         axios.get(`${API}/modelli-tributari`, { headers }),
-        axios.get(`${API}/my-notifications-history`, { headers }).catch(() => ({ data: [] }))
+        axios.get(`${API}/my-notifications-history`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API}/clients/${user?.id}/certificates`, { headers }).catch(() => ({ data: [] }))
       ]);
       setStats(statsRes.data);
       setDeadlines(deadlinesRes.data);
@@ -102,6 +116,7 @@ const ClientDashboard = () => {
       setNotes(notesRes.data);
       setModelliTributari(modelliRes.data);
       setNotificationsHistory(notificationsRes.data);
+      setCertificates(certsRes.data);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
     } finally {
@@ -153,6 +168,39 @@ const ClientDashboard = () => {
       toast.success("Download completato");
     } catch (error) {
       toast.error("Errore durante il download");
+    }
+  };
+
+  const openRenameDialog = (doc) => {
+    setRenameDoc(doc);
+    // Estrai nome senza estensione
+    const nameWithoutExt = doc.file_name.lastIndexOf(".") > 0 
+      ? doc.file_name.substring(0, doc.file_name.lastIndexOf("."))
+      : doc.file_name;
+    setNewFileName(nameWithoutExt);
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameDocument = async () => {
+    if (!newFileName.trim()) {
+      toast.error("Inserisci un nome valido");
+      return;
+    }
+    setRenamingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("new_filename", newFileName.trim());
+      
+      await axios.put(`${API}/documents/${renameDoc.id}/rename`, formData, { headers });
+      toast.success("Documento rinominato con successo");
+      setRenameDialogOpen(false);
+      setRenameDoc(null);
+      setNewFileName("");
+      fetchData(); // Ricarica i documenti
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nella rinomina del documento");
+    } finally {
+      setRenamingDoc(false);
     }
   };
 
@@ -303,6 +351,14 @@ const ClientDashboard = () => {
             >
               <User className="h-4 w-4 mr-2" />
               {t("profile.personalInfo")}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="certificates" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-certificates"
+            >
+              <FileCheck className="h-4 w-4 mr-2" />
+              Certificati
             </TabsTrigger>
           </TabsList>
 
@@ -727,16 +783,26 @@ const ClientDashboard = () => {
                                 </div>
                               )}
                               
-                              {/* Download Button */}
-                              <Button
-                                variant="outline"
-                                className="w-full border-slate-200 group-hover:bg-slate-50"
-                                onClick={() => downloadFile("documents", doc.id, doc.file_name)}
-                                data-testid={`download-doc-${doc.id}`}
-                              >
-                                <Download className="h-4 w-4 mr-2" />
-                                Scarica Documento
-                              </Button>
+                              {/* Buttons Row */}
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  className="flex-1 border-slate-200 group-hover:bg-slate-50"
+                                  onClick={() => downloadFile("documents", doc.id, doc.file_name)}
+                                  data-testid={`download-doc-${doc.id}`}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Scarica
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  className="border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
+                                  onClick={() => openRenameDialog(doc)}
+                                  data-testid={`rename-doc-${doc.id}`}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -757,6 +823,49 @@ const ClientDashboard = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Dialog Rinomina Documento */}
+            <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Edit2 className="h-5 w-5 text-blue-500" />
+                    Rinomina Documento
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Nome attuale</Label>
+                    <p className="text-sm text-slate-500">{renameDoc?.file_name}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nuovo nome</Label>
+                    <Input
+                      value={newFileName}
+                      onChange={(e) => setNewFileName(e.target.value)}
+                      placeholder="Inserisci nuovo nome"
+                      data-testid="rename-input"
+                    />
+                    <p className="text-xs text-slate-400">
+                      L'estensione del file verrà mantenuta automaticamente
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+                    Annulla
+                  </Button>
+                  <Button
+                    onClick={handleRenameDocument}
+                    disabled={renamingDoc || !newFileName.trim()}
+                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                    data-testid="rename-submit"
+                  >
+                    {renamingDoc ? "Rinomino..." : "Rinomina"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Payslips Tab */}
@@ -1253,6 +1362,93 @@ const ClientDashboard = () => {
                     </div>
                   )}
                 </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Certificates Tab */}
+          <TabsContent value="certificates" className="space-y-6">
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-xl flex items-center gap-2">
+                  <FileCheck className="h-5 w-5 text-teal-500" />
+                  I Miei Certificati Digitali
+                </CardTitle>
+                <p className="text-sm text-slate-500">
+                  Certificati digitali associati al tuo profilo per la firma elettronica
+                </p>
+              </CardHeader>
+              <CardContent>
+                {certificates.length > 0 ? (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {certificates.map((cert) => (
+                      <Card key={cert.id} className="border border-slate-200 hover:border-teal-300 transition-colors">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-teal-100 rounded-lg">
+                              <Key className="h-6 w-6 text-teal-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-slate-800 truncate">{cert.name}</h4>
+                              <p className="text-sm text-slate-500 truncate">{cert.filename}</p>
+                              {cert.notes && (
+                                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{cert.notes}</p>
+                              )}
+                              <p className="text-xs text-slate-400 mt-2">
+                                Caricato: {new Date(cert.created_at).toLocaleDateString('it-IT')}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-3 border-slate-200 hover:bg-teal-50 hover:border-teal-300"
+                            onClick={async () => {
+                              try {
+                                const res = await axios.get(`${API}/clients/${user?.id}/certificates/${cert.id}/download`, { headers });
+                                const certData = res.data;
+                                // Decode base64 and download
+                                const byteCharacters = atob(certData.file_data);
+                                const byteNumbers = new Array(byteCharacters.length);
+                                for (let i = 0; i < byteCharacters.length; i++) {
+                                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                }
+                                const byteArray = new Uint8Array(byteNumbers);
+                                const blob = new Blob([byteArray], { type: 'application/x-pkcs12' });
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = certData.filename;
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                document.body.removeChild(a);
+                                toast.success("Certificato scaricato");
+                              } catch (error) {
+                                toast.error("Errore nel download del certificato");
+                              }
+                            }}
+                            data-testid={`download-cert-${cert.id}`}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Scarica
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileCheck className="h-10 w-10 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Nessun certificato disponibile</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">
+                      I certificati digitali associati al tuo profilo appariranno qui.
+                      Contatta il tuo commercialista per maggiori informazioni.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -463,3 +463,107 @@ async def send_generic_email(to_email: str, subject: str, html_body: str, to_nam
         subject=subject,
         html_content=html_content
     )
+
+# ==================== CONSULENTE NOTIFICATION TEMPLATES ====================
+
+def get_employee_request_template(
+    consulente_name: str,
+    client_name: str,
+    request_type: str,  # "assunzione" o "licenziamento"
+    employee_name: str,
+    details: dict
+) -> str:
+    """Template email per notifica al consulente su richieste dipendenti"""
+    
+    is_hire = request_type == "assunzione"
+    header_color = "#3caca4" if is_hire else "#ef4444"
+    header_title = "Nuova Richiesta di Assunzione" if is_hire else "Richiesta di Licenziamento"
+    
+    details_html = ""
+    if is_hire:
+        details_html = f"""
+        <div class="detail-row"><strong>Mansione:</strong> {details.get('job_title', 'N/A')}</div>
+        <div class="detail-row"><strong>Data inizio:</strong> {details.get('start_date', 'N/A')}</div>
+        <div class="detail-row"><strong>Luogo lavoro:</strong> {details.get('work_location', 'N/A')}</div>
+        <div class="detail-row"><strong>Orario:</strong> {details.get('work_hours', 'N/A')}</div>
+        <div class="detail-row"><strong>Giorni lavorativi:</strong> {details.get('work_days', 'N/A')}</div>
+        {f'<div class="detail-row"><strong>Ore settimanali:</strong> {details.get("weekly_hours")}</div>' if details.get('weekly_hours') else ''}
+        {f'<div class="detail-row"><strong>Note:</strong> {details.get("notes")}</div>' if details.get('notes') else ''}
+        """
+    else:
+        details_html = f"""
+        <div class="detail-row"><strong>Data cessazione:</strong> {details.get('termination_date', 'N/A')}</div>
+        <div class="detail-row"><strong>Motivo:</strong> {details.get('reason', 'N/A')}</div>
+        """
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f4; margin: 0; padding: 20px; }}
+            .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; }}
+            .header {{ background: {header_color}; color: white; padding: 30px; text-align: center; }}
+            .header h1 {{ margin: 0; font-size: 24px; }}
+            .content {{ padding: 30px; }}
+            .content h2 {{ color: #1e293b; margin-top: 0; }}
+            .info-box {{ background: #f8fafc; border-left: 4px solid {header_color}; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0; }}
+            .detail-row {{ padding: 8px 0; border-bottom: 1px solid #e2e8f0; }}
+            .detail-row:last-child {{ border-bottom: none; }}
+            .client-badge {{ display: inline-block; background: #3caca4; color: white; padding: 4px 12px; border-radius: 20px; font-size: 14px; margin-bottom: 15px; }}
+            .employee-name {{ font-size: 20px; font-weight: bold; color: #1e293b; margin: 10px 0; }}
+            .btn {{ display: inline-block; background: #3caca4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: 600; }}
+            .footer {{ background: #f8fafc; padding: 20px; text-align: center; color: #64748b; font-size: 14px; }}
+            .urgent {{ background: #fef2f2; border-color: #ef4444; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>{header_title}</h1>
+            </div>
+            <div class="content">
+                <h2>Ciao {consulente_name},</h2>
+                <p>È stata inserita una nuova richiesta di {request_type} che richiede la tua attenzione:</p>
+                
+                <div class="info-box {'urgent' if not is_hire else ''}">
+                    <span class="client-badge">Cliente: {client_name}</span>
+                    <div class="employee-name">Dipendente: {employee_name}</div>
+                    {details_html}
+                </div>
+                
+                <p>Accedi alla piattaforma per gestire questa richiesta.</p>
+                <p style="margin-top: 30px;">
+                    <a href="{get_frontend_url()}/login" class="btn">Vai alla Dashboard</a>
+                </p>
+            </div>
+            <div class="footer">
+                <p>Fiscal Tax Canarie - Il tuo commercialista di fiducia alle Isole Canarie</p>
+                <p>+34 658 071 848 | info@fiscaltaxcanarie.com</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+async def notify_consulente_employee_request(
+    consulente_email: str,
+    consulente_name: str,
+    client_name: str,
+    request_type: str,
+    employee_name: str,
+    details: dict
+) -> Dict[str, Any]:
+    """Notifica al consulente una richiesta di assunzione/licenziamento"""
+    html = get_employee_request_template(
+        consulente_name, client_name, request_type, employee_name, details
+    )
+    
+    subject = f"{'Nuova assunzione' if request_type == 'assunzione' else 'Licenziamento'}: {employee_name} - Cliente {client_name}"
+    
+    return await send_email(
+        to_email=consulente_email,
+        to_name=consulente_name,
+        subject=subject,
+        html_content=html
+    )

@@ -27,6 +27,7 @@ import {
   Download,
   Trash2,
   Edit,
+  Edit2,
   Eye,
   EyeOff,
   Phone,
@@ -45,7 +46,8 @@ import {
   Building2,
   X,
   Briefcase,
-  Folder
+  Folder,
+  FileCheck
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -162,6 +164,19 @@ const ClientDetail = () => {
   const [newEmail, setNewEmail] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
 
+  // Client certificates state
+  const [clientCertificates, setClientCertificates] = useState([]);
+  const [showClientCertDialog, setShowClientCertDialog] = useState(false);
+  const [clientCertForm, setClientCertForm] = useState({ name: "", notes: "" });
+  const [clientCertFile, setClientCertFile] = useState(null);
+  const [uploadingClientCert, setUploadingClientCert] = useState(false);
+
+  // Document rename state
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameDoc, setRenameDoc] = useState(null);
+  const [newFileName, setNewFileName] = useState("");
+  const [renamingDoc, setRenamingDoc] = useState(false);
+
   const headers = { Authorization: `Bearer ${token}` };
 
   const months = [
@@ -180,6 +195,7 @@ const ClientDetail = () => {
     fetchData();
     fetchCertificates();
     fetchBankData();
+    fetchClientCertificates();
   }, [clientId]);
 
   const fetchData = async () => {
@@ -728,6 +744,91 @@ const ClientDetail = () => {
     }
   };
 
+  // Client Certificates
+  const fetchClientCertificates = async () => {
+    try {
+      const response = await axios.get(`${API}/clients/${clientId}/certificates`, { headers });
+      setClientCertificates(response.data);
+    } catch (error) {
+      console.error("Errore caricamento certificati cliente:", error);
+    }
+  };
+
+  const handleUploadClientCertificate = async (e) => {
+    e.preventDefault();
+    if (!clientCertFile || !clientCertForm.name) {
+      toast.error("Seleziona un file .p12 e inserisci un nome");
+      return;
+    }
+    
+    setUploadingClientCert(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", clientCertFile);
+      formData.append("certificate_name", clientCertForm.name);
+      if (clientCertForm.notes) formData.append("notes", clientCertForm.notes);
+      
+      await axios.post(`${API}/clients/${clientId}/certificates`, formData, {
+        headers: { ...headers, "Content-Type": "multipart/form-data" }
+      });
+      
+      toast.success("Certificato caricato con successo");
+      setShowClientCertDialog(false);
+      setClientCertForm({ name: "", notes: "" });
+      setClientCertFile(null);
+      fetchClientCertificates();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nel caricamento del certificato");
+    } finally {
+      setUploadingClientCert(false);
+    }
+  };
+
+  const handleDeleteClientCertificate = async (certId) => {
+    if (!window.confirm("Sei sicuro di voler eliminare questo certificato?")) return;
+    
+    try {
+      await axios.delete(`${API}/clients/${clientId}/certificates/${certId}`, { headers });
+      toast.success("Certificato eliminato");
+      fetchClientCertificates();
+    } catch (error) {
+      toast.error("Errore nell'eliminazione del certificato");
+    }
+  };
+
+  // Document Rename
+  const openRenameDialog = (doc) => {
+    setRenameDoc(doc);
+    const nameWithoutExt = doc.file_name.lastIndexOf(".") > 0 
+      ? doc.file_name.substring(0, doc.file_name.lastIndexOf("."))
+      : doc.file_name;
+    setNewFileName(nameWithoutExt);
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameDocument = async () => {
+    if (!newFileName.trim()) {
+      toast.error("Inserisci un nome valido");
+      return;
+    }
+    setRenamingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("new_filename", newFileName.trim());
+      
+      await axios.put(`${API}/documents/${renameDoc.id}/rename`, formData, { headers });
+      toast.success("Documento rinominato con successo");
+      setRenameDialogOpen(false);
+      setRenameDoc(null);
+      setNewFileName("");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nella rinomina del documento");
+    } finally {
+      setRenamingDoc(false);
+    }
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -939,6 +1040,14 @@ const ClientDetail = () => {
             >
               <FileSignature className="h-4 w-4 mr-2" />
               Firma Digitale
+            </TabsTrigger>
+            <TabsTrigger 
+              value="clientcerts" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
+              data-testid="tab-clientcerts"
+            >
+              <FileCheck className="h-4 w-4 mr-2" />
+              Certificati
             </TabsTrigger>
           </TabsList>
 
@@ -1188,6 +1297,16 @@ const ClientDetail = () => {
                             >
                               <Download className="h-4 w-4" />
                             </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openRenameDialog(doc)}
+                              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                              title="Rinomina"
+                              data-testid={`rename-doc-${doc.id}`}
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
                             {doc.file_name?.endsWith('.pdf') && !doc.signed && (
                               <Button
                                 variant="outline"
@@ -1224,6 +1343,49 @@ const ClientDetail = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Dialog Rinomina Documento */}
+            <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Edit2 className="h-5 w-5 text-blue-500" />
+                    Rinomina Documento
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Nome attuale</Label>
+                    <p className="text-sm text-slate-500">{renameDoc?.file_name}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nuovo nome</Label>
+                    <Input
+                      value={newFileName}
+                      onChange={(e) => setNewFileName(e.target.value)}
+                      placeholder="Inserisci nuovo nome"
+                      data-testid="rename-input"
+                    />
+                    <p className="text-xs text-slate-400">
+                      L'estensione del file verrà mantenuta automaticamente
+                    </p>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+                    Annulla
+                  </Button>
+                  <Button
+                    onClick={handleRenameDocument}
+                    disabled={renamingDoc || !newFileName.trim()}
+                    className="bg-blue-500 hover:bg-blue-600 text-white"
+                    data-testid="rename-submit"
+                  >
+                    {renamingDoc ? "Rinomino..." : "Rinomina"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Payslips Tab */}
@@ -2474,6 +2636,167 @@ const ClientDetail = () => {
               clientId={clientId}
               clientName={client?.full_name}
             />
+          </TabsContent>
+
+          {/* Client Certificates Tab */}
+          <TabsContent value="clientcerts" className="space-y-6">
+            <Card className="bg-white border border-slate-200">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="font-heading text-lg flex items-center gap-2">
+                    <FileCheck className="h-5 w-5 text-teal-500" />
+                    Certificati Digitali del Cliente
+                  </CardTitle>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Certificati associati specificamente a questo cliente
+                  </p>
+                </div>
+                <Dialog open={showClientCertDialog} onOpenChange={setShowClientCertDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Carica Certificato
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Upload className="h-5 w-5 text-teal-500" />
+                        Carica Certificato Digitale
+                      </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleUploadClientCertificate} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Nome certificato *</Label>
+                        <Input
+                          value={clientCertForm.name}
+                          onChange={(e) => setClientCertForm({ ...clientCertForm, name: e.target.value })}
+                          placeholder="Es: Certificato firma 2024"
+                          required
+                          className="border-slate-200"
+                          data-testid="client-cert-name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>File certificato (.p12) *</Label>
+                        <Input
+                          type="file"
+                          accept=".p12"
+                          onChange={(e) => setClientCertFile(e.target.files[0])}
+                          required
+                          className="border-slate-200"
+                          data-testid="client-cert-file"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Note (opzionale)</Label>
+                        <Input
+                          value={clientCertForm.notes}
+                          onChange={(e) => setClientCertForm({ ...clientCertForm, notes: e.target.value })}
+                          placeholder="Note aggiuntive"
+                          className="border-slate-200"
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" type="button" onClick={() => setShowClientCertDialog(false)}>
+                          Annulla
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          disabled={uploadingClientCert}
+                          className="bg-teal-500 hover:bg-teal-600 text-white"
+                          data-testid="upload-client-cert-submit"
+                        >
+                          {uploadingClientCert ? "Caricamento..." : "Carica"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                {clientCertificates.length > 0 ? (
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {clientCertificates.map((cert) => (
+                      <Card key={cert.id} className="border border-slate-200 hover:border-teal-300 transition-colors">
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 bg-teal-100 rounded-lg">
+                              <Key className="h-6 w-6 text-teal-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-slate-800 truncate">{cert.name}</h4>
+                              <p className="text-sm text-slate-500 truncate">{cert.filename}</p>
+                              {cert.notes && (
+                                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{cert.notes}</p>
+                              )}
+                              <p className="text-xs text-slate-400 mt-2">
+                                Caricato: {new Date(cert.created_at).toLocaleDateString('it-IT')}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 mt-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 border-slate-200 hover:bg-teal-50 hover:border-teal-300"
+                              onClick={async () => {
+                                try {
+                                  const res = await axios.get(`${API}/clients/${clientId}/certificates/${cert.id}/download`, { headers });
+                                  const certData = res.data;
+                                  const byteCharacters = atob(certData.file_data);
+                                  const byteNumbers = new Array(byteCharacters.length);
+                                  for (let i = 0; i < byteCharacters.length; i++) {
+                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                  }
+                                  const byteArray = new Uint8Array(byteNumbers);
+                                  const blob = new Blob([byteArray], { type: 'application/x-pkcs12' });
+                                  const url = window.URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = certData.filename;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  window.URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                  toast.success("Certificato scaricato");
+                                } catch (error) {
+                                  toast.error("Errore nel download del certificato");
+                                }
+                              }}
+                              data-testid={`download-client-cert-${cert.id}`}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              Scarica
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-red-200 text-red-600 hover:bg-red-50"
+                              onClick={() => handleDeleteClientCertificate(cert.id)}
+                              data-testid={`delete-client-cert-${cert.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FileCheck className="h-10 w-10 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Nessun certificato</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">
+                      Carica un certificato digitale (.p12) per questo cliente. 
+                      Il cliente potrà visualizzarlo e scaricarlo dalla sua dashboard.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

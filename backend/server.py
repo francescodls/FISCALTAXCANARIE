@@ -490,6 +490,12 @@ async def require_commercialista_or_consulente(user: dict = Depends(get_current_
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
     return user
 
+async def require_any_role(user: dict = Depends(get_current_user)):
+    """Permette accesso a commercialista, consulente o cliente"""
+    if user["role"] not in ["commercialista", "consulente_lavoro", "cliente"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    return user
+
 async def require_consulente_lavoro(user: dict = Depends(get_current_user)):
     """Solo per consulenti del lavoro"""
     if user["role"] != "consulente_lavoro":
@@ -1844,16 +1850,41 @@ async def upload_documents_batch(
 async def rename_document(
     doc_id: str,
     new_filename: str = Form(...),
-    user: dict = Depends(require_commercialista)
+    user: dict = Depends(get_current_user)
 ):
-    """Rinomina un documento"""
+    """Rinomina un documento - accessibile a commercialista e cliente (per i propri documenti)"""
+    # Recupera il documento
+    document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    # Verifica permessi
+    if user["role"] == "cliente":
+        # Il cliente può rinominare solo i propri documenti
+        if document.get("client_id") != user["id"]:
+            raise HTTPException(status_code=403, detail="Non hai i permessi per rinominare questo documento")
+    elif user["role"] not in ["commercialista", "consulente_lavoro"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Mantieni l'estensione originale
+    original_extension = ""
+    if "." in document.get("file_name", ""):
+        original_extension = "." + document["file_name"].rsplit(".", 1)[-1]
+    
+    # Se il nuovo nome non ha estensione, aggiungi quella originale
+    if original_extension and not new_filename.endswith(original_extension):
+        # Rimuovi eventuale estensione diversa dal nuovo nome
+        if "." in new_filename:
+            new_filename = new_filename.rsplit(".", 1)[0]
+        new_filename = new_filename + original_extension
+    
     result = await db.documents.update_one({"id": doc_id}, {"$set": {"file_name": new_filename}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Documento non trovato")
     
     await log_activity("rinomina_documento", f"Documento {doc_id} rinominato in {new_filename}", user["id"])
     
-    return {"message": "Documento rinominato con successo"}
+    return {"message": "Documento rinominato con successo", "new_filename": new_filename}
 
 # ==================== PAYSLIPS ROUTES ====================
 
@@ -3470,6 +3501,125 @@ async def remove_certificate(cert_name: str, user: dict = Depends(require_commer
     
     return {"message": "Certificato eliminato"}
 
+# ==================== CLIENT CERTIFICATES (Per cliente) ====================
+
+@api_router.post("/clients/{client_id}/certificates")
+async def upload_client_certificate(
+    client_id: str,
+    certificate_name: str = Form(...),
+    file: UploadFile = File(...),
+    notes: str = Form(None),
+    user: dict = Depends(require_commercialista)
+):
+    """Carica un certificato digitale associato a un cliente specifico (solo admin)"""
+    # Verifica che il cliente esista
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    if not file.filename.endswith('.p12'):
+        raise HTTPException(status_code=400, detail="Il file deve essere in formato .p12")
+    
+    # Leggi il file
+    cert_data = await file.read()
+    cert_base64 = base64.b64encode(cert_data).decode('utf-8')
+    
+    # Salva info certificato nel DB
+    cert_id = str(uuid.uuid4())
+    await db.client_certificates.insert_one({
+        "id": cert_id,
+        "client_id": client_id,
+        "name": certificate_name,
+        "filename": file.filename,
+        "file_data": cert_base64,
+        "notes": notes,
+        "uploaded_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    await log_activity("caricamento_certificato_cliente", f"Certificato {certificate_name} caricato per cliente {client.get('full_name')}", user["id"])
+    
+    return {
+        "success": True,
+        "message": "Certificato caricato con successo",
+        "certificate_id": cert_id,
+        "certificate_name": certificate_name
+    }
+
+@api_router.get("/clients/{client_id}/certificates")
+async def get_client_certificates(client_id: str, user: dict = Depends(get_current_user)):
+    """
+    Lista i certificati digitali associati a un cliente.
+    Accessibile a: admin, cliente (solo i propri), consulente (solo clienti assegnati)
+    NON richiede password per la visualizzazione.
+    """
+    # Verifica permessi
+    if user["role"] == "cliente":
+        if user["id"] != client_id:
+            raise HTTPException(status_code=403, detail="Puoi visualizzare solo i tuoi certificati")
+    elif user["role"] == "consulente_lavoro":
+        assigned_clients = user.get("assigned_clients", [])
+        if client_id not in assigned_clients:
+            raise HTTPException(status_code=403, detail="Non hai accesso ai certificati di questo cliente")
+    elif user["role"] != "commercialista":
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Recupera certificati del cliente (SENZA file_data per sicurezza nella lista)
+    certs = await db.client_certificates.find(
+        {"client_id": client_id},
+        {"_id": 0, "file_data": 0}  # Esclude file_data dalla lista
+    ).to_list(100)
+    
+    return certs
+
+@api_router.get("/clients/{client_id}/certificates/{cert_id}/download")
+async def download_client_certificate(client_id: str, cert_id: str, user: dict = Depends(get_current_user)):
+    """
+    Scarica un certificato digitale del cliente.
+    Accessibile a: admin, cliente (solo i propri), consulente (solo clienti assegnati)
+    NON richiede password per il download.
+    """
+    # Verifica permessi
+    if user["role"] == "cliente":
+        if user["id"] != client_id:
+            raise HTTPException(status_code=403, detail="Puoi scaricare solo i tuoi certificati")
+    elif user["role"] == "consulente_lavoro":
+        assigned_clients = user.get("assigned_clients", [])
+        if client_id not in assigned_clients:
+            raise HTTPException(status_code=403, detail="Non hai accesso ai certificati di questo cliente")
+    elif user["role"] != "commercialista":
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Recupera certificato con file_data
+    cert = await db.client_certificates.find_one(
+        {"id": cert_id, "client_id": client_id},
+        {"_id": 0}
+    )
+    
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+    
+    return {
+        "id": cert["id"],
+        "name": cert["name"],
+        "filename": cert["filename"],
+        "file_data": cert["file_data"],
+        "notes": cert.get("notes"),
+        "created_at": cert["created_at"]
+    }
+
+@api_router.delete("/clients/{client_id}/certificates/{cert_id}")
+async def delete_client_certificate(client_id: str, cert_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina un certificato digitale del cliente (solo admin)"""
+    result = await db.client_certificates.delete_one({"id": cert_id, "client_id": client_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Certificato non trovato")
+    
+    await log_activity("eliminazione_certificato_cliente", f"Certificato {cert_id} eliminato", user["id"])
+    
+    return {"message": "Certificato eliminato"}
+
 @api_router.post("/documents/{doc_id}/sign")
 async def sign_document(
     doc_id: str,
@@ -4297,77 +4447,6 @@ async def create_employee_notification(
     
     return notification_id
 
-@api_router.get("/employee-notifications")
-async def get_employee_notifications(
-    unread_only: bool = False,
-    user: dict = Depends(require_commercialista)
-):
-    """
-    Ottiene le notifiche relative ai dipendenti per l'admin.
-    Mostra richieste di assunzione, licenziamento e documenti caricati.
-    """
-    query = {}
-    if unread_only:
-        query["is_read"] = False
-    
-    notifications = await db.employee_notifications.find(
-        query, 
-        {"_id": 0}
-    ).sort("created_at", -1).to_list(100)
-    
-    # Arricchisci con info cliente e dipendente
-    for notif in notifications:
-        if notif.get("client_id"):
-            client = await db.users.find_one(
-                {"id": notif["client_id"]}, 
-                {"_id": 0, "full_name": 1, "email": 1}
-            )
-            notif["client_name"] = client.get("full_name") if client else "N/A"
-        if notif.get("employee_id"):
-            employee = await db.employees.find_one(
-                {"id": notif["employee_id"]}, 
-                {"_id": 0, "full_name": 1, "status": 1}
-            )
-            notif["employee_name"] = employee.get("full_name") if employee else "N/A"
-            notif["employee_status"] = employee.get("status") if employee else "N/A"
-    
-    return notifications
-
-@api_router.get("/employee-notifications/count")
-async def get_employee_notifications_count(user: dict = Depends(require_commercialista)):
-    """Conta le notifiche non lette relative ai dipendenti"""
-    count = await db.employee_notifications.count_documents({"is_read": False})
-    return {"unread_count": count}
-
-@api_router.put("/employee-notifications/{notification_id}/read")
-async def mark_employee_notification_read(
-    notification_id: str,
-    user: dict = Depends(require_commercialista)
-):
-    """Segna una notifica come letta"""
-    result = await db.employee_notifications.update_one(
-        {"id": notification_id},
-        {
-            "$set": {"is_read": True},
-            "$addToSet": {"read_by": user["id"]}
-        }
-    )
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Notifica non trovata")
-    return {"success": True}
-
-@api_router.put("/employee-notifications/read-all")
-async def mark_all_employee_notifications_read(user: dict = Depends(require_commercialista)):
-    """Segna tutte le notifiche come lette"""
-    result = await db.employee_notifications.update_many(
-        {"is_read": False},
-        {
-            "$set": {"is_read": True},
-            "$addToSet": {"read_by": user["id"]}
-        }
-    )
-    return {"success": True, "marked_count": result.modified_count}
-
 @api_router.delete("/employee-notifications/{notification_id}")
 async def delete_employee_notification(notification_id: str, user: dict = Depends(require_commercialista)):
     """Elimina una notifica dipendente"""
@@ -4383,11 +4462,24 @@ async def delete_all_employee_notifications(user: dict = Depends(require_commerc
     return {"success": True, "deleted_count": result.deleted_count}
 
 @api_router.delete("/employees/{employee_id}")
-async def delete_employee(employee_id: str, user: dict = Depends(require_commercialista_or_consulente)):
-    """Elimina un dipendente"""
+async def delete_employee(employee_id: str, user: dict = Depends(get_current_user)):
+    """Elimina un dipendente - accessibile a commercialista, consulente e cliente (per i propri dipendenti)"""
     employee = await db.employees.find_one({"id": employee_id})
     if not employee:
         raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi
+    if user["role"] == "cliente":
+        # Il cliente può eliminare solo i propri dipendenti
+        if employee.get("client_id") != user["id"]:
+            raise HTTPException(status_code=403, detail="Non hai i permessi per eliminare questo dipendente")
+    elif user["role"] == "consulente_lavoro":
+        # Il consulente può eliminare solo dipendenti dei clienti assegnati
+        assigned_clients = user.get("assigned_clients", [])
+        if employee.get("client_id") not in assigned_clients:
+            raise HTTPException(status_code=403, detail="Non hai i permessi per eliminare questo dipendente")
+    elif user["role"] != "commercialista":
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
     
     # Elimina documenti associati al dipendente
     await db.employee_documents.delete_many({"employee_id": employee_id})
@@ -4442,13 +4534,19 @@ async def request_employee_hire(
     
     client_name = user.get("full_name", user.get("email"))
     
-    # Trova tutti i consulenti del lavoro
+    # Trova solo i consulenti del lavoro ASSEGNATI a questo cliente
     consulenti = await db.users.find(
-        {"role": "consulente_lavoro"},
+        {
+            "role": "consulente_lavoro",
+            "assigned_clients": user["id"]  # Solo consulenti assegnati a questo cliente
+        },
         {"_id": 0, "id": 1, "email": 1, "full_name": 1}
     ).to_list(100)
     
-    # Crea notifica e invia email a ogni consulente del lavoro
+    # Importa la funzione per notifiche email al consulente
+    from email_service import notify_consulente_employee_request
+    
+    # Crea notifica e invia email a ogni consulente del lavoro ASSEGNATO
     notification_message = f"Il cliente {client_name} ha richiesto l'assunzione di {hire_data.full_name} come {hire_data.job_title}. Data inizio: {hire_data.start_date}."
     
     for consulente in consulenti:
@@ -4466,27 +4564,28 @@ async def request_employee_hire(
         }
         await db.employee_notifications.insert_one(notification_doc)
         
-        # Invia email al consulente
+        # Invia email al consulente con template dedicato
         if consulente.get("email"):
             try:
-                email_subject = f"Nuova richiesta di assunzione - {client_name}"
-                email_content = f"""
-                <h2>Nuova Richiesta di Assunzione</h2>
-                <p><strong>Cliente:</strong> {client_name}</p>
-                <p><strong>Dipendente:</strong> {hire_data.full_name}</p>
-                <p><strong>Mansione:</strong> {hire_data.job_title}</p>
-                <p><strong>Data Inizio:</strong> {hire_data.start_date}</p>
-                <p><strong>Luogo di Lavoro:</strong> {hire_data.work_location}</p>
-                <p><strong>Orario:</strong> {hire_data.work_hours}</p>
-                <p><strong>Giorni Lavorativi:</strong> {hire_data.work_days}</p>
-                {f"<p><strong>Ore Settimanali:</strong> {hire_data.weekly_hours}</p>" if hire_data.weekly_hours else ""}
-                {f"<p><strong>Note:</strong> {hire_data.notes}</p>" if hire_data.notes else ""}
-                <hr>
-                <p>Accedi alla piattaforma per gestire questa richiesta.</p>
-                """
-                send_generic_email(consulente["email"], email_subject, email_content)
+                await notify_consulente_employee_request(
+                    consulente_email=consulente["email"],
+                    consulente_name=consulente.get("full_name", "Consulente"),
+                    client_name=client_name,
+                    request_type="assunzione",
+                    employee_name=hire_data.full_name,
+                    details={
+                        "job_title": hire_data.job_title,
+                        "start_date": hire_data.start_date,
+                        "work_location": hire_data.work_location,
+                        "work_hours": hire_data.work_hours,
+                        "work_days": hire_data.work_days,
+                        "weekly_hours": hire_data.weekly_hours,
+                        "notes": hire_data.notes
+                    }
+                )
+                logger.info(f"Email notifica assunzione inviata al consulente {consulente['email']}")
             except Exception as e:
-                print(f"Errore invio email al consulente {consulente['email']}: {e}")
+                logger.error(f"Errore invio email al consulente {consulente['email']}: {e}")
     
     # Notifica anche agli admin
     admins = await db.users.find(
@@ -4636,11 +4735,17 @@ async def request_employee_termination(
     client_name = user.get("full_name", user.get("email"))
     notification_message = f"Il cliente {client_name} ha richiesto il licenziamento di {employee['full_name']}. Data cessazione: {termination.termination_date}. Motivo: {termination.reason or 'Non specificato'}."
     
-    # Trova tutti i consulenti del lavoro e invia notifica + email
+    # Trova solo i consulenti del lavoro ASSEGNATI a questo cliente e invia notifica + email
     consulenti = await db.users.find(
-        {"role": "consulente_lavoro"},
+        {
+            "role": "consulente_lavoro",
+            "assigned_clients": user["id"]  # Solo consulenti assegnati a questo cliente
+        },
         {"_id": 0, "id": 1, "email": 1, "full_name": 1}
     ).to_list(100)
+    
+    # Importa la funzione per notifiche email al consulente
+    from email_service import notify_consulente_employee_request
     
     for consulente in consulenti:
         # Crea notifica interna
@@ -4657,23 +4762,23 @@ async def request_employee_termination(
         }
         await db.employee_notifications.insert_one(notification_doc)
         
-        # Invia email al consulente
+        # Invia email al consulente con template dedicato
         if consulente.get("email"):
             try:
-                email_subject = f"Richiesta di Licenziamento - {client_name}"
-                email_content = f"""
-                <h2>Richiesta di Licenziamento</h2>
-                <p><strong>Cliente:</strong> {client_name}</p>
-                <p><strong>Dipendente:</strong> {employee['full_name']}</p>
-                <p><strong>Mansione:</strong> {employee.get('job_title', 'N/D')}</p>
-                <p><strong>Data Cessazione:</strong> {termination.termination_date}</p>
-                <p><strong>Motivo:</strong> {termination.reason or 'Non specificato'}</p>
-                <hr>
-                <p>Accedi alla piattaforma per gestire questa richiesta.</p>
-                """
-                send_generic_email(consulente["email"], email_subject, email_content)
+                await notify_consulente_employee_request(
+                    consulente_email=consulente["email"],
+                    consulente_name=consulente.get("full_name", "Consulente"),
+                    client_name=client_name,
+                    request_type="licenziamento",
+                    employee_name=employee['full_name'],
+                    details={
+                        "termination_date": termination.termination_date,
+                        "reason": termination.reason or "Non specificato"
+                    }
+                )
+                logger.info(f"Email notifica licenziamento inviata al consulente {consulente['email']}")
             except Exception as e:
-                print(f"Errore invio email al consulente {consulente['email']}: {e}")
+                logger.error(f"Errore invio email al consulente {consulente['email']}: {e}")
     
     # Notifica anche agli admin
     admins = await db.users.find(
