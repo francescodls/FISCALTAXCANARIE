@@ -66,11 +66,19 @@ const CommercialDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [verifyingDoc, setVerifyingDoc] = useState(null);
   
-  // Invite client state
-  const [showInviteDialog, setShowInviteDialog] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ email: "", full_name: "", tipo_cliente: "autonomo" });
-  const [sendingInvite, setSendingInvite] = useState(false);
-  const [inviteResult, setInviteResult] = useState(null); // Per mostrare il link dopo l'invio
+  // Create client state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] = useState({ 
+    full_name: "", 
+    email: "", 
+    tipo_cliente: "autonomo",
+    phone: "",
+    nie: "",
+    citta: "",
+    send_invite: true
+  });
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [createResult, setCreateResult] = useState(null);
   const [pendingInvitations, setPendingInvitations] = useState([]); // Inviti pendenti
   const [tipoClienteFilter, setTipoClienteFilter] = useState("all"); // Filtro per tipo cliente
   const [clientLists, setClientLists] = useState([]); // Liste/Categorie clienti
@@ -196,40 +204,91 @@ const CommercialDashboard = () => {
     }
   };
 
-  // Invita nuovo cliente
-  const handleInviteClient = async (e) => {
+  // Crea nuovo cliente
+  const handleCreateClient = async (e) => {
     e.preventDefault();
-    if (!inviteForm.email) {
-      toast.error("Inserisci un'email valida");
+    if (!createForm.full_name.trim()) {
+      toast.error("Inserisci il nome del cliente");
       return;
     }
     
-    setSendingInvite(true);
-    setInviteResult(null);
+    setCreatingClient(true);
+    setCreateResult(null);
     try {
-      const response = await axios.post(`${API}/clients/invite`, inviteForm, { headers });
-      toast.success(`Invito inviato a ${inviteForm.email}!`);
+      // Filtra i campi vuoti per evitare errori di validazione
+      const payload = {
+        full_name: createForm.full_name.trim(),
+        tipo_cliente: createForm.tipo_cliente || "autonomo",
+        send_invite: createForm.send_invite
+      };
       
-      // Mostra il link di invito per copiarlo manualmente se necessario
-      setInviteResult({
-        email: inviteForm.email,
-        link: response.data.invitation_link
+      // Aggiungi solo i campi con valore
+      if (createForm.email?.trim()) payload.email = createForm.email.trim();
+      if (createForm.phone?.trim()) payload.phone = createForm.phone.trim();
+      if (createForm.nie?.trim()) payload.nie = createForm.nie.trim();
+      if (createForm.citta?.trim()) payload.citta = createForm.citta.trim();
+      
+      const response = await axios.post(`${API}/clients/create`, payload, { headers });
+      
+      // Mostra il risultato
+      setCreateResult({
+        client_id: response.data.client_id,
+        full_name: createForm.full_name,
+        email: createForm.email,
+        invitation_link: response.data.invitation_link,
+        email_sent: response.data.email_sent
       });
       
-      setInviteForm({ email: "", full_name: "", tipo_cliente: "autonomo" });
+      toast.success(response.data.message);
       fetchData(); // Ricarica la lista clienti
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Errore nell'invio dell'invito");
+      // Gestisce gli errori di validazione Pydantic che restituiscono un array o oggetto
+      const detail = error.response?.data?.detail;
+      let errorMessage = "Errore nella creazione del cliente";
+      if (typeof detail === "string") {
+        errorMessage = detail;
+      } else if (Array.isArray(detail)) {
+        errorMessage = detail.map(d => d.msg || d).join(", ");
+      } else if (detail?.msg) {
+        errorMessage = detail.msg;
+      }
+      toast.error(errorMessage);
     } finally {
-      setSendingInvite(false);
+      setCreatingClient(false);
     }
   };
 
-  // Chiudi dialog invito
-  const closeInviteDialog = () => {
-    setShowInviteDialog(false);
-    setInviteResult(null);
-    setInviteForm({ email: "", full_name: "" });
+  // Chiudi dialog creazione e vai alla cartella
+  const closeCreateDialogAndNavigate = (clientId) => {
+    setShowCreateDialog(false);
+    setCreateResult(null);
+    setCreateForm({ 
+      full_name: "", 
+      email: "", 
+      tipo_cliente: "autonomo",
+      phone: "",
+      nie: "",
+      citta: "",
+      send_invite: true
+    });
+    if (clientId) {
+      navigate(`/admin/client/${clientId}`);
+    }
+  };
+
+  // Chiudi dialog creazione
+  const closeCreateDialog = () => {
+    setShowCreateDialog(false);
+    setCreateResult(null);
+    setCreateForm({ 
+      full_name: "", 
+      email: "", 
+      tipo_cliente: "autonomo",
+      phone: "",
+      nie: "",
+      citta: "",
+      send_invite: true
+    });
   };
 
   // Reinvia invito - usa invite_id dalla collection invitations
@@ -568,106 +627,110 @@ const CommercialDashboard = () => {
                       <SelectItem value="privato">{t("clients.private")}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Dialog open={showInviteDialog} onOpenChange={(open) => {
+                  <Dialog open={showCreateDialog} onOpenChange={(open) => {
                     if (open) {
-                      setShowInviteDialog(true);
+                      setShowCreateDialog(true);
                     } else {
-                      closeInviteDialog();
+                      closeCreateDialog();
                     }
                   }}>
                     <DialogTrigger asChild>
-                      <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="invite-client-btn">
+                      <Button className="bg-teal-500 hover:bg-teal-600 text-white" data-testid="create-client-btn">
                         <Plus className="h-4 w-4 mr-2" />
-                        Invita Cliente
+                        Nuovo Cliente
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
+                    <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                          <Mail className="h-5 w-5 text-teal-500" />
-                          {inviteResult ? "Invito Inviato!" : "Invita Nuovo Cliente"}
+                          <User className="h-5 w-5 text-teal-500" />
+                          {createResult ? "Cliente Creato!" : "Crea Nuovo Cliente"}
                         </DialogTitle>
                       </DialogHeader>
                       
-                      {inviteResult ? (
-                        // Mostra il link dopo l'invio
+                      {createResult ? (
+                        // Mostra risultato dopo la creazione
                         <div className="space-y-4">
                           <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                             <p className="text-green-800 font-medium mb-2">
-                              ✅ Invito inviato a {inviteResult.email}
+                              Cliente "{createResult.full_name}" creato con successo
                             </p>
-                            <p className="text-sm text-green-700">
-                              Il cliente riceverà un'email con il link per completare la registrazione.
-                            </p>
+                            {createResult.email_sent && (
+                              <p className="text-sm text-green-700">
+                                Invito inviato a {createResult.email}
+                              </p>
+                            )}
                           </div>
                           
-                          <div className="space-y-2">
-                            <Label className="text-slate-700">Link di invito (copia manualmente se necessario):</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                value={inviteResult.link}
-                                readOnly
-                                className="text-xs bg-slate-50 border-slate-200"
-                              />
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(inviteResult.link);
-                                  toast.success("Link copiato!");
-                                }}
-                                className="shrink-0"
-                              >
-                                Copia
-                              </Button>
+                          {createResult.invitation_link && (
+                            <div className="space-y-2">
+                              <Label className="text-slate-700">Link di registrazione:</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  value={createResult.invitation_link}
+                                  readOnly
+                                  className="text-xs bg-slate-50 border-slate-200"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(createResult.invitation_link);
+                                    toast.success("Link copiato!");
+                                  }}
+                                  className="shrink-0"
+                                >
+                                  Copia
+                                </Button>
+                              </div>
+                              <p className="text-xs text-slate-500">
+                                Invia questo link al cliente via WhatsApp o altro canale.
+                              </p>
                             </div>
-                            <p className="text-xs text-slate-500">
-                              Puoi inviare questo link manualmente via WhatsApp o altro canale.
-                            </p>
-                          </div>
+                          )}
                           
-                          <DialogFooter>
-                            <Button onClick={closeInviteDialog} className="bg-teal-500 hover:bg-teal-600 text-white">
+                          <DialogFooter className="flex gap-2">
+                            <Button variant="outline" onClick={closeCreateDialog}>
                               Chiudi
+                            </Button>
+                            <Button 
+                              onClick={() => closeCreateDialogAndNavigate(createResult.client_id)} 
+                              className="bg-teal-500 hover:bg-teal-600 text-white"
+                            >
+                              <ChevronRight className="h-4 w-4 mr-2" />
+                              Vai alla Cartella
                             </Button>
                           </DialogFooter>
                         </div>
                       ) : (
-                        // Form di invito
-                        <form onSubmit={handleInviteClient} className="space-y-4">
+                        // Form di creazione
+                        <form onSubmit={handleCreateClient} className="space-y-4">
                           <p className="text-sm text-slate-600">
-                            Inserisci l'email del cliente. Riceverà un invito per completare la registrazione e accedere all'area clienti.
+                            Crea la cartella del cliente. Potrai subito caricare documenti e gestire l'anagrafica.
                           </p>
+                          
+                          {/* Nome - obbligatorio */}
                           <div className="space-y-2">
-                            <Label>Email *</Label>
-                            <Input
-                              type="email"
-                              value={inviteForm.email}
-                              onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                              placeholder="cliente@email.com"
-                              required
-                              className="border-slate-200"
-                              data-testid="invite-email-input"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Nome (opzionale)</Label>
+                            <Label>Nome / Ragione Sociale *</Label>
                             <Input
                               type="text"
-                              value={inviteForm.full_name}
-                              onChange={(e) => setInviteForm({ ...inviteForm, full_name: e.target.value })}
-                              placeholder="Mario Rossi"
+                              value={createForm.full_name}
+                              onChange={(e) => setCreateForm({ ...createForm, full_name: e.target.value })}
+                              placeholder="Mario Rossi / Azienda SRL"
+                              required
                               className="border-slate-200"
-                              data-testid="invite-name-input"
+                              data-testid="create-name-input"
                             />
                           </div>
+                          
+                          {/* Tipo Cliente */}
                           <div className="space-y-2">
                             <Label>Tipo Cliente</Label>
                             <Select
-                              value={inviteForm.tipo_cliente}
-                              onValueChange={(v) => setInviteForm({ ...inviteForm, tipo_cliente: v })}
+                              value={createForm.tipo_cliente}
+                              onValueChange={(v) => setCreateForm({ ...createForm, tipo_cliente: v })}
                             >
-                              <SelectTrigger className="border-slate-200" data-testid="invite-tipo-select">
+                              <SelectTrigger className="border-slate-200" data-testid="create-tipo-select">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -677,25 +740,94 @@ const CommercialDashboard = () => {
                               </SelectContent>
                             </Select>
                           </div>
+                          
+                          {/* Campi opzionali in grid */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <Label>Telefono</Label>
+                              <Input
+                                type="tel"
+                                value={createForm.phone}
+                                onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+                                placeholder="+34 666 123 456"
+                                className="border-slate-200"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>NIE</Label>
+                              <Input
+                                type="text"
+                                value={createForm.nie}
+                                onChange={(e) => setCreateForm({ ...createForm, nie: e.target.value })}
+                                placeholder="X1234567A"
+                                className="border-slate-200"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label>Città</Label>
+                            <Input
+                              type="text"
+                              value={createForm.citta}
+                              onChange={(e) => setCreateForm({ ...createForm, citta: e.target.value })}
+                              placeholder="Las Palmas"
+                              className="border-slate-200"
+                            />
+                          </div>
+                          
+                          {/* Sezione Email e Invito */}
+                          <div className="border-t pt-4 mt-4">
+                            <div className="space-y-2">
+                              <Label>Email (opzionale)</Label>
+                              <Input
+                                type="email"
+                                value={createForm.email}
+                                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                                placeholder="cliente@email.com"
+                                className="border-slate-200"
+                                data-testid="create-email-input"
+                              />
+                              <p className="text-xs text-slate-500">
+                                Se inserisci l'email, il cliente potrà registrarsi e accedere alla propria area.
+                              </p>
+                            </div>
+                            
+                            {createForm.email && (
+                              <div className="flex items-center gap-2 mt-3 p-3 bg-blue-50 rounded-lg">
+                                <input
+                                  type="checkbox"
+                                  id="send_invite"
+                                  checked={createForm.send_invite}
+                                  onChange={(e) => setCreateForm({ ...createForm, send_invite: e.target.checked })}
+                                  className="h-4 w-4 rounded border-slate-300"
+                                />
+                                <label htmlFor="send_invite" className="text-sm text-blue-700">
+                                  Invia email di invito alla registrazione
+                                </label>
+                              </div>
+                            )}
+                          </div>
+                          
                           <DialogFooter>
-                            <Button type="button" variant="outline" onClick={closeInviteDialog}>
+                            <Button type="button" variant="outline" onClick={closeCreateDialog}>
                               Annulla
                             </Button>
                             <Button 
                               type="submit" 
-                              disabled={sendingInvite}
+                              disabled={creatingClient}
                               className="bg-teal-500 hover:bg-teal-600 text-white"
-                              data-testid="send-invite-btn"
+                              data-testid="create-client-submit-btn"
                             >
-                              {sendingInvite ? (
+                              {creatingClient ? (
                                 <>
                                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                                  Invio...
+                                  Creazione...
                                 </>
                               ) : (
                                 <>
-                                  <Send className="h-4 w-4 mr-2" />
-                                  Invia Invito
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Crea Cliente
                                 </>
                               )}
                             </Button>

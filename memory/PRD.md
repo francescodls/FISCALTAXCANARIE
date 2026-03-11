@@ -10,27 +10,35 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Fase 24 (11 Marzo 2026) - COMPLETATA ✅
 
-**Fix Accesso Cartella Clienti Invitati**
+**Nuovo Flusso "Crea Nuovo Cliente"**
 
-**Problema:** L'amministratore non poteva accedere alla cartella del cliente "invitato" perché questi apparivano sia nella sezione "Inviti in attesa di registrazione" (non cliccabile) che nella lista principale, creando confusione.
+**Richiesta:** L'utente ha chiesto di sostituire la sezione "Invita Cliente" con "Crea Nuovo Cliente", permettendo all'admin di creare immediatamente la cartella cliente e opzionalmente inviare un invito se viene inserita l'email.
 
-**Soluzione:**
-1. **Backend:** Modificato endpoint `/api/invitations` per aggiungere flag `has_client_folder` che indica se l'invito ha già una cartella cliente associata.
+**Implementazione:**
 
-2. **Frontend:** Modificata `CommercialDashboard.jsx` per filtrare gli inviti nella sezione "Inviti in attesa":
-   - Gli inviti CON cartella cliente (`has_client_folder=true`) vengono nascosti dalla sezione inviti
-   - Questi clienti appaiono SOLO nella lista principale con badge "Invitato"
-   - Cliccando si accede normalmente alla cartella del cliente
+1. **Nuovo Endpoint Backend:** `POST /api/clients/create`
+   - Accetta `full_name` (obbligatorio), `email` (opzionale), più campi anagrafica opzionali
+   - Se email non fornita: crea cliente con stato "attivo" (gestito solo da admin)
+   - Se email fornita e `send_invite=true`: crea cliente con stato "invitato" e invia email
+   - Restituisce `client_id` per navigazione immediata alla cartella
 
-**Risultato:**
-- ✅ L'admin può ora cliccare su un cliente "invitato" nella lista principale
-- ✅ Si apre la cartella del cliente con tutti i tab (Documenti, Anagrafica, Dipendenti, ecc.)
-- ✅ L'admin può caricare documenti, modificare anagrafica, aggiungere note prima che il cliente completi la registrazione
-- ✅ La sezione "Inviti in attesa" mostra solo inviti senza cartella (es. consulenti del lavoro)
+2. **Nuovo Dialog Frontend:** "Crea Nuovo Cliente"
+   - Campi: Nome/Ragione Sociale*, Tipo Cliente, Telefono, NIE, Città, Email (opzionale)
+   - Checkbox "Invia email di invito alla registrazione" (visibile solo se email inserita)
+   - Dopo creazione: dialog con link di registrazione e pulsante "Vai alla Cartella"
+
+3. **Fix Bug Errori Pydantic:**
+   - Frontend filtra campi vuoti prima di inviare (evita validazione `EmailStr` su stringa vuota)
+   - Gestione errori migliorata per errori di validazione array/oggetto
+
+4. **Fix UI Inviti Duplicati:**
+   - Endpoint `/api/invitations` aggiunge flag `has_client_folder`
+   - Sezione "Inviti in attesa" mostra solo inviti SENZA cartella cliente
+   - Clienti con cartella appaiono solo nella lista principale
 
 File modificati:
-- `/app/backend/server.py`: Aggiunto campo `has_client_folder` all'endpoint `/api/invitations`
-- `/app/frontend/src/pages/CommercialDashboard.jsx`: Filtro inviti per nascondere quelli con cartella
+- `/app/backend/server.py`: Nuovo modello `ClientCreate` e endpoint `/api/clients/create`
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Nuovo dialog, handler, gestione errori
 
 ### Fase 23 (10 Marzo 2026) - COMPLETATA ✅
 

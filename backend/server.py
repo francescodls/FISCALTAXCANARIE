@@ -324,8 +324,30 @@ class FeeResponse(BaseModel):
     notes: Optional[str] = None
     created_at: str
 
-# ==================== CLIENT INVITATION MODELS ====================
+# ==================== CLIENT CREATION MODELS ====================
 
+class ClientCreate(BaseModel):
+    """Creazione cliente - crea immediatamente la cartella cliente"""
+    full_name: str  # Nome obbligatorio
+    email: Optional[EmailStr] = None  # Email opzionale - se fornita, invia invito
+    tipo_cliente: Optional[str] = "autonomo"  # autonomo, societa, privato
+    # Campi anagrafica opzionali
+    phone: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None
+    nif: Optional[str] = None
+    cif: Optional[str] = None
+    indirizzo: Optional[str] = None
+    citta: Optional[str] = None
+    cap: Optional[str] = None
+    provincia: Optional[str] = None
+    iban: Optional[str] = None
+    regime_fiscale: Optional[str] = None
+    tipo_attivita: Optional[str] = None
+    note_interne: Optional[str] = None
+    send_invite: Optional[bool] = True  # Se true e email presente, invia invito
+
+# Alias per retrocompatibilità
 class ClientInvite(BaseModel):
     """Invito cliente - crea immediatamente la cartella cliente"""
     email: EmailStr  # Email per notifiche e matching
@@ -2724,7 +2746,120 @@ async def get_notifications_history(limit: int = 50, user: dict = Depends(requir
 async def root():
     return {"message": "Fiscal Tax Canarie API"}
 
-# ==================== CLIENT INVITATION ROUTES ====================
+# ==================== CLIENT CREATION ROUTES ====================
+
+@api_router.post("/clients/create")
+async def create_client(client_data: ClientCreate, user: dict = Depends(require_commercialista)):
+    """
+    Crea un nuovo cliente con cartella immediatamente accessibile.
+    Se viene fornita l'email e send_invite=True, invia anche l'invito per la registrazione.
+    """
+    # Verifica duplicati (email, NIE, CIF)
+    match_conditions = []
+    if client_data.email:
+        match_conditions.append({"email": client_data.email})
+        match_conditions.append({"email_notifica": client_data.email})
+    if client_data.nie:
+        match_conditions.append({"nie": client_data.nie})
+    if client_data.cif:
+        match_conditions.append({"cif": client_data.cif})
+    
+    if match_conditions:
+        existing = await db.users.find_one({"$or": match_conditions, "role": "cliente"})
+        if existing:
+            raise HTTPException(
+                status_code=400, 
+                detail="Esiste già un cliente con questa email, NIE o CIF"
+            )
+    
+    client_id = str(uuid.uuid4())
+    invitation_token = None
+    invitation_link = None
+    
+    # Se c'è email e send_invite è True, genera token di invito
+    if client_data.email and client_data.send_invite:
+        invitation_token = secrets.token_urlsafe(32)
+        frontend_url = os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')
+        invitation_link = f"{frontend_url}/complete-registration?token={invitation_token}"
+    
+    # Crea il cliente
+    client_doc = {
+        "id": client_id,
+        "email": None,  # Sarà impostata quando il cliente completa la registrazione
+        "email_notifica": client_data.email,  # Email per notifiche (opzionale)
+        "password": None,
+        "full_name": client_data.full_name,
+        "phone": client_data.phone,
+        "codice_fiscale": client_data.codice_fiscale,
+        "nie": client_data.nie,
+        "nif": client_data.nif,
+        "cif": client_data.cif,
+        "indirizzo": client_data.indirizzo,
+        "citta": client_data.citta,
+        "cap": client_data.cap,
+        "provincia": client_data.provincia,
+        "iban": client_data.iban,
+        "regime_fiscale": client_data.regime_fiscale,
+        "tipo_attivita": client_data.tipo_attivita,
+        "tipo_cliente": client_data.tipo_cliente or "autonomo",
+        "role": "cliente",
+        "stato": "invitato" if client_data.email else "attivo",  # Se no email, è già attivo (gestito solo da admin)
+        "invited_by": user["id"],
+        "note_interne": client_data.note_interne or "",
+        "lists": [],
+        "bank_credentials": [],
+        "additional_emails": [],
+        "invitation_token": invitation_token,
+        "invitation_sent_at": datetime.now(timezone.utc).isoformat() if invitation_token else None,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(client_doc)
+    
+    # Se c'è email e invito, salva anche nella collection invitations e invia email
+    email_sent = False
+    if client_data.email and invitation_token:
+        invite_doc = {
+            "id": str(uuid.uuid4()),
+            "client_id": client_id,
+            "notification_email": client_data.email,
+            "suggested_name": client_data.full_name,
+            "tipo_cliente": client_data.tipo_cliente or "autonomo",
+            "invitation_token": invitation_token,
+            "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
+            "invited_by": user["id"],
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.invitations.insert_one(invite_doc)
+        
+        # Invia email di invito
+        try:
+            email_result = await send_invitation_email(
+                client_email=client_data.email,
+                client_name=client_data.full_name,
+                invitation_link=invitation_link
+            )
+            email_sent = email_result.get("success", False)
+            if not email_sent:
+                logger.warning(f"Email invito non inviata: {email_result.get('error')}")
+        except Exception as e:
+            logger.error(f"Errore invio email invito: {e}")
+    
+    await log_activity(
+        "creazione_cliente",
+        f"Nuovo cliente creato: {client_data.full_name}" + (f" - Invito inviato a {client_data.email}" if email_sent else ""),
+        user["id"]
+    )
+    
+    return {
+        "success": True,
+        "message": f"Cliente '{client_data.full_name}' creato con successo" + (f". Invito inviato a {client_data.email}" if email_sent else ""),
+        "client_id": client_id,
+        "invitation_link": invitation_link,
+        "email_sent": email_sent
+    }
+
+# ==================== CLIENT INVITATION ROUTES (legacy) ====================
 
 @api_router.post("/clients/invite")
 async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_commercialista)):
