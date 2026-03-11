@@ -8,6 +8,44 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 28 (11 Marzo 2026) - IN CORSO 🔄
+
+**Refactoring Backend - Struttura Base Creata**
+
+**Struttura creata:**
+```
+/app/backend/routes/
+├── __init__.py       # Package init
+├── deps.py           # Dipendenze condivise (auth, db helpers)
+├── models.py         # Tutti i modelli Pydantic (~350 righe)
+├── auth.py           # Router autenticazione (completo, ~230 righe)
+├── clients.py        # Placeholder
+├── documents.py      # Placeholder
+├── employees.py      # Placeholder
+├── consulenti.py     # Placeholder
+├── fees.py           # Placeholder
+└── admin.py          # Placeholder
+```
+
+**Completato:**
+- ✅ File `deps.py` con auth helpers, db connection, log_activity
+- ✅ File `models.py` con tutti i modelli Pydantic estratti da server.py
+- ✅ File `auth.py` completo come esempio di migrazione
+
+**Da completare (prossime sessioni):**
+- Migrare route clients da server.py a routes/clients.py
+- Migrare route documents da server.py a routes/documents.py
+- Migrare route employees da server.py a routes/employees.py
+- Migrare route consulenti da server.py a routes/consulenti.py
+- Migrare route fees da server.py a routes/fees.py
+- Migrare route admin da server.py a routes/admin.py
+- Aggiornare server.py per includere i router
+
+**Note:**
+- Il refactoring è incrementale e non rompe le funzionalità esistenti
+- server.py continua a funzionare durante la migrazione
+- Ogni router può essere migrato indipendentemente
+
 ### Fase 27 (11 Marzo 2026) - COMPLETATA ✅
 
 **Eliminazione Inviti in Attesa**
