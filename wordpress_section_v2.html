@@ -1,0 +1,682 @@
+<!--
+  FISCAL TAX CANARIE - AREA CLIENTI v2 (Compatibile Divi)
+  Incolla in un modulo CODICE di Divi
+-->
+
+<div id="ftc-widget-container">
+<style>
+#ftc-widget-container {
+  all: initial;
+  display: block !important;
+  font-family: 'Segoe UI', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+#ftc-widget-container * {
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  font-family: inherit !important;
+  line-height: 1.5 !important;
+}
+
+#ftc-widget-container .ftc-section {
+  background: linear-gradient(180deg, #f0fdfb 0%, #ffffff 50%, #f8fafb 100%) !important;
+  padding: 80px 20px !important;
+  position: relative !important;
+  overflow: hidden !important;
+  width: 100% !important;
+}
+
+#ftc-widget-container .ftc-grid {
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 60px !important;
+  align-items: center !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+#ftc-widget-container .ftc-left {
+  flex: 1 !important;
+  min-width: 300px !important;
+  padding-right: 20px !important;
+}
+
+#ftc-widget-container .ftc-right {
+  flex: 1 !important;
+  min-width: 320px !important;
+  max-width: 480px !important;
+}
+
+/* BADGE */
+#ftc-widget-container .ftc-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: rgba(60, 172, 164, 0.1) !important;
+  border: 1px solid rgba(60, 172, 164, 0.3) !important;
+  color: #3CACA4 !important;
+  padding: 10px 18px !important;
+  border-radius: 50px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  margin-bottom: 24px !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+}
+
+#ftc-widget-container .ftc-badge svg {
+  width: 18px !important;
+  height: 18px !important;
+  stroke: #3CACA4 !important;
+  fill: none !important;
+}
+
+/* TITOLO */
+#ftc-widget-container .ftc-title {
+  font-size: 42px !important;
+  font-weight: 800 !important;
+  color: #1e293b !important;
+  line-height: 1.15 !important;
+  margin-bottom: 24px !important;
+  letter-spacing: -1px !important;
+}
+
+#ftc-widget-container .ftc-title span {
+  color: #3CACA4 !important;
+}
+
+/* DESCRIZIONE */
+#ftc-widget-container .ftc-desc {
+  font-size: 17px !important;
+  color: #64748b !important;
+  line-height: 1.7 !important;
+  margin-bottom: 32px !important;
+}
+
+/* FEATURES */
+#ftc-widget-container .ftc-features {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 14px !important;
+}
+
+#ftc-widget-container .ftc-feat {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 14px 16px !important;
+  background: #ffffff !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06) !important;
+  transition: transform 0.3s, box-shadow 0.3s !important;
+}
+
+#ftc-widget-container .ftc-feat:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 25px rgba(60, 172, 164, 0.15) !important;
+}
+
+#ftc-widget-container .ftc-feat-icon {
+  width: 44px !important;
+  height: 44px !important;
+  background: linear-gradient(135deg, rgba(60, 172, 164, 0.15) 0%, rgba(60, 172, 164, 0.05) 100%) !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+#ftc-widget-container .ftc-feat-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+  stroke: #3CACA4 !important;
+  fill: none !important;
+}
+
+#ftc-widget-container .ftc-feat span {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #1e293b !important;
+}
+
+/* LOGIN CARD */
+#ftc-widget-container .ftc-card {
+  background: #ffffff !important;
+  border-radius: 24px !important;
+  padding: 40px !important;
+  box-shadow: 0 25px 60px rgba(60, 172, 164, 0.2) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+#ftc-widget-container .ftc-card::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 5px !important;
+  background: linear-gradient(90deg, #3CACA4 0%, #2d8a84 100%) !important;
+}
+
+#ftc-widget-container .ftc-card-header {
+  text-align: center !important;
+  margin-bottom: 28px !important;
+}
+
+#ftc-widget-container .ftc-icon-box {
+  width: 72px !important;
+  height: 72px !important;
+  background: linear-gradient(135deg, #3CACA4 0%, #2d8a84 100%) !important;
+  border-radius: 18px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 auto 18px auto !important;
+  box-shadow: 0 12px 30px rgba(60, 172, 164, 0.35) !important;
+}
+
+#ftc-widget-container .ftc-icon-box svg {
+  width: 36px !important;
+  height: 36px !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
+#ftc-widget-container .ftc-card-title {
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  margin-bottom: 6px !important;
+}
+
+#ftc-widget-container .ftc-card-sub {
+  font-size: 14px !important;
+  color: #64748b !important;
+}
+
+/* FORM */
+#ftc-widget-container .ftc-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+}
+
+#ftc-widget-container .ftc-label {
+  display: block !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #1e293b !important;
+  margin-bottom: 8px !important;
+}
+
+#ftc-widget-container .ftc-input-wrap {
+  position: relative !important;
+  display: block !important;
+}
+
+#ftc-widget-container .ftc-input-icon {
+  position: absolute !important;
+  left: 16px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #94a3b8 !important;
+  fill: none !important;
+  pointer-events: none !important;
+}
+
+#ftc-widget-container .ftc-input {
+  width: 100% !important;
+  padding: 16px 16px 16px 50px !important;
+  border: 2px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  font-size: 16px !important;
+  color: #1e293b !important;
+  background: #f8fafc !important;
+  outline: none !important;
+  transition: all 0.3s !important;
+}
+
+#ftc-widget-container .ftc-input:focus {
+  border-color: #3CACA4 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 4px rgba(60, 172, 164, 0.12) !important;
+}
+
+#ftc-widget-container .ftc-input::placeholder {
+  color: #94a3b8 !important;
+}
+
+#ftc-widget-container .ftc-toggle {
+  position: absolute !important;
+  right: 14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  padding: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+#ftc-widget-container .ftc-toggle svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #94a3b8 !important;
+  fill: none !important;
+}
+
+#ftc-widget-container .ftc-toggle:hover svg {
+  stroke: #3CACA4 !important;
+}
+
+/* BUTTON */
+#ftc-widget-container .ftc-btn {
+  width: 100% !important;
+  padding: 18px 24px !important;
+  background: linear-gradient(135deg, #3CACA4 0%, #2d8a84 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  transition: all 0.3s !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  margin-top: 8px !important;
+}
+
+#ftc-widget-container .ftc-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 35px rgba(60, 172, 164, 0.4) !important;
+}
+
+#ftc-widget-container .ftc-btn:active {
+  transform: translateY(0) !important;
+}
+
+#ftc-widget-container .ftc-btn svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+
+#ftc-widget-container .ftc-btn.loading {
+  opacity: 0.8 !important;
+  pointer-events: none !important;
+}
+
+#ftc-widget-container .ftc-spinner {
+  width: 20px !important;
+  height: 20px !important;
+  border: 2px solid rgba(255,255,255,0.3) !important;
+  border-top-color: #ffffff !important;
+  border-radius: 50% !important;
+  animation: ftc-spin 0.8s linear infinite !important;
+}
+
+@keyframes ftc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ERROR */
+#ftc-widget-container .ftc-error {
+  background: #fef2f2 !important;
+  border: 1px solid #fecaca !important;
+  color: #dc2626 !important;
+  padding: 12px 16px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  display: none !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-bottom: 10px !important;
+}
+
+#ftc-widget-container .ftc-error.show {
+  display: flex !important;
+}
+
+#ftc-widget-container .ftc-error svg {
+  width: 20px !important;
+  height: 20px !important;
+  stroke: #dc2626 !important;
+  fill: none !important;
+  flex-shrink: 0 !important;
+}
+
+/* LINKS */
+#ftc-widget-container .ftc-links {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-top: 20px !important;
+  padding-top: 20px !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+#ftc-widget-container .ftc-link {
+  font-size: 14px !important;
+  color: #3CACA4 !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+}
+
+#ftc-widget-container .ftc-link:hover {
+  text-decoration: underline !important;
+  color: #2d8a84 !important;
+}
+
+/* SECURITY */
+#ftc-widget-container .ftc-secure {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  margin-top: 20px !important;
+  padding: 12px !important;
+  background: rgba(60, 172, 164, 0.06) !important;
+  border-radius: 10px !important;
+}
+
+#ftc-widget-container .ftc-secure svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke: #3CACA4 !important;
+  fill: none !important;
+}
+
+#ftc-widget-container .ftc-secure span {
+  font-size: 13px !important;
+  color: #64748b !important;
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  #ftc-widget-container .ftc-grid {
+    flex-direction: column !important;
+    gap: 40px !important;
+  }
+  
+  #ftc-widget-container .ftc-left {
+    text-align: center !important;
+    padding-right: 0 !important;
+  }
+  
+  #ftc-widget-container .ftc-right {
+    width: 100% !important;
+    max-width: 450px !important;
+    margin: 0 auto !important;
+  }
+  
+  #ftc-widget-container .ftc-title {
+    font-size: 32px !important;
+  }
+  
+  #ftc-widget-container .ftc-features {
+    max-width: 400px !important;
+    margin: 0 auto !important;
+  }
+}
+
+@media (max-width: 500px) {
+  #ftc-widget-container .ftc-section {
+    padding: 50px 16px !important;
+  }
+  
+  #ftc-widget-container .ftc-title {
+    font-size: 26px !important;
+  }
+  
+  #ftc-widget-container .ftc-features {
+    grid-template-columns: 1fr !important;
+  }
+  
+  #ftc-widget-container .ftc-card {
+    padding: 28px 20px !important;
+  }
+  
+  #ftc-widget-container .ftc-links {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+}
+</style>
+
+<section class="ftc-section">
+  <div class="ftc-grid">
+    
+    <!-- SINISTRA -->
+    <div class="ftc-left">
+      <div class="ftc-badge">
+        <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        AREA CLIENTI ESCLUSIVA
+      </div>
+      
+      <h2 class="ftc-title">
+        Gestisci la tua <span>fiscalità</span> in modo semplice e sicuro
+      </h2>
+      
+      <p class="ftc-desc">
+        Accedi alla tua area riservata per consultare documenti, scadenze fiscali, 
+        buste paga e comunicare direttamente con il tuo commercialista. 
+        Tutto a portata di click, 24 ore su 24.
+      </p>
+      
+      <div class="ftc-features">
+        <div class="ftc-feat">
+          <div class="ftc-feat-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+          </div>
+          <span>Documenti sempre disponibili</span>
+        </div>
+        
+        <div class="ftc-feat">
+          <div class="ftc-feat-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+          </div>
+          <span>Scadenze sotto controllo</span>
+        </div>
+        
+        <div class="ftc-feat">
+          <div class="ftc-feat-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+          </div>
+          <span>Buste paga online</span>
+        </div>
+        
+        <div class="ftc-feat">
+          <div class="ftc-feat-icon">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <span>Chat con il commercialista</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- DESTRA - LOGIN -->
+    <div class="ftc-right">
+      <div class="ftc-card">
+        <div class="ftc-card-header">
+          <div class="ftc-icon-box">
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <h3 class="ftc-card-title">Accedi all'Area Clienti</h3>
+          <p class="ftc-card-sub">Inserisci le tue credenziali per accedere</p>
+        </div>
+        
+        <div id="ftc-error" class="ftc-error">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span id="ftc-error-text">Credenziali non valide</span>
+        </div>
+        
+        <form id="ftc-form" class="ftc-form" onsubmit="return ftcLogin(event)">
+          <div>
+            <label class="ftc-label">Email</label>
+            <div class="ftc-input-wrap">
+              <svg class="ftc-input-icon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+              <input type="email" id="ftc-email" class="ftc-input" placeholder="nome@esempio.com" required>
+            </div>
+          </div>
+          
+          <div>
+            <label class="ftc-label">Password</label>
+            <div class="ftc-input-wrap">
+              <svg class="ftc-input-icon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <input type="password" id="ftc-pwd" class="ftc-input" placeholder="La tua password" required>
+              <button type="button" class="ftc-toggle" onclick="ftcToggle()">
+                <svg id="ftc-eye" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          
+          <button type="submit" id="ftc-btn" class="ftc-btn">
+            <span id="ftc-btn-txt">Accedi</span>
+            <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"/>
+              <polyline points="12 5 19 12 12 19"/>
+            </svg>
+          </button>
+        </form>
+        
+        <div class="ftc-links">
+          <a href="mailto:info@fiscaltaxcanarie.com" class="ftc-link">Password dimenticata?</a>
+          <a href="mailto:info@fiscaltaxcanarie.com" class="ftc-link">Richiedi accesso</a>
+        </div>
+        
+        <div class="ftc-secure">
+          <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+          <span>Connessione sicura e crittografata</span>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+</section>
+</div>
+
+<script>
+(function() {
+  // CONFIGURAZIONE - CAMBIA QUESTO URL
+  var APP_URL = 'https://tribute-models-docs.preview.emergentagent.com';
+  var API_URL = APP_URL + '/api';
+
+  window.ftcToggle = function() {
+    var p = document.getElementById('ftc-pwd');
+    var e = document.getElementById('ftc-eye');
+    if (p.type === 'password') {
+      p.type = 'text';
+      e.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+    } else {
+      p.type = 'password';
+      e.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    }
+  };
+
+  window.ftcLogin = function(e) {
+    e.preventDefault();
+    
+    var errBox = document.getElementById('ftc-error');
+    var errTxt = document.getElementById('ftc-error-text');
+    var btn = document.getElementById('ftc-btn');
+    var btnTxt = document.getElementById('ftc-btn-txt');
+    
+    errBox.classList.remove('show');
+    
+    var email = document.getElementById('ftc-email').value.trim();
+    var pwd = document.getElementById('ftc-pwd').value;
+    
+    if (!email || !pwd) {
+      errTxt.textContent = 'Inserisci email e password';
+      errBox.classList.add('show');
+      return false;
+    }
+    
+    btn.classList.add('loading');
+    btnTxt.textContent = 'Accesso...';
+    
+    fetch(API_URL + '/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, password: pwd })
+    })
+    .then(function(res) { return res.json().then(function(data) { return {ok: res.ok, data: data}; }); })
+    .then(function(result) {
+      if (result.ok && result.data.access_token) {
+        localStorage.setItem('ftc_token', result.data.access_token);
+        localStorage.setItem('ftc_user', JSON.stringify(result.data.user));
+        
+        var url = APP_URL;
+        if (result.data.user) {
+          if (result.data.user.role === 'cliente') url = APP_URL + '/dashboard';
+          else if (result.data.user.role === 'commercialista') url = APP_URL + '/admin';
+          else if (result.data.user.role === 'consulente_lavoro') url = APP_URL + '/consulente';
+        }
+        window.location.href = url;
+      } else {
+        errTxt.textContent = result.data.detail || 'Email o password non corretti';
+        errBox.classList.add('show');
+        btn.classList.remove('loading');
+        btnTxt.textContent = 'Accedi';
+      }
+    })
+    .catch(function() {
+      errTxt.textContent = 'Errore di connessione. Riprova.';
+      errBox.classList.add('show');
+      btn.classList.remove('loading');
+      btnTxt.textContent = 'Accedi';
+    });
+    
+    return false;
+  };
+})();
+</script>
