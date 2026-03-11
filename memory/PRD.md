@@ -8,6 +8,41 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 32 (11 Marzo 2026) - COMPLETATA ✅
+
+**4 Nuove Funzionalità Implementate:**
+
+#### 1. Permessi Rinomina File
+- Admin e Cliente possono rinominare i file nelle rispettive cartelle
+- L'estensione originale viene mantenuta automaticamente
+- **Backend:** `PUT /api/documents/{doc_id}/rename` - verifica ownership per clienti
+- **Frontend:** Pulsante Edit2 + dialog rinomina in `ClientDetail.jsx` e `ClientDashboard.jsx`
+
+#### 2. Permessi Eliminazione Dipendenti/Richieste
+- Admin, Cliente e Consulente possono eliminare dipendenti e richieste di assunzione
+- **Backend:** `DELETE /api/employees/{employee_id}` - verifica permessi per ruolo
+- **Frontend:** Pulsante Trash2 in `EmployeeManagementClient.jsx`
+
+#### 3. Sistema Notifiche per Richieste Assunzione/Licenziamento
+- Notifica email + in-app al Consulente del Lavoro **SOLO SE ASSEGNATO** al cliente
+- Template email dedicato con dettagli richiesta
+- **Backend:** Logica in endpoint `request_employee_hire` e `request_employee_termination`
+- **Email Service:** Nuova funzione `notify_consulente_employee_request` in `email_service.py`
+
+#### 4. Gestione Certificati Digitali per Cliente
+- Admin può caricare certificati .p12 associati a un cliente specifico
+- Cliente può visualizzare e scaricare i propri certificati SENZA PASSWORD
+- **Backend:** 
+  - `POST /api/clients/{client_id}/certificates` (upload admin)
+  - `GET /api/clients/{client_id}/certificates` (lista)
+  - `GET /api/clients/{client_id}/certificates/{cert_id}/download` (download)
+  - `DELETE /api/clients/{client_id}/certificates/{cert_id}` (elimina admin)
+- **Frontend:** 
+  - Tab "Certificati" in `ClientDetail.jsx` per admin
+  - Tab "Certificati" in `ClientDashboard.jsx` per cliente
+
+**Test:** Verificato al 100% con testing agent (iteration_16.json)
+
 ### Fase 31 (11 Marzo 2026) - COMPLETATA ✅
 
 **Bug Fix: Sezione "Consulenti del Lavoro" non si caricava**
