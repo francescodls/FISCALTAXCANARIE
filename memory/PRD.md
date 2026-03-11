@@ -8,6 +8,24 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 31 (11 Marzo 2026) - COMPLETATA ✅
+
+**Bug Fix: Sezione "Consulenti del Lavoro" non si caricava**
+
+**Problema segnalato:** Cliccando su "Consulente del Lavoro" dalla dashboard admin, non si apriva nessuna pagina.
+
+**Causa:** Il componente `ConsulentiManagement.jsx` conteneva riferimenti a variabili non definite (residui del vecchio sistema di inviti):
+- `pendingInvitations` (variabile non dichiarata)
+- `setShowInviteDialog` (funzione non dichiarata)
+- `Mail` (icona non importata)
+
+**Soluzione:** Rimosso il codice obsoleto alle linee 370-387 e sostituito con un fallback corretto che usa il dialog di creazione esistente.
+
+**File modificato:**
+- `/app/frontend/src/components/ConsulentiManagement.jsx`
+
+**Test:** Verificato al 100% con testing agent (iteration_15.json).
+
 ### Fase 30 (11 Marzo 2026) - COMPLETATA ✅
 
 **Sostituito Invito Consulente con Creazione Diretta**
