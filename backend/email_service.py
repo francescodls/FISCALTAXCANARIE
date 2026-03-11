@@ -423,8 +423,11 @@ async def send_welcome_email(client_email: str, client_name: str) -> Dict[str, A
         html_content=html
     )
 
-async def send_generic_email(to_email: str, subject: str, html_body: str) -> Dict[str, Any]:
+async def send_generic_email(to_email: str, subject: str, html_body: str, to_name: str = None) -> Dict[str, Any]:
     """Invia email generica con contenuto HTML personalizzato"""
+    # Se to_name non è fornito, usa la parte prima della @ dell'email
+    recipient_name = to_name if to_name else to_email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+    
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -456,7 +459,7 @@ async def send_generic_email(to_email: str, subject: str, html_body: str) -> Dic
     """
     return await send_email(
         to_email=to_email,
-        to_name="",
+        to_name=recipient_name,
         subject=subject,
         html_content=html_content
     )

@@ -4070,10 +4070,13 @@ async def invite_consulente(invite_data: ConsulenteInvite, user: dict = Depends(
                 <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
                 <p style="color: #999; font-size: 12px;">Fiscal Tax Canarie - Gestione Fiscale Professionale</p>
             </div>
-            """
+            """,
+            to_name=invite_data.full_name
         )
+        email_sent = True
     except Exception as e:
         logger.error(f"Errore invio email invito consulente: {e}")
+        email_sent = False
     
     await log_activity(
         "consulente_invitato",
@@ -4083,9 +4086,10 @@ async def invite_consulente(invite_data: ConsulenteInvite, user: dict = Depends(
     
     return {
         "success": True,
-        "message": f"Invito inviato a {invite_data.email}",
+        "message": f"Invito inviato a {invite_data.email}" + (" (email inviata)" if email_sent else " (email non inviata - verifica la configurazione)"),
         "invite_id": invite_id,
-        "invitation_link": invitation_link
+        "invitation_link": invitation_link,
+        "email_sent": email_sent
     }
 
 @api_router.get("/consulenti/invitations")
