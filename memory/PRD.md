@@ -8,6 +8,32 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 30 (11 Marzo 2026) - COMPLETATA ✅
+
+**Sostituito Invito Consulente con Creazione Diretta**
+
+**Problema:** L'invito via email per i consulenti del lavoro non funzionava correttamente.
+
+**Soluzione:** Eliminato il sistema di invito e creato un nuovo sistema di creazione diretta dove l'admin imposta:
+- Email (sarà l'account)
+- Nome completo
+- Password
+
+**Modifiche:**
+- `ConsulentiManagement.jsx`: 
+  - Rimosso `handleInviteConsulente`, `handleResendInvite`, `handleDeleteConsulentInvite`
+  - Aggiunto `handleCreateConsulente` che usa `POST /api/consulenti`
+  - Nuovo dialog con campi Email, Nome, Password
+  - Dopo creazione: mostra credenziali con pulsanti "Copia"
+  - Rimossa sezione "Inviti in attesa di registrazione"
+
+**Flusso:**
+1. Admin clicca "Nuovo Consulente"
+2. Compila Nome, Email, Password
+3. Clicca "Crea Consulente"
+4. Sistema mostra credenziali da comunicare al consulente
+5. Consulente può accedere immediatamente con le credenziali
+
 ### Fase 29 (11 Marzo 2026) - COMPLETATA ✅
 
 **Fix Stile Pulsanti - Effetto Click**
