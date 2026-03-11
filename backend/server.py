@@ -3989,7 +3989,7 @@ async def invite_consulente(invite_data: ConsulenteInvite, user: dict = Depends(
         await send_generic_email(
             to_email=invite_data.email,
             subject="Invito come Consulente del Lavoro - Fiscal Tax Canarie",
-            html_content=f"""
+            html_body=f"""
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <h2 style="color: #3caca4;">Benvenuto in Fiscal Tax Canarie</h2>
                 <p>Ciao {invite_data.full_name},</p>
