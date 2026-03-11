@@ -1379,18 +1379,17 @@ const CommercialDashboard = () => {
 
         {/* Global Upload Dialog */}
         <Dialog open={showGlobalUpload} onOpenChange={setShowGlobalUpload}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="font-heading text-xl flex items-center gap-2">
-                <FolderUp className="h-5 w-5 text-teal-500" />
-                Caricamento Globale Documenti
+                <Sparkles className="h-5 w-5 text-teal-500" />
+                Caricamento Intelligente Documenti
               </DialogTitle>
             </DialogHeader>
-            <GlobalDocumentUpload 
+            <SmartDocumentUpload 
               token={token} 
-              clients={clients} 
-              clientLists={clientLists} 
               onClose={() => setShowGlobalUpload(false)}
+              onSuccess={() => fetchData()}
             />
           </DialogContent>
         </Dialog>
@@ -1467,31 +1466,44 @@ const PendingDocCard = ({ doc, clients, onVerify, verifying }) => {
   );
 };
 
-// Componente per caricamento globale documenti
-const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
+// Componente per caricamento intelligente documenti con AI
+const SmartDocumentUpload = ({ token, onClose, onSuccess }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [selectedClient, setSelectedClient] = useState(""); // Cliente singolo opzionale
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
-  const [notifyClients, setNotifyClients] = useState(true);
+  const [uploadResults, setUploadResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
-  const MAX_FILES = 20; // Massimo 20 file alla volta
-
-  const activeClients = clients.filter(c => c.stato === "attivo" || c.stato === "invitato");
+  const MAX_FILES = 15; // Massimo 15 file alla volta per stabilità
 
   const handleFilesSelect = (files) => {
     const fileArray = Array.from(files);
-    if (fileArray.length > MAX_FILES) {
+    const validFiles = fileArray.filter(f => {
+      const ext = f.name.toLowerCase().split('.').pop();
+      return ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png'].includes(ext);
+    });
+    
+    if (validFiles.length < fileArray.length) {
+      toast.warning("Alcuni file non sono supportati e sono stati ignorati");
+    }
+    
+    if (validFiles.length > MAX_FILES) {
       toast.warning(`Puoi selezionare massimo ${MAX_FILES} file alla volta`);
-      setSelectedFiles(fileArray.slice(0, MAX_FILES));
+      setSelectedFiles(prev => [...prev, ...validFiles.slice(0, MAX_FILES - prev.length)].slice(0, MAX_FILES));
     } else {
-      setSelectedFiles(fileArray);
+      setSelectedFiles(prev => [...prev, ...validFiles].slice(0, MAX_FILES));
     }
   };
 
   const removeFile = (index) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const clearAll = () => {
+    setSelectedFiles([]);
+    setUploadResults([]);
+    setShowResults(false);
   };
 
   const handleUpload = async () => {
@@ -1500,232 +1512,339 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
       return;
     }
 
-    // Se è selezionato un cliente specifico, carica solo a lui
-    // Altrimenti carica a tutti i clienti attivi
-    const targetClients = selectedClient 
-      ? [selectedClient] 
-      : activeClients.map(c => c.id);
-
-    if (targetClients.length === 0) {
-      toast.error("Nessun cliente disponibile");
-      return;
-    }
-
     setUploading(true);
-    const totalUploads = selectedFiles.length * targetClients.length;
-    setUploadProgress({ current: 0, total: totalUploads });
+    setUploadResults([]);
     
-    let successCount = 0;
-    let errorCount = 0;
-    let currentUpload = 0;
+    try {
+      // Crea FormData con tutti i file
+      const formData = new FormData();
+      selectedFiles.forEach(file => {
+        formData.append("files", file);
+      });
 
-    // Per ogni file, carica a ogni cliente target
-    for (const file of selectedFiles) {
-      for (const clientId of targetClients) {
-        try {
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("auto_classify", "true"); // L'AI classificherà automaticamente
-          formData.append("notify_client", notifyClients);
+      // Usa l'endpoint batch che analizza con AI
+      const response = await axios.post(`${API}/documents/upload-batch`, formData, {
+        headers: { 
+          ...headers, 
+          "Content-Type": "multipart/form-data" 
+        },
+        timeout: 120000 // 2 minuti timeout per elaborazione AI
+      });
 
-          await axios.post(`${API}/clients/${clientId}/documents`, formData, {
-            headers: { ...headers, "Content-Type": "multipart/form-data" }
-          });
-          successCount++;
-        } catch (error) {
-          console.error(`Errore upload ${file.name} per cliente ${clientId}:`, error);
-          errorCount++;
+      const data = response.data;
+      const results = data.results || [];
+      setUploadResults(results);
+      setShowResults(true);
+      
+      // Conta successi ed errori
+      const successes = results.filter(r => r.success);
+      const failures = results.filter(r => !r.success);
+      const needsVerification = results.filter(r => r.needs_verification);
+      
+      if (failures.length === 0) {
+        if (needsVerification.length > 0) {
+          toast.success(`${successes.length} documenti caricati. ${needsVerification.length} richiedono verifica del cliente.`);
+        } else {
+          toast.success(`${successes.length} documenti caricati e classificati con successo!`);
         }
-        currentUpload++;
-        setUploadProgress({ current: currentUpload, total: totalUploads });
+      } else {
+        toast.warning(`${successes.length} caricati, ${failures.length} errori`);
       }
-    }
-
-    setUploading(false);
-    setUploadProgress({ current: 0, total: 0 });
-    
-    if (errorCount === 0) {
-      const fileText = selectedFiles.length > 1 ? `${selectedFiles.length} documenti` : "Documento";
-      const clientText = selectedClient 
-        ? "al cliente selezionato" 
-        : `a ${targetClients.length} clienti`;
-      toast.success(`${fileText} caricato/i con successo ${clientText}`);
+      
       setSelectedFiles([]);
-      setSelectedClient("");
-      if (onClose) onClose();
-    } else {
-      toast.warning(`${successCount} upload riusciti, ${errorCount} errori`);
+      if (onSuccess) onSuccess();
+      
+    } catch (error) {
+      console.error("Errore upload batch:", error);
+      const errorMsg = error.response?.data?.detail;
+      if (typeof errorMsg === 'string') {
+        toast.error(errorMsg);
+      } else if (Array.isArray(errorMsg)) {
+        toast.error(errorMsg.map(e => e.msg || e).join(", "));
+      } else {
+        toast.error("Errore durante il caricamento dei documenti");
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFilesSelect(e.dataTransfer.files);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-slate-500">
-        Carica fino a {MAX_FILES} documenti alla volta. L'intelligenza artificiale li rinominerà e classificherà automaticamente.
-      </p>
-      
-      {/* Selezione cliente opzionale */}
-      <div className="space-y-2">
-        <Label className="text-slate-700 font-medium">Destinatario (opzionale)</Label>
-        <Select value={selectedClient} onValueChange={(val) => setSelectedClient(val === "all" ? "" : val)}>
-          <SelectTrigger className="border-slate-200">
-            <SelectValue placeholder="Tutti i clienti attivi" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tutti i clienti attivi ({activeClients.length})</SelectItem>
-            {activeClients.map(client => (
-              <SelectItem key={client.id} value={client.id}>
-                {client.full_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-slate-500">
-          {selectedClient 
-            ? "I documenti verranno caricati solo al cliente selezionato" 
-            : `I documenti verranno caricati a tutti i ${activeClients.length} clienti attivi`}
-        </p>
+    <div className="space-y-5">
+      {/* Header info */}
+      <div className="p-4 bg-gradient-to-r from-teal-50 to-blue-50 rounded-xl border border-teal-200">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-teal-500 rounded-lg">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-slate-800">Caricamento Intelligente con AI</h4>
+            <p className="text-sm text-slate-600 mt-1">
+              Carica fino a {MAX_FILES} documenti. L'intelligenza artificiale li analizzerà automaticamente per:
+            </p>
+            <ul className="text-sm text-slate-600 mt-2 space-y-1">
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-teal-500" />
+                Identificare il cliente dal contenuto
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-teal-500" />
+                Rinominare con formato standard
+              </li>
+              <li className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-teal-500" />
+                Classificare nella categoria corretta
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
 
-      {/* Upload file multipli con drag & drop */}
-      <div className="space-y-2">
-        <Label>File da caricare * (max {MAX_FILES})</Label>
-        <div 
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-            selectedFiles.length > 0 ? 'border-teal-400 bg-teal-50' : 'border-slate-200 hover:border-teal-400'
-          }`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.currentTarget.classList.add('border-teal-500', 'bg-teal-50');
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (selectedFiles.length === 0) {
-              e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
-            }
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            e.currentTarget.classList.remove('border-teal-500', 'bg-teal-50');
-            const files = e.dataTransfer.files;
-            if (files && files.length > 0) {
-              handleFilesSelect(files);
-            }
-          }}
-        >
-          <input
-            type="file"
-            onChange={(e) => handleFilesSelect(e.target.files)}
-            className="hidden"
-            id="global-upload-input"
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-            multiple
-          />
-          <label htmlFor="global-upload-input" className="cursor-pointer block">
-            <Upload className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-            <p className="text-sm text-slate-600 font-medium">Trascina qui i file</p>
-            <p className="text-xs text-slate-400 mt-1">oppure clicca per selezionare (max {MAX_FILES} file)</p>
-          </label>
-        </div>
-        
-        {/* Lista file selezionati */}
-        {selectedFiles.length > 0 && (
-          <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
-            <p className="text-sm font-medium text-slate-700">
-              {selectedFiles.length} file selezionati:
-            </p>
-            {selectedFiles.map((file, index) => (
+      {/* Risultati upload */}
+      {showResults && uploadResults.length > 0 && (
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 max-h-64 overflow-y-auto">
+          <h4 className="font-medium text-slate-700 mb-3 flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            Risultati Elaborazione
+          </h4>
+          <div className="space-y-2">
+            {uploadResults.map((result, index) => (
               <div 
-                key={index} 
-                className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-200"
+                key={index}
+                className={`p-3 rounded-lg border ${
+                  result.success 
+                    ? result.needs_verification 
+                      ? 'bg-amber-50 border-amber-200' 
+                      : 'bg-green-50 border-green-200'
+                    : 'bg-red-50 border-red-200'
+                }`}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileText className="h-4 w-4 text-teal-500 shrink-0" />
-                  <span className="text-sm text-slate-700 truncate">{file.name}</span>
-                  <span className="text-xs text-slate-400 shrink-0">
-                    ({(file.size / 1024).toFixed(0)} KB)
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-800 truncate">
+                      {result.original_filename}
+                    </p>
+                    {result.success && (
+                      <>
+                        <p className="text-xs text-slate-600 mt-1">
+                          → <span className="font-medium">{result.standardized_filename}</span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Cliente: {result.client_name || "Non identificato"} 
+                          {result.client_confidence && (
+                            <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${
+                              result.client_confidence === 'alta' 
+                                ? 'bg-green-100 text-green-700'
+                                : result.client_confidence === 'media'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-red-100 text-red-700'
+                            }`}>
+                              {result.client_confidence}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Categoria: <span className="font-medium">{result.category}</span>
+                        </p>
+                      </>
+                    )}
+                    {!result.success && (
+                      <p className="text-xs text-red-600 mt-1">{result.error || "Errore sconosciuto"}</p>
+                    )}
+                  </div>
+                  {result.success ? (
+                    result.needs_verification ? (
+                      <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                    )
+                  ) : (
+                    <X className="h-5 w-5 text-red-500 shrink-0" />
+                  )}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeFile(index)}
-                  className="h-6 w-6 p-0 text-slate-400 hover:text-red-500"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      {/* Info AI */}
-      <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-        <div className="flex items-start gap-2">
-          <Sparkles className="h-5 w-5 text-blue-500 mt-0.5" />
-          <div>
-            <p className="text-sm text-blue-800 font-medium">Classificazione Intelligente</p>
-            <p className="text-xs text-blue-700 mt-1">
-              L'AI analizzerà ogni documento e lo classificherà automaticamente nella categoria corretta
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Opzione notifica */}
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="notify-clients"
-          checked={notifyClients}
-          onChange={(e) => setNotifyClients(e.target.checked)}
-          className="rounded border-slate-300 text-teal-500 focus:ring-teal-500"
-        />
-        <Label htmlFor="notify-clients" className="text-sm cursor-pointer">
-          Notifica {selectedClient ? "il cliente" : "i clienti"} via email dei nuovi documenti
-        </Label>
-      </div>
-
-      {/* Progress bar durante upload */}
-      {uploading && uploadProgress.total > 0 && (
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm text-slate-600">
-            <span>Caricamento in corso...</span>
-            <span>{uploadProgress.current} / {uploadProgress.total}</span>
-          </div>
-          <div className="w-full bg-slate-200 rounded-full h-2">
-            <div 
-              className="bg-teal-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
-            ></div>
           </div>
         </div>
       )}
 
-      {/* Pulsante upload */}
-      <Button
-        onClick={handleUpload}
-        disabled={uploading || selectedFiles.length === 0}
-        className="w-full bg-teal-500 hover:bg-teal-600 text-white font-semibold h-12"
-      >
-        {uploading ? (
+      {/* Area upload con drag & drop */}
+      {!showResults && (
+        <>
+          <div 
+            className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
+              dragActive 
+                ? 'border-teal-500 bg-teal-50 scale-[1.02]' 
+                : selectedFiles.length > 0 
+                  ? 'border-teal-400 bg-teal-50/50' 
+                  : 'border-slate-200 hover:border-teal-400 hover:bg-slate-50'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <input
+              type="file"
+              onChange={(e) => handleFilesSelect(e.target.files)}
+              className="hidden"
+              id="smart-upload-input"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+              multiple
+            />
+            <label htmlFor="smart-upload-input" className="cursor-pointer block">
+              <div className="flex flex-col items-center">
+                <div className={`p-4 rounded-full mb-4 transition-colors ${
+                  dragActive ? 'bg-teal-500' : 'bg-slate-100'
+                }`}>
+                  <Upload className={`h-8 w-8 ${dragActive ? 'text-white' : 'text-slate-400'}`} />
+                </div>
+                <p className="text-base font-medium text-slate-700">
+                  {dragActive ? "Rilascia i file qui" : "Trascina i documenti qui"}
+                </p>
+                <p className="text-sm text-slate-500 mt-1">
+                  oppure <span className="text-teal-600 font-medium">clicca per selezionare</span>
+                </p>
+                <p className="text-xs text-slate-400 mt-3">
+                  PDF, DOC, DOCX, XLS, XLSX, JPG, PNG • Max {MAX_FILES} file
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {/* Lista file selezionati */}
+          {selectedFiles.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-700">
+                  {selectedFiles.length} file selezionati
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAll}
+                  className="text-slate-500 hover:text-red-500 h-8"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Rimuovi tutti
+                </Button>
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-1.5 pr-2">
+                {selectedFiles.map((file, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200 hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-1.5 bg-teal-50 rounded">
+                        <FileText className="h-4 w-4 text-teal-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm text-slate-700 truncate font-medium">{file.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {(file.size / 1024).toFixed(0)} KB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeFile(index)}
+                      className="h-7 w-7 p-0 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Progress durante upload */}
+      {uploading && (
+        <div className="p-4 bg-teal-50 rounded-xl border border-teal-200">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-2 border-teal-500 border-t-transparent"></div>
+            <div>
+              <p className="text-sm font-medium text-teal-700">Elaborazione in corso...</p>
+              <p className="text-xs text-teal-600">L'AI sta analizzando i documenti. Potrebbe richiedere qualche istante.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pulsanti azione */}
+      <div className="flex gap-3 pt-2">
+        {showResults ? (
           <>
-            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-            Caricamento in corso...
+            <Button
+              variant="outline"
+              onClick={clearAll}
+              className="flex-1"
+            >
+              Carica altri documenti
+            </Button>
+            <Button
+              onClick={() => onClose && onClose()}
+              className="flex-1 bg-teal-500 hover:bg-teal-600 text-white"
+            >
+              Chiudi
+            </Button>
           </>
         ) : (
           <>
-            <Upload className="h-4 w-4 mr-2" />
-            Carica {selectedFiles.length > 0 ? `${selectedFiles.length} Documenti` : 'Documenti'}
+            <Button
+              variant="outline"
+              onClick={() => onClose && onClose()}
+              className="flex-1"
+              disabled={uploading}
+            >
+              Annulla
+            </Button>
+            <Button
+              onClick={handleUpload}
+              disabled={uploading || selectedFiles.length === 0}
+              className="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-semibold"
+            >
+              {uploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                  Elaborazione...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Analizza e Carica ({selectedFiles.length})
+                </>
+              )}
+            </Button>
           </>
         )}
-      </Button>
       </div>
+    </div>
   );
 };
 

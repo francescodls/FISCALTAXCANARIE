@@ -1689,7 +1689,11 @@ async def upload_documents_batch(
     """
     Carica più documenti contemporaneamente e li analizza con AI.
     L'IA identifica automaticamente il cliente per ogni documento.
+    I file vengono salvati su Backblaze B2.
     """
+    if len(files) > 15:
+        raise HTTPException(status_code=400, detail="Massimo 15 file per upload")
+    
     results = []
     clients = await db.users.find({"role": "cliente"}, {"_id": 0, "password": 0}).to_list(1000)
     
@@ -1740,6 +1744,18 @@ async def upload_documents_batch(
             
             category = ai_result.get("categoria_suggerita", "altro") if ai_result.get("success") else "altro"
             
+            # Upload su B2
+            storage_result = {"success": False}
+            try:
+                storage_result = await cloud_upload(
+                    file_content=file_content,
+                    filename=standardized_filename,
+                    content_type=file.content_type or "application/octet-stream",
+                    folder=f"documents/{final_client_id or 'unassigned'}"
+                )
+            except Exception as e:
+                logger.warning(f"Errore upload B2 per {file.filename}: {e}")
+            
             # Crea documento
             doc_id = str(uuid.uuid4())
             document = {
@@ -1747,10 +1763,11 @@ async def upload_documents_batch(
                 "title": ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename,
                 "description": ai_result.get("descrizione_estesa") if ai_result.get("success") else None,
                 "category": category,
+                "folder_category": category,
+                "document_year": ai_result.get("anno_documento") if ai_result.get("success") else str(datetime.now().year),
                 "client_id": final_client_id,
                 "file_name": standardized_filename,
                 "file_name_original": file.filename,
-                "file_data": file_base64,
                 "file_type": file.content_type,
                 "uploaded_by": user["id"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -1760,8 +1777,20 @@ async def upload_documents_batch(
                 "modello_tributario": ai_result.get("modello_tributario") if ai_result.get("success") else None,
                 "needs_verification": needs_verification,
                 "client_confidence": client_confidence,
-                "version": 1
+                "version": 1,
+                "extracted_text": extracted_text[:2000] if extracted_text else None
             }
+            
+            # Salva su B2 se disponibile, altrimenti su MongoDB
+            if storage_result.get("success"):
+                document["storage_path"] = storage_result["storage_path"]
+                document["storage_provider"] = "b2"
+                document["file_size"] = storage_result.get("size", len(file_content))
+            else:
+                # Fallback: salva in MongoDB
+                document["file_data"] = file_base64
+                document["storage_provider"] = "mongodb"
+            
             await db.documents.insert_one(document)
             
             results.append({

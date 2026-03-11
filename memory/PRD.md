@@ -8,6 +8,49 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 26 (11 Marzo 2026) - COMPLETATA ✅
+
+**Ricostruzione Completa Sistema Caricamento Globale Documenti**
+
+**Richiesta:** L'utente ha chiesto di eliminare completamente il vecchio sistema di caricamento globale e ricostruirlo da zero con un flusso più affidabile e intelligente.
+
+**Nuovo Sistema `SmartDocumentUpload`:**
+
+1. **Backend Migliorato (`/api/documents/upload-batch`):**
+   - Limite di 15 file per stabilità
+   - Validazione dei file in ingresso
+   - Upload su Backblaze B2 (non più MongoDB)
+   - Estrazione testo da PDF con AI
+   - Identificazione automatica del cliente dal contenuto
+   - Rinominazione standardizzata dei file
+   - Classificazione automatica nella categoria corretta
+   - Assegnazione alla cartella del cliente identificato
+   - Salvataggio `folder_category` e `document_year`
+
+2. **Frontend Completamente Rinnovato:**
+   - Dialog pulito con titolo "Caricamento Intelligente Documenti"
+   - Header informativo che spiega le funzionalità AI
+   - Area drag & drop migliorata con feedback visivo
+   - Validazione file client-side (formati supportati)
+   - Lista file selezionati con rimozione singola
+   - Pulsante "Rimuovi tutti" per reset rapido
+   - Progress spinner durante elaborazione AI
+   - **Risultati dettagliati** dopo upload:
+     - Nome originale → Nome standardizzato
+     - Cliente identificato con livello confidenza (alta/media/bassa)
+     - Categoria assegnata
+     - Indicatori visivi (✓ verde, ⚠ ambra per verifica, ✗ rosso per errori)
+   - Timeout esteso a 2 minuti per elaborazione AI
+
+3. **Gestione Errori Robusta:**
+   - Timeout configurabile
+   - Errori dettagliati per ogni file
+   - Fallback a MongoDB se B2 non disponibile
+
+File modificati:
+- `/app/backend/server.py`: Endpoint `/documents/upload-batch` aggiornato con B2 e miglioramenti
+- `/app/frontend/src/pages/CommercialDashboard.jsx`: Nuovo componente `SmartDocumentUpload`
+
 ### Fase 25 (11 Marzo 2026) - COMPLETATA ✅
 
 **Caricamento Globale Documenti Multiplo**
