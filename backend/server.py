@@ -252,7 +252,8 @@ class DeadlineResponse(BaseModel):
 
 class ClientInListResponse(BaseModel):
     id: str
-    email: str
+    email: Optional[str] = None  # Può essere None per clienti invitati
+    email_notifica: Optional[str] = None  # Email per notifiche (sempre presente)
     full_name: str
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
@@ -260,7 +261,7 @@ class ClientInListResponse(BaseModel):
     nif: Optional[str] = None
     cif: Optional[str] = None
     tipo_cliente: Optional[str] = "autonomo"
-    stato: str = "attivo"
+    stato: str = "attivo"  # attivo, invitato, sospeso, inattivo
     created_at: str
     documents_count: int = 0
     payslips_count: int = 0
@@ -326,9 +327,24 @@ class FeeResponse(BaseModel):
 # ==================== CLIENT INVITATION MODELS ====================
 
 class ClientInvite(BaseModel):
-    email: EmailStr
+    """Invito cliente - crea immediatamente la cartella cliente"""
+    email: EmailStr  # Email per notifiche e matching
     full_name: Optional[str] = None
     tipo_cliente: Optional[str] = "autonomo"  # autonomo, societa, privato
+    # Campi anagrafica opzionali (precompilabili dall'admin)
+    phone: Optional[str] = None
+    codice_fiscale: Optional[str] = None
+    nie: Optional[str] = None  # Per matching
+    nif: Optional[str] = None
+    cif: Optional[str] = None  # Per matching
+    indirizzo: Optional[str] = None
+    citta: Optional[str] = None
+    cap: Optional[str] = None
+    provincia: Optional[str] = None
+    iban: Optional[str] = None
+    regime_fiscale: Optional[str] = None
+    tipo_attivita: Optional[str] = None
+    note_interne: Optional[str] = None
 
 class CompleteRegistration(BaseModel):
     token: str
@@ -810,8 +826,9 @@ async def get_clients(
     for client in clients:
         result.append(ClientInListResponse(
             id=client["id"],
-            email=client["email"],
-            full_name=client["full_name"],
+            email=client.get("email"),  # Può essere None per invitati
+            email_notifica=client.get("email_notifica"),  # Email per notifiche
+            full_name=client.get("full_name", ""),
             phone=client.get("phone"),
             codice_fiscale=client.get("codice_fiscale"),
             nie=client.get("nie"),
@@ -819,7 +836,7 @@ async def get_clients(
             cif=client.get("cif"),
             tipo_cliente=client.get("tipo_cliente", "autonomo"),
             stato=client.get("stato", "attivo"),
-            created_at=client["created_at"],
+            created_at=client.get("created_at", datetime.now(timezone.utc).isoformat()),
             documents_count=docs_counts.get(client["id"], 0),
             payslips_count=payslips_counts.get(client["id"], 0),
             notes_count=notes_counts.get(client["id"], 0),
@@ -2712,29 +2729,78 @@ async def root():
 @api_router.post("/clients/invite")
 async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_commercialista)):
     """
-    Crea un invito per un nuovo cliente.
-    L'email inserita serve SOLO per inviare la notifica.
-    Il cliente sceglierà la sua email di accesso durante la registrazione.
+    Crea un invito per un nuovo cliente E crea immediatamente la sua cartella.
+    L'admin può subito caricare documenti, compilare anagrafica, aggiungere note.
+    Quando il cliente completa la registrazione, viene matchato per email/NIE/CIF.
     """
+    # Verifica che non esista già un cliente con questa email/NIE/CIF
+    match_query = {"$or": [{"email": invite_data.email}]}
+    if invite_data.nie:
+        match_query["$or"].append({"nie": invite_data.nie})
+    if invite_data.cif:
+        match_query["$or"].append({"cif": invite_data.cif})
+    
+    existing = await db.users.find_one(match_query)
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail="Esiste già un cliente con questa email, NIE o CIF"
+        )
+    
     # Genera token di invito
     invitation_token = secrets.token_urlsafe(32)
+    client_id = str(uuid.uuid4())
     
-    # Crea record di invito (non un utente completo)
-    invite_id = str(uuid.uuid4())
+    # Crea il cliente completo IMMEDIATAMENTE (stato: invitato)
+    client_doc = {
+        "id": client_id,
+        "email": None,  # Sarà impostata quando il cliente completa la registrazione
+        "email_notifica": invite_data.email,  # Email per notifiche
+        "password": None,  # Sarà impostata quando il cliente completa la registrazione
+        "full_name": invite_data.full_name or "",
+        "phone": invite_data.phone,
+        "codice_fiscale": invite_data.codice_fiscale,
+        "nie": invite_data.nie,
+        "nif": invite_data.nif,
+        "cif": invite_data.cif,
+        "indirizzo": invite_data.indirizzo,
+        "citta": invite_data.citta,
+        "cap": invite_data.cap,
+        "provincia": invite_data.provincia,
+        "iban": invite_data.iban,
+        "regime_fiscale": invite_data.regime_fiscale,
+        "tipo_attivita": invite_data.tipo_attivita,
+        "tipo_cliente": invite_data.tipo_cliente or "autonomo",
+        "role": "cliente",
+        "stato": "invitato",  # Stato speciale: invitato ma non ancora registrato
+        "invited_by": user["id"],
+        "note_interne": invite_data.note_interne or "",
+        "lists": [],
+        "bank_credentials": [],
+        "additional_emails": [],
+        # Token per il completamento registrazione
+        "invitation_token": invitation_token,
+        "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(client_doc)
+    
+    # Salva anche nella collection invitations per compatibilità
     invite_doc = {
-        "id": invite_id,
-        "notification_email": invite_data.email,  # Email per inviare notifica
-        "suggested_name": invite_data.full_name or "",  # Nome suggerito
-        "tipo_cliente": invite_data.tipo_cliente or "autonomo",  # Tipo cliente
+        "id": str(uuid.uuid4()),
+        "client_id": client_id,  # Riferimento al cliente creato
+        "notification_email": invite_data.email,
+        "suggested_name": invite_data.full_name or "",
+        "tipo_cliente": invite_data.tipo_cliente or "autonomo",
         "invitation_token": invitation_token,
         "invitation_sent_at": datetime.now(timezone.utc).isoformat(),
         "invited_by": user["id"],
-        "status": "pending",  # pending, completed, expired
+        "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.invitations.insert_one(invite_doc)
     
-    # Genera link di invito - usa dominio produzione
+    # Genera link di invito
     frontend_url = os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')
     invitation_link = f"{frontend_url}/complete-registration?token={invitation_token}"
     
@@ -2753,24 +2819,104 @@ async def invite_client(invite_data: ClientInvite, user: dict = Depends(require_
     
     await log_activity(
         "invito_cliente",
-        f"Invito inviato a {invite_data.email}",
+        f"Invito e cartella creati per {invite_data.email} - Cliente {invite_data.full_name}",
         user["id"]
     )
     
     return {
         "success": True,
-        "message": f"Invito inviato a {invite_data.email}",
-        "invite_id": invite_id,
+        "message": f"Cartella cliente creata e invito inviato a {invite_data.email}",
+        "client_id": client_id,  # ID della cartella cliente creata
+        "invite_id": invite_doc["id"],
         "invitation_link": invitation_link
     }
 
 @api_router.post("/auth/complete-registration")
 async def complete_registration(data: CompleteRegistration):
     """
-    Completa la registrazione di un utente invitato (cliente o consulente del lavoro).
-    L'utente sceglie la sua email di accesso, imposta la password e il nome.
+    Completa la registrazione di un utente invitato.
+    Per i CLIENTI: Trova la cartella esistente (creata all'invito) e la attiva con le credenziali.
+    Il matching avviene per invitation_token, email_notifica, NIE o CIF.
+    Per i CONSULENTI: Crea un nuovo account.
     """
-    # Trova l'invito con il token
+    # Prima cerca il cliente già creato con questo token
+    existing_client = await db.users.find_one(
+        {"invitation_token": data.token, "role": "cliente"},
+        {"_id": 0}
+    )
+    
+    if existing_client:
+        # CASO 1: Cliente con cartella già creata - aggiorna con credenziali
+        
+        # Verifica che il token non sia scaduto (7 giorni)
+        invitation_sent = existing_client.get("invitation_sent_at")
+        if invitation_sent:
+            sent_date = datetime.fromisoformat(invitation_sent.replace('Z', '+00:00'))
+            if datetime.now(timezone.utc) - sent_date > timedelta(days=7):
+                raise HTTPException(status_code=400, detail="Invito scaduto. Richiedi un nuovo invito.")
+        
+        # Verifica che non sia già registrato
+        if existing_client.get("stato") == "attivo" and existing_client.get("password"):
+            raise HTTPException(status_code=400, detail="Registrazione già completata. Usa il Login.")
+        
+        # Verifica che l'email scelta non sia già usata da un altro utente
+        email_check = await db.users.find_one({"email": data.email, "id": {"$ne": existing_client["id"]}})
+        if email_check:
+            raise HTTPException(status_code=400, detail="Questa email è già registrata. Scegli un'altra email.")
+        
+        # Aggiorna il cliente esistente con le credenziali
+        update_data = {
+            "email": data.email,  # Email scelta per il login
+            "password": hash_password(data.password),
+            "stato": "attivo",  # Da "invitato" a "attivo"
+            "registration_completed_at": datetime.now(timezone.utc).isoformat(),
+            "invitation_token": None  # Rimuovi il token usato
+        }
+        
+        # Aggiorna il nome solo se fornito
+        if data.full_name:
+            update_data["full_name"] = data.full_name
+        
+        await db.users.update_one(
+            {"id": existing_client["id"]},
+            {"$set": update_data}
+        )
+        
+        # Aggiorna anche l'invito nella collection invitations
+        await db.invitations.update_one(
+            {"client_id": existing_client["id"]},
+            {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        
+        # Invia email di benvenuto
+        try:
+            await send_welcome_email(data.email, data.full_name or existing_client.get("full_name", ""))
+        except Exception as e:
+            logger.error(f"Errore invio email benvenuto: {e}")
+        
+        await log_activity(
+            "registrazione_completata",
+            f"Cliente {data.email} ha completato la registrazione (cartella esistente)",
+            existing_client["id"]
+        )
+        
+        # Genera token di accesso
+        token = create_token(existing_client["id"], data.email, "cliente")
+        
+        return {
+            "success": True,
+            "message": "Registrazione completata! Puoi accedere alla tua area personale.",
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": existing_client["id"],
+                "email": data.email,
+                "full_name": data.full_name or existing_client.get("full_name", ""),
+                "role": "cliente"
+            }
+        }
+    
+    # CASO 2: Cerca nella collection invitations (per consulenti o inviti vecchio stile)
     invitation = await db.invitations.find_one({"invitation_token": data.token}, {"_id": 0})
     
     if not invitation:
@@ -2782,20 +2928,19 @@ async def complete_registration(data: CompleteRegistration):
     if invitation.get("status") != "pending":
         raise HTTPException(status_code=400, detail="Invito già utilizzato. Usa il Login per accedere.")
     
-    # Verifica che il token non sia scaduto (7 giorni)
+    # Verifica scadenza
     invitation_sent = invitation.get("invitation_sent_at")
     if invitation_sent:
         sent_date = datetime.fromisoformat(invitation_sent.replace('Z', '+00:00'))
         if datetime.now(timezone.utc) - sent_date > timedelta(days=7):
             raise HTTPException(status_code=400, detail="Invito scaduto. Richiedi un nuovo invito.")
     
-    # Verifica che l'email scelta non sia già registrata
+    # Verifica email non già usata
     existing_user = await db.users.find_one({"email": data.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Questa email è già registrata. Scegli un'altra email o usa il Login.")
     
-    # Determina il ruolo dall'invito
-    invited_role = invitation.get("role", "cliente")  # Default: cliente
+    invited_role = invitation.get("role", "cliente")
     is_consulente = invited_role == "consulente_lavoro"
     
     user_id = str(uuid.uuid4())
@@ -2814,8 +2959,9 @@ async def complete_registration(data: CompleteRegistration):
             "created_at": datetime.now(timezone.utc).isoformat(),
             "registration_completed_at": datetime.now(timezone.utc).isoformat()
         }
+        await db.users.insert_one(user_doc)
     else:
-        # Crea documento cliente
+        # Per clienti vecchio stile (senza cartella pre-creata)
         user_doc = {
             "id": user_id,
             "email": data.email,
@@ -2845,8 +2991,7 @@ async def complete_registration(data: CompleteRegistration):
             "created_at": datetime.now(timezone.utc).isoformat(),
             "registration_completed_at": datetime.now(timezone.utc).isoformat()
         }
-    
-    await db.users.insert_one(user_doc)
+        await db.users.insert_one(user_doc)
     
     # Aggiorna l'invito come completato
     await db.invitations.update_one(

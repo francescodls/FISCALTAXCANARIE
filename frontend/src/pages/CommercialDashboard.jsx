@@ -170,6 +170,8 @@ const CommercialDashboard = () => {
     switch (stato) {
       case "attivo":
         return <Badge className="bg-green-50 text-green-700 border border-green-100">Attivo</Badge>;
+      case "invitato":
+        return <Badge className="bg-blue-50 text-blue-700 border border-blue-100">Invitato</Badge>;
       case "sospeso":
         return <Badge className="bg-amber-50 text-amber-700 border border-amber-100">Sospeso</Badge>;
       case "cessato":
@@ -769,9 +771,17 @@ const CommercialDashboard = () => {
                               {getStatusBadge(client.stato)}
                               {getTipoClienteBadge(client.tipo_cliente)}
                             </div>
-                            <p className="text-sm text-slate-500">{client.email}</p>
+                            <p className="text-sm text-slate-500">
+                              {client.email || client.email_notifica || "Nessuna email"}
+                              {!client.email && client.email_notifica && (
+                                <span className="text-xs text-blue-500 ml-2">(invito)</span>
+                              )}
+                            </p>
                             {client.codice_fiscale && (
                               <p className="text-xs text-slate-400">CF: {client.codice_fiscale}</p>
+                            )}
+                            {client.nie && (
+                              <p className="text-xs text-slate-400">NIE: {client.nie}</p>
                             )}
                           </div>
                         </div>
@@ -1334,7 +1344,7 @@ const GlobalDocumentUpload = ({ token, clients, clientLists, onClose }) => {
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  const activeClients = clients.filter(c => c.stato === "attivo");
+  const activeClients = clients.filter(c => c.stato === "attivo" || c.stato === "invitato");
 
   const handleUpload = async () => {
     if (!selectedFile) {
