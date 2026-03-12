@@ -743,7 +743,8 @@ const ClientDashboard = () => {
                     clientId={user?.id}
                     token={token}
                     userRole="cliente"
-                    onDocumentView={(doc) => downloadFile("documents", doc.id, doc.file_name)}
+                    onDocumentView={(doc) => openPreview(doc)}
+                    onDocumentDownload={(doc) => downloadFile("documents", doc.id, doc.file_name)}
                     onDocumentDeleted={() => fetchData()}
                   />
                 </CardContent>

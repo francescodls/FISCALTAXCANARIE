@@ -51,6 +51,7 @@ const DocumentFolderBrowser = ({
   token, 
   userRole = "commercialista", 
   onDocumentView,
+  onDocumentDownload,
   onDocumentDeleted 
 }) => {
   const [folders, setFolders] = useState([]);
@@ -155,6 +156,37 @@ const DocumentFolderBrowser = ({
         }
       } catch (error) {
         toast.error("Errore nel caricamento del documento");
+      }
+    }
+  };
+
+  const handleDownloadDocument = async (doc) => {
+    if (onDocumentDownload) {
+      onDocumentDownload(doc);
+    } else {
+      try {
+        const response = await axios.get(`${API}/documents/${doc.id}`, { headers });
+        const docData = response.data;
+        if (docData.file_data) {
+          const byteCharacters = atob(docData.file_data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: docData.file_type || 'application/octet-stream' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = doc.file_name || 'documento';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          toast.success("Download completato");
+        }
+      } catch (error) {
+        toast.error("Errore nel download del documento");
       }
     }
   };
@@ -542,8 +574,22 @@ const DocumentFolderBrowser = ({
                                 handleViewDocument(doc);
                               }}
                               data-testid={`view-doc-${doc.id}`}
+                              title="Anteprima"
                             >
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-slate-500 hover:text-blue-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadDocument(doc);
+                              }}
+                              data-testid={`download-doc-${doc.id}`}
+                              title="Scarica"
+                            >
+                              <Download className="h-4 w-4" />
                             </Button>
                             {canDelete && (
                               <>

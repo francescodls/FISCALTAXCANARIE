@@ -1267,7 +1267,8 @@ const ClientDetail = () => {
                     clientId={clientId}
                     token={token}
                     userRole={user?.role || "commercialista"}
-                    onDocumentView={(doc) => downloadFile("documents", doc.id, doc.file_name)}
+                    onDocumentView={(doc) => openPreview(doc)}
+                    onDocumentDownload={(doc) => downloadFile("documents", doc.id, doc.file_name)}
                   />
                 ) : (
                   /* Vista Lista Tradizionale */
