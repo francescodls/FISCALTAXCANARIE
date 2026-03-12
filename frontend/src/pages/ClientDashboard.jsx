@@ -35,10 +35,11 @@ import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Edit, Save, Users, Folder, Edit2 } from "lucide-react";
+import { Edit, Save, Users, Folder, Edit2, Eye } from "lucide-react";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementClient from "@/components/EmployeeManagementClient";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
+import DocumentPreview from "@/components/DocumentPreview";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { DialogFooter } from "@/components/ui/dialog";
 
@@ -73,6 +74,11 @@ const ClientDashboard = () => {
   // Certificati digitali state
   const [certificates, setCertificates] = useState([]);
   const [loadingCertificates, setLoadingCertificates] = useState(false);
+
+  // Document preview state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -202,6 +208,20 @@ const ClientDashboard = () => {
     } finally {
       setRenamingDoc(false);
     }
+  };
+
+  // Document Preview
+  const openPreview = (doc) => {
+    setPreviewDoc(doc);
+    const url = `${API}/documents/${doc.id}/preview?token=${token}`;
+    setPreviewUrl(url);
+    setPreviewOpen(true);
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setPreviewDoc(null);
+    setPreviewUrl(null);
   };
 
   const getDeadlinesForDate = (date) => {
@@ -785,6 +805,15 @@ const ClientDashboard = () => {
                               
                               {/* Buttons Row */}
                               <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  className="border-teal-200 text-teal-600 hover:bg-teal-50"
+                                  onClick={() => openPreview(doc)}
+                                  data-testid={`preview-doc-${doc.id}`}
+                                  title="Anteprima"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="outline"
                                   className="flex-1 border-slate-200 group-hover:bg-slate-50"
@@ -1454,6 +1483,15 @@ const ClientDashboard = () => {
           </TabsContent>
         </Tabs>
       </main>
+      
+      {/* Document Preview Modal */}
+      <DocumentPreview
+        isOpen={previewOpen}
+        onClose={closePreview}
+        document={previewDoc}
+        previewUrl={previewUrl}
+        onDownload={() => previewDoc && downloadFile("documents", previewDoc.id, previewDoc.file_name)}
+      />
       
       {/* Chatbot AI */}
       <ChatBot token={token} userName={user?.full_name} />

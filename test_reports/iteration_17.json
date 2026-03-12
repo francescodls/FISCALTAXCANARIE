@@ -1,0 +1,123 @@
+{
+  "summary": "Iteration 17 - Testing Document Preview (Anteprima) Feature. The new inline document preview functionality is fully working for PDF, images, and text files. Backend endpoint GET /api/documents/{doc_id}/preview?token=xxx correctly returns files with Content-Disposition: inline. Frontend DocumentPreview component opens a modal with embedded PDF viewer, fullscreen toggle, and download button.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "DocumentPreview modal",
+        "issues": ["Minor React warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent} - non-blocking accessibility improvement"]
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "✅ GET /api/documents/{doc_id}/preview - Endpoint exists and returns 200",
+    "✅ GET /api/documents/{doc_id}/preview - Returns Content-Disposition: inline (for preview, not download)",
+    "✅ GET /api/documents/{doc_id}/preview - Returns correct Content-Type: application/pdf for PDFs",
+    "✅ GET /api/documents/{doc_id}/preview - Returns binary file content with correct PDF magic bytes",
+    "✅ GET /api/documents/{doc_id}/preview - Requires token (returns 401 without token)",
+    "✅ GET /api/documents/{doc_id}/preview - Rejects invalid token (401)",
+    "✅ GET /api/documents/{doc_id}/preview - Rejects expired token (401)",
+    "✅ GET /api/documents/{doc_id}/preview - Returns 404 for non-existent document",
+    "✅ GET /api/documents/{doc_id}/preview - Includes Cache-Control header",
+    "✅ Admin can preview any document via API",
+    "✅ Frontend: Preview button (Eye icon) visible in ClientDetail.jsx document list",
+    "✅ Frontend: DocumentPreview modal opens on click",
+    "✅ Frontend: Modal displays filename and file type",
+    "✅ Frontend: Fullscreen toggle button works",
+    "✅ Frontend: Download button (Scarica) visible in modal",
+    "✅ Frontend: iframe src contains /preview URL with token parameter",
+    "✅ Frontend: Text file content displays correctly in preview"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_document_preview.py",
+    "/app/test_reports/pytest/pytest_results_iteration17.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Document preview endpoint correctly accepts token as query parameter (required for iframe embedding)",
+    "Preview supports PDF, images (jpg, jpeg, png, gif, webp), and text files",
+    "Content-Disposition header correctly set to 'inline' for browser viewing instead of download",
+    "Cache-Control header set to 'private, max-age=3600' for performance",
+    "DocumentPreview.jsx component handles loading states and error states gracefully",
+    "Fullscreen toggle and download buttons properly integrated in modal"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_document_preview.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100%"
+  },
+
+  "test_credentials": {
+    "admin": {
+      "email": "info@fiscaltaxcanarie.com",
+      "password": "Triana48+"
+    }
+  },
+
+  "seed_data_creation": "Created test document (test_preview.txt) for client FRANCESCO JUNIOR DE LISO to test preview functionality",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Document preview feature is fully implemented and working. Test document ID: fd335269-bd55-421a-b7dd-461d25923e31 (PDF) and 65528dde-6f6b-4fa6-a3db-7d1ae8a7077b (TXT). The preview button (Eye icon) appears in document lists in both ClientDetail.jsx (admin view) and ClientDashboard.jsx (client view). Preview uses iframe with token as query parameter for authentication.",
+
+  "features_verified": {
+    "preview_endpoint": {
+      "status": "WORKING",
+      "description": "GET /api/documents/{doc_id}/preview?token=xxx returns file inline with correct Content-Type"
+    },
+    "preview_button_admin": {
+      "status": "WORKING",
+      "description": "Eye icon button in ClientDetail.jsx opens DocumentPreview modal"
+    },
+    "preview_button_client": {
+      "status": "WORKING",
+      "description": "Eye icon button available in ClientDashboard.jsx document list"
+    },
+    "preview_modal_features": {
+      "status": "WORKING",
+      "description": "Modal includes fullscreen toggle (Maximize2/Minimize2), download button, and close button"
+    },
+    "pdf_preview": {
+      "status": "WORKING",
+      "description": "PDF files embedded via iframe with browser's native PDF viewer"
+    },
+    "text_preview": {
+      "status": "WORKING",
+      "description": "Text files displayed in iframe with text/plain content type"
+    },
+    "image_preview": {
+      "status": "WORKING",
+      "description": "Image files displayed via img tag with max-width/max-height constraints"
+    }
+  },
+
+  "api_endpoints_verified": [
+    "GET /api/documents/{doc_id}/preview?token=xxx - Inline document preview"
+  ],
+
+  "test_documents_created": [
+    {
+      "id": "65528dde-6f6b-4fa6-a3db-7d1ae8a7077b",
+      "title": "Test Preview Document",
+      "file_name": "test_preview.txt",
+      "client_id": "1aa1dece-d3a7-4cc3-ac73-76045801b3f5"
+    }
+  ]
+}

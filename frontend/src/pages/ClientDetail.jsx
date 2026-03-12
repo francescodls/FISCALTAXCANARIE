@@ -56,6 +56,7 @@ import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
 import SignatureManagement from "@/components/SignatureManagement";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
+import DocumentPreview from "@/components/DocumentPreview";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -176,6 +177,11 @@ const ClientDetail = () => {
   const [renameDoc, setRenameDoc] = useState(null);
   const [newFileName, setNewFileName] = useState("");
   const [renamingDoc, setRenamingDoc] = useState(false);
+
+  // Document preview state
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -829,6 +835,21 @@ const ClientDetail = () => {
     }
   };
 
+  // Document Preview
+  const openPreview = (doc) => {
+    setPreviewDoc(doc);
+    // Costruisci l'URL di preview
+    const url = `${API}/documents/${doc.id}/preview`;
+    setPreviewUrl(`${url}?token=${token}`);
+    setPreviewOpen(true);
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setPreviewDoc(null);
+    setPreviewUrl(null);
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/");
@@ -1288,6 +1309,16 @@ const ClientDetail = () => {
                                 Firmato
                               </Badge>
                             )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openPreview(doc)}
+                              className="border-teal-200 text-teal-600 hover:bg-teal-50"
+                              title="Anteprima"
+                              data-testid={`preview-doc-${doc.id}`}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -2912,6 +2943,15 @@ const ClientDetail = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Document Preview Modal */}
+      <DocumentPreview
+        isOpen={previewOpen}
+        onClose={closePreview}
+        document={previewDoc}
+        previewUrl={previewUrl}
+        onDownload={() => previewDoc && downloadFile("documents", previewDoc.id, previewDoc.file_name)}
+      />
     </div>
   );
 };

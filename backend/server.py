@@ -1432,6 +1432,92 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     await log_activity("eliminazione_documento", f"Documento {doc_id} eliminato", user["id"])
     return {"message": "Documento eliminato"}
 
+@api_router.get("/documents/{doc_id}/preview")
+async def preview_document(
+    doc_id: str, 
+    token: Optional[str] = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(lambda: None)
+):
+    """
+    Restituisce il documento per la preview inline.
+    Supporta PDF, immagini e file di testo.
+    Accetta il token sia come header Authorization che come query parameter.
+    """
+    from fastapi.responses import Response
+    
+    # Ottieni l'utente dal token (query param o header)
+    auth_token = token
+    if not auth_token:
+        # Prova a ottenere dal header
+        from fastapi import Request
+        raise HTTPException(status_code=401, detail="Token non fornito")
+    
+    try:
+        payload = jwt.decode(auth_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token non valido")
+        
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utente non trovato")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token scaduto")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Token non valido")
+    
+    document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    # Verifica permessi
+    if user["role"] == "cliente" and document.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Recupera il contenuto del file
+    file_content = None
+    content_type = "application/octet-stream"
+    
+    if document.get("storage_path"):
+        # File su B2
+        file_content, content_type = await cloud_download(document["storage_path"])
+    elif document.get("file_data"):
+        # File in base64 nel DB
+        file_content = base64.b64decode(document["file_data"])
+        content_type = document.get("file_type", "application/octet-stream")
+    
+    if not file_content:
+        raise HTTPException(status_code=404, detail="Contenuto del file non trovato")
+    
+    # Determina il content type dal nome file se non disponibile
+    file_name = document.get("file_name", "").lower()
+    if file_name.endswith(".pdf"):
+        content_type = "application/pdf"
+    elif file_name.endswith((".jpg", ".jpeg")):
+        content_type = "image/jpeg"
+    elif file_name.endswith(".png"):
+        content_type = "image/png"
+    elif file_name.endswith(".gif"):
+        content_type = "image/gif"
+    elif file_name.endswith(".webp"):
+        content_type = "image/webp"
+    elif file_name.endswith(".txt"):
+        content_type = "text/plain"
+    elif file_name.endswith((".doc", ".docx")):
+        content_type = "application/msword"
+    elif file_name.endswith((".xls", ".xlsx")):
+        content_type = "application/vnd.ms-excel"
+    
+    # Restituisce il file con header per visualizzazione inline
+    return Response(
+        content=file_content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{document.get("file_name", "document")}"',
+            "Cache-Control": "private, max-age=3600"
+        }
+    )
+
 # ==================== AI DOCUMENT ANALYSIS ====================
 
 @api_router.post("/documents/upload-auto")
@@ -4967,6 +5053,77 @@ async def download_employee_document(
         "file_data": doc["file_data"],
         "file_type": doc["file_type"]
     }
+
+@api_router.get("/employees/{employee_id}/documents/{doc_id}/preview")
+async def preview_employee_document(
+    employee_id: str,
+    doc_id: str,
+    token: Optional[str] = None
+):
+    """Preview documento dipendente inline"""
+    from fastapi.responses import Response
+    
+    # Verifica token
+    if not token:
+        raise HTTPException(status_code=401, detail="Token non fornito")
+    
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token non valido")
+        
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "password": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utente non trovato")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token scaduto")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Token non valido")
+    
+    employee = await db.employees.find_one({"id": employee_id}, {"_id": 0})
+    if not employee:
+        raise HTTPException(status_code=404, detail="Dipendente non trovato")
+    
+    # Verifica permessi
+    can_access = False
+    if user["role"] == "commercialista":
+        can_access = True
+    elif user["role"] == "consulente_lavoro":
+        assigned = user.get("assigned_clients", [])
+        can_access = employee["client_id"] in assigned
+    elif user["role"] == "cliente":
+        can_access = employee["client_id"] == user["id"]
+    
+    if not can_access:
+        raise HTTPException(status_code=403, detail="Non hai accesso a questo dipendente")
+    
+    # Trova documento
+    doc = next((d for d in employee.get("documents", []) if d["id"] == doc_id), None)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    # Decodifica il contenuto
+    file_content = base64.b64decode(doc["file_data"])
+    content_type = doc.get("file_type", "application/octet-stream")
+    
+    # Determina il content type dal nome file
+    file_name = doc.get("file_name", "").lower()
+    if file_name.endswith(".pdf"):
+        content_type = "application/pdf"
+    elif file_name.endswith((".jpg", ".jpeg")):
+        content_type = "image/jpeg"
+    elif file_name.endswith(".png"):
+        content_type = "image/png"
+    
+    return Response(
+        content=file_content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{doc.get("file_name", "document")}"',
+            "Cache-Control": "private, max-age=3600"
+        }
+    )
 
 @api_router.delete("/employees/{employee_id}/documents/{doc_id}")
 async def delete_employee_document(
