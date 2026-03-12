@@ -8,6 +8,35 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### Fase 1-8 - COMPLETATE ✅
 (vedere changelog precedente)
 
+### Fase 33 (12 Marzo 2026) - COMPLETATA ✅
+
+**Anteprima Documenti Inline (senza download)**
+
+Implementata la possibilità di visualizzare i documenti direttamente nel browser senza doverli scaricare.
+
+**Formati supportati:**
+- PDF (viewer nativo del browser)
+- Immagini (jpg, jpeg, png, gif, webp)
+- File di testo (txt, csv, json, xml)
+
+**Backend:**
+- `GET /api/documents/{doc_id}/preview?token=xxx` - Restituisce il file con Content-Disposition: inline
+- `GET /api/employees/{employee_id}/documents/{doc_id}/preview?token=xxx` - Preview documenti dipendenti
+- Autenticazione via token in query string (necessario per iframe)
+- Cache-Control header per performance
+
+**Frontend:**
+- Nuovo componente `DocumentPreview.jsx` con:
+  - Modal fullscreen/ridotto
+  - Pulsante download integrato
+  - Loading state e gestione errori
+  - Supporto per file non previewabili (messaggio + download)
+- Pulsante "Anteprima" (icona Eye) in:
+  - `ClientDetail.jsx` (vista admin)
+  - `ClientDashboard.jsx` (vista cliente)
+
+**Test:** Verificato al 100% con testing agent (iteration_17.json)
+
 ### Fase 32 (11 Marzo 2026) - COMPLETATA ✅
 
 **4 Nuove Funzionalità Implementate:**
