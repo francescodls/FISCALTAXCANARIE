@@ -5,6 +5,47 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 37 (28 Marzo 2026) - COMPLETATA ✅
+
+**Sistema di Ticketing - Sostituzione sezione "Note"**
+
+**Richiesta Utente:** Trasformare la sezione "Note" in un sistema di ticketing completo con conversazione bidirezionale cliente-admin, stati, filtri e indicatori visivi.
+
+**Implementazione Backend:**
+- Nuovi modelli Pydantic: `TicketCreate`, `TicketUpdate`, `TicketResponse`, `TicketMessage`
+- Collection MongoDB: `db.tickets`, `db.admin_notifications`
+- Endpoint:
+  - `POST /api/tickets` - Creazione ticket (solo cliente)
+  - `GET /api/tickets` - Lista ticket (filtrata per ruolo)
+  - `GET /api/tickets/{id}` - Dettaglio ticket
+  - `POST /api/tickets/{id}/messages` - Aggiunta messaggio
+  - `PUT /api/tickets/{id}/status` - Cambio stato (solo admin)
+  - `DELETE /api/tickets/{id}` - Eliminazione (solo admin)
+  - `GET /api/admin/ticket-notifications` - Notifiche ticket per admin
+
+**Implementazione Frontend:**
+- Nuovi componenti:
+  - `TicketManagementClient.jsx` - Gestione ticket lato cliente
+  - `TicketManagementAdmin.jsx` - Gestione ticket lato admin
+- Tab rinominato: "Note" → "Ticket" in `ClientDashboard.jsx` e `ClientDetail.jsx`
+- Layout a 2 colonne: lista ticket + dettaglio conversazione
+- Filtri per stato: Aperti, Chiusi, Archiviati, Tutti
+- Barra di ricerca ticket
+- Pulsanti azione: Chiudi, Archivia, Riapri, Elimina
+
+**Stati Ticket:**
+- `aperto` - Badge verde
+- `chiuso` - Badge grigio
+- `archiviato` - Badge rosso
+
+**Workflow:**
+1. Cliente apre ticket → Notifica admin
+2. Admin risponde → Messaggio visibile a cliente
+3. Admin può chiudere/archiviare
+4. Ticket chiuso/archiviato non permette risposte (admin può riaprire)
+
+**Test:** Verificato al 100% con testing agent (iteration_21.json) - Backend 20/20, Frontend 100%.
+
 ### Fase 36 (28 Marzo 2026) - COMPLETATA ✅
 
 **Campo "Link di Approfondimento" per Modelli Tributari**
