@@ -42,7 +42,8 @@ import {
   Upload,
   FolderUp,
   Trash2,
-  Euro
+  Euro,
+  MessageSquare
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -51,6 +52,7 @@ import ConsulentiManagement from "@/components/ConsulentiManagement";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import GlobalFeesManagement from "@/components/GlobalFeesManagement";
+import GlobalTicketManagement from "@/components/GlobalTicketManagement";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
@@ -637,6 +639,14 @@ const CommercialDashboard = () => {
             >
               <Euro className="h-4 w-4 mr-2" />
               Onorari
+            </TabsTrigger>
+            <TabsTrigger 
+              value="tickets" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-tickets"
+            >
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Ticket
             </TabsTrigger>
             <TabsTrigger 
               value="activity" 
@@ -1455,6 +1465,11 @@ const CommercialDashboard = () => {
           {/* Fees Tab */}
           <TabsContent value="fees" className="space-y-6">
             <GlobalFeesManagement token={token} />
+          </TabsContent>
+
+          {/* Tickets Tab */}
+          <TabsContent value="tickets" className="space-y-6">
+            <GlobalTicketManagement token={token} />
           </TabsContent>
         </Tabs>
 

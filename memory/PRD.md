@@ -5,6 +5,41 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 38 (28 Marzo 2026) - COMPLETATA ✅
+
+**Sezione "Ticket" Globale nella Dashboard Amministratore**
+
+**Richiesta Utente:** Aggiungere sezione centralizzata per gestione ticket di tutti i clienti nella dashboard principale admin, con filtri, ordinamento e export PDF.
+
+**Implementazione Backend:**
+- Nuovo endpoint `GET /api/tickets/{id}/export-pdf` - Esporta ticket completo in PDF con:
+  - Header "Fiscal Tax Canarie - Copia Certificata"
+  - Dati cliente, date apertura/chiusura
+  - Badge stato colorato
+  - Storico completo conversazione
+  - Footer con data generazione
+- Dipendenza aggiunta: `reportlab==4.4.10`
+
+**Implementazione Frontend:**
+- Nuovo componente `GlobalTicketManagement.jsx`:
+  - 4 card riepilogative: Totale, Aperti (verde), Chiusi (grigio), Archiviati (rosso)
+  - Card cliccabili per filtro rapido
+  - Barra filtri: ricerca, stato, cliente
+  - Layout 2 colonne: lista ticket + dettaglio
+  - Ticket aperti in cima alla lista con indicatore verde pulsante
+  - Pulsante "Esporta PDF" per download copia certificata
+  - Pulsanti azione: Chiudi, Archivia, Riapri, Elimina
+- Tab "Ticket" aggiunto in `CommercialDashboard.jsx`
+
+**Caratteristiche UI:**
+- Indicatore verde pulsante per ticket aperti
+- Bordatura verde-sinistra per ticket aperti nella lista
+- Card "Aperti" con bordo verde cliccabile
+- Filtro per cliente specifico o tutti i clienti
+- Conteggio ticket trovati in tempo reale
+
+**Test:** Verificato con creazione ticket, risposta admin, export PDF.
+
 ### Fase 37 (28 Marzo 2026) - COMPLETATA ✅
 
 **Sistema di Ticketing - Sostituzione sezione "Note"**
