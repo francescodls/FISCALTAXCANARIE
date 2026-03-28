@@ -90,17 +90,17 @@ const DeclarationsPage = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          anno_fiscale: new Date().getFullYear(),
+          anno_fiscale: 2025,
           tipo_dichiarazione: 'individual'
         })
       });
       
+      const data = await res.json();
+      
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore creazione pratica');
+        throw new Error(data.detail || 'Errore creazione pratica');
       }
       
-      const data = await res.json();
       toast.success('Pratica creata con successo');
       setSelectedReturn(data);
       setShowForm(true);
@@ -115,11 +115,17 @@ const DeclarationsPage = () => {
       const res = await fetch(`${API_URL}/api/declarations/tax-returns/${returnId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || 'Errore caricamento pratica');
+      }
+      
       setSelectedReturn(data);
       setShowForm(true);
     } catch (error) {
-      toast.error('Errore caricamento pratica');
+      toast.error(error.message || 'Errore caricamento pratica');
     }
   };
 
@@ -130,8 +136,9 @@ const DeclarationsPage = () => {
       });
       
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore download');
+        // Clona la response per poter leggere il JSON in caso di errore
+        const errorData = await res.clone().json().catch(() => ({ detail: 'Errore download PDF' }));
+        throw new Error(errorData.detail || 'Errore download');
       }
       
       const blob = await res.blob();

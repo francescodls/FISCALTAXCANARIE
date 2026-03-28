@@ -91,9 +91,10 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
         body: JSON.stringify(data)
       });
       
+      const responseData = await res.json();
+      
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore salvataggio');
+        throw new Error(responseData.detail || 'Errore salvataggio');
       }
       
       toast.success('Sezione salvata');
@@ -147,9 +148,10 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
         body: formDataObj
       });
       
+      const responseData = await res.json();
+      
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore firma');
+        throw new Error(responseData.detail || 'Errore firma');
       }
       
       toast.success('Autorizzazione firmata con successo!');
@@ -176,9 +178,10 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
         body: formDataObj
       });
       
+      const responseData = await res.json();
+      
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Errore invio');
+        throw new Error(responseData.detail || 'Errore invio');
       }
       
       toast.success('Pratica inviata con successo!');

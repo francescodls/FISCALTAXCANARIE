@@ -343,7 +343,7 @@ class TaxReturnCreate(BaseModel):
 
 class TaxReturnStatusLog(BaseModel):
     """Log cambio stato"""
-    stato_precedente: str
+    stato_precedente: Optional[str] = None
     stato_nuovo: str
     changed_by: str
     changed_at: str
