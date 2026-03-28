@@ -5,6 +5,54 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 43 (28 Marzo 2026) - COMPLETATA ✅
+
+**Ristrutturazione Sezione Dichiarazioni per Admin**
+
+**Richiesta Utente:** Riorganizzare la sezione Dichiarazioni per essere centrata sul cliente, non sulla singola pratica. L'admin deve poter:
+1. Vedere i clienti con dichiarazioni, non un elenco disordinato
+2. Visualizzare tutti i dati inseriti dal cliente
+3. Richiedere documentazione/chiarimenti (con email)
+4. Avere una conversazione interna per ogni dichiarazione
+5. Ricevere documenti aggiuntivi dal cliente dopo la richiesta
+
+**Backend Implementato:**
+- ✅ `GET /api/declarations/clients-with-declarations` - Lista clienti con riepilogo dichiarazioni:
+  - Conteggi per stato (bozza, inviate, in_revisione, presentate, doc_incompleta)
+  - Richieste pendenti totali
+  - Messaggi non letti
+  - Ultima attività
+  - Filtri per ricerca, tipo_cliente, has_pending_requests
+- ✅ `POST /api/declarations/tax-returns/{id}/messages` - Invio messaggi conversazione
+- ✅ `PUT /api/declarations/tax-returns/{id}/messages/mark-read` - Segna messaggi come letti
+- ✅ Campo `conversazione` aggiunto a TaxReturn model
+
+**Frontend Implementato:**
+- ✅ `/app/frontend/src/components/AdminDeclarationsView.jsx` (NUOVO):
+  - 4 stats cards: Clienti, Dichiarazioni, Richieste Pendenti, Messaggi Non Letti
+  - Filtri: ricerca, tipo cliente, con richieste pendenti
+  - Lista clienti con conteggio dichiarazioni e indicatori alert
+  - Click su cliente → mostra sue dichiarazioni
+  - Click su dichiarazione → apre dettaglio
+
+- ✅ `/app/frontend/src/components/DeclarationDetailView.jsx` (NUOVO):
+  - Header con info cliente e dropdown cambio stato
+  - 4 Tab:
+    1. **Panoramica**: Info pratica, autorizzazione, sezioni compilate, richieste pendenti
+    2. **Dati Inseriti**: Tutte le 12 sezioni con dati formattati
+    3. **Documenti**: Lista documenti caricati
+    4. **Comunicazioni**: Chat bidirezionale admin ↔ cliente
+  - Pulsante "Richiedi Documentazione/Chiarimenti" → dialog con selezione sezione, messaggio, documenti richiesti
+  - Email automatica al cliente per richieste e messaggi
+
+**Modelli Aggiunti:**
+- `DeclarationMessageCreate`, `DeclarationMessage` - Messaggi conversazione
+- `ClientDeclarationSummary` - Riepilogo cliente
+
+**Test:** Verificato al 100% con testing agent (iteration_24.json):
+- Backend: 11/11 test passati
+- Frontend: Tutte le funzionalità verificate
+
 ### Fase 42 (28 Marzo 2026) - COMPLETATA ✅
 
 **Refactoring Backend - Rimozione Codice Duplicato**
