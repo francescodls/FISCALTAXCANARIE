@@ -508,19 +508,6 @@ const CommercialDashboard = () => {
           </Card>
           <Card 
             className="bg-white border border-slate-200 card-hover cursor-pointer"
-            onClick={() => setActiveTab("clients")}
-            data-testid="stats-active-clients"
-          >
-            <CardContent className="p-4 flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center mb-2">
-                <CheckCircle2 className="h-5 w-5 text-white" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900">{stats.clients_active || 0}</p>
-              <p className="text-xs text-slate-500">{t("dashboard.activeClients")}</p>
-            </CardContent>
-          </Card>
-          <Card 
-            className="bg-white border border-slate-200 card-hover cursor-pointer"
             onClick={() => setActiveTab("pending")}
             data-testid="stats-documents"
           >
