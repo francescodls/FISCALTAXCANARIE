@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -14,6 +16,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -21,75 +30,168 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Search,
   Printer,
   Euro,
-  Filter,
   Users,
   Clock,
   CheckCircle2,
   AlertTriangle,
-  Download,
   Building2,
   Briefcase,
   Home,
   User,
   RefreshCw,
-  X,
-  FileText
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Trash2,
+  Edit,
+  Calendar,
+  Receipt,
+  Repeat,
+  FileText,
+  CreditCard,
+  Calculator,
+  MapPin,
+  ArrowLeft
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL + "/api";
 
+// ==================== TIPI DI ONORARIO ====================
+const FEE_TYPES = {
+  standard: {
+    label: "Onorario Standard",
+    requiresDueDate: false,
+    icon: Receipt,
+    color: "bg-slate-100 text-slate-700"
+  },
+  consulenza: {
+    label: "Consulenza",
+    requiresDueDate: false,
+    icon: FileText,
+    color: "bg-blue-100 text-blue-700"
+  },
+  pratica: {
+    label: "Pratica/Procedura",
+    requiresDueDate: true,
+    icon: Calendar,
+    color: "bg-purple-100 text-purple-700"
+  },
+  dichiarazione: {
+    label: "Dichiarazione Fiscale",
+    requiresDueDate: true,
+    icon: Calculator,
+    color: "bg-amber-100 text-amber-700"
+  },
+  iguala_buste_paga: {
+    label: "Iguala - Buste Paga",
+    requiresDueDate: false,
+    isIguala: true,
+    icon: CreditCard,
+    color: "bg-teal-100 text-teal-700"
+  },
+  iguala_contabilita: {
+    label: "Iguala - Contabilità Società",
+    requiresDueDate: false,
+    isIguala: true,
+    icon: Calculator,
+    color: "bg-green-100 text-green-700"
+  },
+  iguala_domicilio: {
+    label: "Iguala - Domicilio Sociale",
+    requiresDueDate: false,
+    isIguala: true,
+    icon: MapPin,
+    color: "bg-indigo-100 text-indigo-700"
+  }
+};
+
+const CLIENT_TYPES = [
+  { value: "all", label: "Tutte le categorie", icon: Users },
+  { value: "societa", label: "Società", icon: Building2 },
+  { value: "autonomo", label: "Autonomo", icon: Briefcase },
+  { value: "vivienda_vacacional", label: "Vivienda Vacacional", icon: Home },
+  { value: "persona_fisica", label: "Persona Fisica", icon: User },
+];
+
+// ==================== COMPONENTE PRINCIPALE ====================
 const GlobalFeesManagement = ({ token }) => {
-  const [fees, setFees] = useState([]);
+  const [activeTab, setActiveTab] = useState("clients");
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [clientFees, setClientFees] = useState([]);
+  const [igualaFees, setIgualaFees] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [clientTypeFilter, setClientTypeFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [yearFilter, setYearFilter] = useState("all");
-  const printRef = useRef();
+  
+  // Dialog state
+  const [showFeeDialog, setShowFeeDialog] = useState(false);
+  const [editingFee, setEditingFee] = useState(null);
+  const [feeForm, setFeeForm] = useState({
+    description: "",
+    amount: "",
+    fee_type: "standard",
+    due_date: "",
+    status: "pending",
+    notes: "",
+    is_recurring: false,
+    recurring_month: ""
+  });
+  const [savingFee, setSavingFee] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  const clientTypes = [
-    { value: "all", label: "Tutte le categorie", icon: Users },
-    { value: "societa", label: "Società", icon: Building2 },
-    { value: "autonomo", label: "Autonomo", icon: Briefcase },
-    { value: "vivienda_vacacional", label: "Vivienda Vacacional", icon: Home },
-    { value: "persona_fisica", label: "Persona Fisica", icon: User },
-  ];
-
-  const statusOptions = [
-    { value: "all", label: "Tutti gli stati" },
-    { value: "pending", label: "In attesa", color: "bg-amber-100 text-amber-700" },
-    { value: "paid", label: "Pagato", color: "bg-green-100 text-green-700" },
-    { value: "overdue", label: "Scaduto", color: "bg-red-100 text-red-700" },
-  ];
-
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
-
+  // ==================== DATA FETCHING ====================
   useEffect(() => {
-    fetchFees();
+    fetchClientsWithFees();
     fetchSummary();
+    fetchIgualaFees();
   }, []);
 
-  const fetchFees = async () => {
+  const fetchClientsWithFees = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (searchTerm) params.append("search", searchTerm);
-      if (clientTypeFilter !== "all") params.append("client_type", clientTypeFilter);
-      if (statusFilter !== "all") params.append("status", statusFilter);
-      if (yearFilter !== "all") params.append("year", yearFilter);
-
-      const response = await axios.get(`${API}/fees/all?${params.toString()}`, { headers });
-      setFees(response.data);
+      const response = await axios.get(`${API}/fees/by-client`, { headers });
+      setClients(response.data);
     } catch (error) {
-      toast.error("Errore nel caricamento degli onorari");
+      // Fallback: fetch clients and fees separately
+      try {
+        const [clientsRes, feesRes] = await Promise.all([
+          axios.get(`${API}/clients`, { headers }),
+          axios.get(`${API}/fees/all`, { headers })
+        ]);
+        
+        // Group fees by client
+        const feesMap = {};
+        feesRes.data.forEach(fee => {
+          const cid = fee.client_id;
+          if (!feesMap[cid]) feesMap[cid] = [];
+          feesMap[cid].push(fee);
+        });
+        
+        // Merge with clients
+        const clientsWithFees = clientsRes.data.map(client => ({
+          ...client,
+          fees: feesMap[client.id] || [],
+          fees_count: (feesMap[client.id] || []).length,
+          total_pending: (feesMap[client.id] || [])
+            .filter(f => f.status === 'pending')
+            .reduce((sum, f) => sum + f.amount, 0),
+          total_paid: (feesMap[client.id] || [])
+            .filter(f => f.status === 'paid')
+            .reduce((sum, f) => sum + f.amount, 0)
+        }));
+        
+        setClients(clientsWithFees);
+      } catch (err) {
+        toast.error("Errore nel caricamento dei dati");
+      }
     } finally {
       setLoading(false);
     }
@@ -104,172 +206,172 @@ const GlobalFeesManagement = ({ token }) => {
     }
   };
 
-  useEffect(() => {
-    const debounce = setTimeout(() => {
-      fetchFees();
-    }, 300);
-    return () => clearTimeout(debounce);
-  }, [searchTerm, clientTypeFilter, statusFilter, yearFilter]);
-
-  const handlePrint = (fee) => {
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Onorario - ${fee.client_name}</title>
-        <style>
-          body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; }
-          .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #3CACA4; padding-bottom: 20px; }
-          .header h1 { color: #3CACA4; margin: 0; }
-          .header p { color: #64748b; margin: 5px 0 0 0; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-          .info-box { background: #f8fafc; padding: 15px; border-radius: 8px; }
-          .info-box label { font-size: 12px; color: #64748b; text-transform: uppercase; }
-          .info-box p { font-size: 16px; font-weight: 600; margin: 5px 0 0 0; }
-          .amount { font-size: 32px; text-align: center; padding: 30px; background: linear-gradient(135deg, #3CACA4 0%, #2d8a84 100%); color: white; border-radius: 12px; margin: 30px 0; }
-          .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; }
-          .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-          .status-pending { background: #fef3c7; color: #d97706; }
-          .status-paid { background: #d1fae5; color: #059669; }
-          .status-overdue { background: #fee2e2; color: #dc2626; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Fiscal Tax Canarie</h1>
-          <p>Documento Onorario</p>
-        </div>
-        
-        <div class="info-grid">
-          <div class="info-box">
-            <label>Cliente</label>
-            <p>${fee.client_name}</p>
-          </div>
-          <div class="info-box">
-            <label>Email</label>
-            <p>${fee.client_email || 'N/A'}</p>
-          </div>
-          <div class="info-box">
-            <label>Descrizione</label>
-            <p>${fee.description}</p>
-          </div>
-          <div class="info-box">
-            <label>Data Scadenza</label>
-            <p>${new Date(fee.due_date).toLocaleDateString('it-IT')}</p>
-          </div>
-        </div>
-        
-        <div class="amount">
-          <div style="font-size: 14px; opacity: 0.8;">Importo</div>
-          €${fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
-        </div>
-        
-        <div style="text-align: center;">
-          <span class="status status-${fee.status}">
-            ${fee.status === 'pending' ? 'In Attesa' : fee.status === 'paid' ? 'Pagato' : 'Scaduto'}
-          </span>
-          ${fee.paid_date ? `<p style="margin-top: 10px; color: #64748b;">Pagato il: ${new Date(fee.paid_date).toLocaleDateString('it-IT')}</p>` : ''}
-        </div>
-        
-        ${fee.notes ? `<div style="margin-top: 30px; padding: 15px; background: #f8fafc; border-radius: 8px;"><label style="font-size: 12px; color: #64748b;">Note</label><p style="margin: 5px 0 0 0;">${fee.notes}</p></div>` : ''}
-        
-        <div class="footer">
-          <p>Fiscal Tax Canarie - Il tuo commercialista di fiducia alle Isole Canarie</p>
-          <p>+34 658 071 848 | info@fiscaltaxcanarie.com</p>
-          <p>Documento generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}</p>
-        </div>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+  const fetchIgualaFees = async () => {
+    try {
+      const response = await axios.get(`${API}/fees/all?fee_type=iguala`, { headers });
+      setIgualaFees(response.data);
+    } catch (error) {
+      // Se l'endpoint non supporta il filtro, filtriamo client-side
+      try {
+        const response = await axios.get(`${API}/fees/all`, { headers });
+        const iguala = response.data.filter(f => 
+          f.fee_type?.startsWith('iguala_') || f.is_recurring
+        );
+        setIgualaFees(iguala);
+      } catch (err) {
+        console.error("Errore caricamento Iguala:", err);
+      }
+    }
   };
 
-  const handlePrintAll = () => {
-    const printWindow = window.open('', '_blank');
-    const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
-    const totalPending = fees.filter(f => f.status === 'pending').reduce((sum, f) => sum + f.amount, 0);
-    const totalPaid = fees.filter(f => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0);
+  const fetchClientFees = async (clientId) => {
+    try {
+      const response = await axios.get(`${API}/clients/${clientId}/fees`, { headers });
+      setClientFees(response.data);
+    } catch (error) {
+      toast.error("Errore nel caricamento degli onorari");
+    }
+  };
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Riepilogo Onorari - Fiscal Tax Canarie</title>
-        <style>
-          body { font-family: 'Segoe UI', sans-serif; padding: 40px; color: #1e293b; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3CACA4; padding-bottom: 20px; }
-          .header h1 { color: #3CACA4; margin: 0; }
-          .summary { display: flex; justify-content: space-around; margin-bottom: 30px; }
-          .summary-box { text-align: center; padding: 15px 30px; background: #f8fafc; border-radius: 8px; }
-          .summary-box .value { font-size: 24px; font-weight: 700; color: #3CACA4; }
-          .summary-box .label { font-size: 12px; color: #64748b; }
-          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th { background: #3CACA4; color: white; padding: 12px; text-align: left; }
-          td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-          tr:nth-child(even) { background: #f8fafc; }
-          .status { padding: 2px 8px; border-radius: 12px; font-size: 11px; }
-          .status-pending { background: #fef3c7; color: #d97706; }
-          .status-paid { background: #d1fae5; color: #059669; }
-          .status-overdue { background: #fee2e2; color: #dc2626; }
-          .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 12px; }
-          @media print { body { padding: 20px; } }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Fiscal Tax Canarie</h1>
-          <p>Riepilogo Onorari</p>
-        </div>
-        
-        <div class="summary">
-          <div class="summary-box">
-            <div class="value">€${totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</div>
-            <div class="label">Totale</div>
-          </div>
-          <div class="summary-box">
-            <div class="value" style="color: #d97706;">€${totalPending.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</div>
-            <div class="label">In Attesa</div>
-          </div>
-          <div class="summary-box">
-            <div class="value" style="color: #059669;">€${totalPaid.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</div>
-            <div class="label">Pagati</div>
-          </div>
-        </div>
-        
-        <table>
-          <thead>
-            <tr>
-              <th>Cliente</th>
-              <th>Descrizione</th>
-              <th>Importo</th>
-              <th>Scadenza</th>
-              <th>Stato</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${fees.map(fee => `
-              <tr>
-                <td>${fee.client_name}</td>
-                <td>${fee.description}</td>
-                <td>€${fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</td>
-                <td>${new Date(fee.due_date).toLocaleDateString('it-IT')}</td>
-                <td><span class="status status-${fee.status}">${fee.status === 'pending' ? 'In Attesa' : fee.status === 'paid' ? 'Pagato' : 'Scaduto'}</span></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        
-        <div class="footer">
-          <p>Totale documenti: ${fees.length}</p>
-          <p>Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}</p>
-        </div>
-      </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+  // ==================== HANDLERS ====================
+  const handleSelectClient = async (client) => {
+    setSelectedClient(client);
+    await fetchClientFees(client.id);
+  };
+
+  const handleBackToList = () => {
+    setSelectedClient(null);
+    setClientFees([]);
+  };
+
+  const openNewFeeDialog = (feeType = "standard") => {
+    setEditingFee(null);
+    setFeeForm({
+      description: "",
+      amount: "",
+      fee_type: feeType,
+      due_date: "",
+      status: "pending",
+      notes: "",
+      is_recurring: feeType.startsWith("iguala_"),
+      recurring_month: ""
+    });
+    setShowFeeDialog(true);
+  };
+
+  const openEditFeeDialog = (fee) => {
+    setEditingFee(fee);
+    setFeeForm({
+      description: fee.description || "",
+      amount: fee.amount?.toString() || "",
+      fee_type: fee.fee_type || "standard",
+      due_date: fee.due_date || "",
+      status: fee.status || "pending",
+      notes: fee.notes || "",
+      is_recurring: fee.is_recurring || false,
+      recurring_month: fee.recurring_month || ""
+    });
+    setShowFeeDialog(true);
+  };
+
+  const handleSaveFee = async (e) => {
+    e.preventDefault();
+    if (!selectedClient && activeTab === "clients") {
+      toast.error("Seleziona un cliente");
+      return;
+    }
+    
+    setSavingFee(true);
+    try {
+      const feeData = {
+        ...feeForm,
+        amount: parseFloat(feeForm.amount),
+        // Se il tipo non richiede scadenza, la rimuoviamo
+        due_date: FEE_TYPES[feeForm.fee_type]?.requiresDueDate ? feeForm.due_date : null
+      };
+
+      const clientId = selectedClient?.id || feeForm.client_id;
+      
+      if (editingFee) {
+        await axios.put(`${API}/clients/${clientId}/fees/${editingFee.id}`, feeData, { headers });
+        toast.success("Onorario aggiornato");
+      } else {
+        await axios.post(`${API}/clients/${clientId}/fees`, feeData, { headers });
+        toast.success("Onorario creato");
+      }
+      
+      setShowFeeDialog(false);
+      if (selectedClient) {
+        fetchClientFees(selectedClient.id);
+      }
+      fetchClientsWithFees();
+      fetchSummary();
+      if (feeForm.fee_type.startsWith("iguala_")) {
+        fetchIgualaFees();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nel salvataggio");
+    } finally {
+      setSavingFee(false);
+    }
+  };
+
+  const handleDeleteFee = async (fee) => {
+    if (!confirm("Sei sicuro di voler eliminare questo onorario?")) return;
+    
+    try {
+      const clientId = fee.client_id || selectedClient?.id;
+      await axios.delete(`${API}/clients/${clientId}/fees/${fee.id}`, { headers });
+      toast.success("Onorario eliminato");
+      if (selectedClient) {
+        fetchClientFees(selectedClient.id);
+      }
+      fetchClientsWithFees();
+      fetchSummary();
+    } catch (error) {
+      toast.error("Errore nell'eliminazione");
+    }
+  };
+
+  const handleMarkAsPaid = async (fee) => {
+    try {
+      const clientId = fee.client_id || selectedClient?.id;
+      await axios.put(`${API}/clients/${clientId}/fees/${fee.id}`, {
+        ...fee,
+        status: "paid",
+        paid_date: new Date().toISOString().split('T')[0]
+      }, { headers });
+      toast.success("Onorario segnato come pagato");
+      if (selectedClient) {
+        fetchClientFees(selectedClient.id);
+      }
+      fetchClientsWithFees();
+      fetchSummary();
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento");
+    }
+  };
+
+  // ==================== FILTERING ====================
+  const filteredClients = clients.filter(client => {
+    const matchesSearch = !searchTerm || 
+      client.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = clientTypeFilter === "all" || client.tipo_cliente === clientTypeFilter;
+    return matchesSearch && matchesType;
+  });
+
+  // Group Iguala fees by type
+  const groupedIguala = {
+    buste_paga: igualaFees.filter(f => f.fee_type === 'iguala_buste_paga'),
+    contabilita: igualaFees.filter(f => f.fee_type === 'iguala_contabilita'),
+    domicilio: igualaFees.filter(f => f.fee_type === 'iguala_domicilio'),
+    other: igualaFees.filter(f => !f.fee_type?.startsWith('iguala_') && f.is_recurring)
+  };
+
+  const getClientTypeIcon = (type) => {
+    const TypeIcon = CLIENT_TYPES.find(t => t.value === type)?.icon || User;
+    return <TypeIcon className="h-4 w-4" />;
   };
 
   const getStatusBadge = (status) => {
@@ -283,20 +385,17 @@ const GlobalFeesManagement = ({ token }) => {
     }
   };
 
-  const getClientTypeIcon = (type) => {
-    const TypeIcon = clientTypes.find(t => t.value === type)?.icon || User;
-    return <TypeIcon className="h-4 w-4 text-slate-400" />;
+  const getFeeTypeBadge = (feeType) => {
+    const type = FEE_TYPES[feeType] || FEE_TYPES.standard;
+    return (
+      <Badge className={`${type.color} border-0`}>
+        <type.icon className="h-3 w-3 mr-1" />
+        {type.label}
+      </Badge>
+    );
   };
 
-  const clearFilters = () => {
-    setSearchTerm("");
-    setClientTypeFilter("all");
-    setStatusFilter("all");
-    setYearFilter("all");
-  };
-
-  const hasActiveFilters = searchTerm || clientTypeFilter !== "all" || statusFilter !== "all" || yearFilter !== "all";
-
+  // ==================== RENDER ====================
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -305,11 +404,13 @@ const GlobalFeesManagement = ({ token }) => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Totale Onorari</p>
-                <p className="text-2xl font-bold text-slate-800">{summary.total_count || 0}</p>
+                <p className="text-sm text-slate-500">Clienti con Onorari</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {clients.filter(c => c.fees_count > 0).length}
+                </p>
               </div>
               <div className="p-3 bg-slate-100 rounded-xl">
-                <FileText className="h-6 w-6 text-slate-600" />
+                <Users className="h-6 w-6 text-slate-600" />
               </div>
             </div>
           </CardContent>
@@ -351,222 +452,620 @@ const GlobalFeesManagement = ({ token }) => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-slate-500">Scaduti</p>
-                <p className="text-2xl font-bold text-red-600">
-                  €{(summary.total_overdue || 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                <p className="text-sm text-slate-500">Iguala Mensili</p>
+                <p className="text-2xl font-bold text-teal-600">
+                  {igualaFees.length}
                 </p>
               </div>
-              <div className="p-3 bg-red-100 rounded-xl">
-                <AlertTriangle className="h-6 w-6 text-red-600" />
+              <div className="p-3 bg-teal-100 rounded-xl">
+                <Repeat className="h-6 w-6 text-teal-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card className="bg-white border border-slate-200">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="h-5 w-5 text-teal-500" />
-              Filtri e Ricerca
-            </CardTitle>
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-slate-500">
-                <X className="h-4 w-4 mr-1" />
-                Cancella filtri
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Search */}
-            <div className="lg:col-span-2">
-              <Label className="text-xs text-slate-500 mb-1.5 block">Cerca</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Cerca per cliente o descrizione..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 border-slate-200"
-                  data-testid="search-fees"
-                />
-              </div>
-            </div>
+      {/* Main Content with Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="bg-slate-100 p-1">
+          <TabsTrigger 
+            value="clients" 
+            className="data-[state=active]:bg-white data-[state=active]:text-teal-600"
+            data-testid="tab-fees-clients"
+          >
+            <Users className="h-4 w-4 mr-2" />
+            Per Cliente
+          </TabsTrigger>
+          <TabsTrigger 
+            value="iguala" 
+            className="data-[state=active]:bg-white data-[state=active]:text-teal-600"
+            data-testid="tab-fees-iguala"
+          >
+            <Repeat className="h-4 w-4 mr-2" />
+            Iguala (Mensili)
+          </TabsTrigger>
+        </TabsList>
 
-            {/* Client Type Filter */}
-            <div>
-              <Label className="text-xs text-slate-500 mb-1.5 block">Categoria Cliente</Label>
-              <Select value={clientTypeFilter} onValueChange={setClientTypeFilter}>
-                <SelectTrigger className="border-slate-200" data-testid="filter-client-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      <div className="flex items-center gap-2">
-                        <type.icon className="h-4 w-4" />
-                        {type.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Status Filter */}
-            <div>
-              <Label className="text-xs text-slate-500 mb-1.5 block">Stato</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="border-slate-200" data-testid="filter-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
-                      {status.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Year Filter */}
-            <div>
-              <Label className="text-xs text-slate-500 mb-1.5 block">Anno</Label>
-              <Select value={yearFilter} onValueChange={setYearFilter}>
-                <SelectTrigger className="border-slate-200" data-testid="filter-year">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutti gli anni</SelectItem>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Fees Table */}
-      <Card className="bg-white border border-slate-200">
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Euro className="h-5 w-5 text-teal-500" />
-              Lista Onorari
-              <Badge variant="outline" className="ml-2">{fees.length}</Badge>
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchFees}
-                className="border-slate-200"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Aggiorna
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintAll}
-                disabled={fees.length === 0}
-                className="border-slate-200"
-              >
-                <Printer className="h-4 w-4 mr-2" />
-                Stampa Tutti
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-10 h-10 border-3 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-slate-500">Caricamento onorari...</p>
-              </div>
-            </div>
-          ) : fees.length === 0 ? (
-            <div className="text-center py-12">
-              <Euro className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-700 mb-2">Nessun onorario trovato</h3>
-              <p className="text-slate-500">
-                {hasActiveFilters ? "Prova a modificare i filtri di ricerca" : "Non ci sono onorari registrati"}
-              </p>
-            </div>
+        {/* TAB: Per Cliente */}
+        <TabsContent value="clients" className="space-y-4">
+          {selectedClient ? (
+            // Vista dettaglio cliente
+            <ClientFeesDetail 
+              client={selectedClient}
+              fees={clientFees}
+              onBack={handleBackToList}
+              onAddFee={() => openNewFeeDialog()}
+              onEditFee={openEditFeeDialog}
+              onDeleteFee={handleDeleteFee}
+              onMarkPaid={handleMarkAsPaid}
+              getStatusBadge={getStatusBadge}
+              getFeeTypeBadge={getFeeTypeBadge}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="font-semibold">Cliente</TableHead>
-                    <TableHead className="font-semibold">Descrizione</TableHead>
-                    <TableHead className="font-semibold text-right">Importo</TableHead>
-                    <TableHead className="font-semibold">Scadenza</TableHead>
-                    <TableHead className="font-semibold">Stato</TableHead>
-                    <TableHead className="font-semibold text-center">Azioni</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fees.map((fee) => (
-                    <TableRow key={fee.id} className="hover:bg-slate-50 transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getClientTypeIcon(fee.client_type)}
+            // Lista clienti
+            <Card className="bg-white border border-slate-200">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Users className="h-5 w-5 text-teal-500" />
+                    Onorari per Cliente
+                  </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Cerca cliente..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 w-64 border-slate-200"
+                        data-testid="search-clients-fees"
+                      />
+                    </div>
+                    <Select value={clientTypeFilter} onValueChange={setClientTypeFilter}>
+                      <SelectTrigger className="w-48 border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CLIENT_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            <div className="flex items-center gap-2">
+                              <type.icon className="h-4 w-4" />
+                              {type.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { fetchClientsWithFees(); fetchSummary(); }}
+                      className="border-slate-200"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : filteredClients.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-500">Nessun cliente trovato</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredClients.map((client) => (
+                      <div
+                        key={client.id}
+                        onClick={() => handleSelectClient(client)}
+                        className="flex items-center justify-between p-4 rounded-lg border border-slate-200 hover:border-teal-300 hover:bg-teal-50/50 cursor-pointer transition-all group"
+                        data-testid={`client-fee-row-${client.id}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-slate-100 rounded-lg group-hover:bg-teal-100 transition-colors">
+                            {getClientTypeIcon(client.tipo_cliente)}
+                          </div>
                           <div>
-                            <p className="font-medium text-slate-800">{fee.client_name}</p>
-                            <p className="text-xs text-slate-500">{fee.client_email}</p>
+                            <h4 className="font-medium text-slate-800">{client.full_name}</h4>
+                            <p className="text-sm text-slate-500">{client.email}</p>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-slate-700">{fee.description}</p>
-                        {fee.notes && (
-                          <p className="text-xs text-slate-400 truncate max-w-xs">{fee.notes}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className="font-semibold text-slate-800">
-                          €{fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-slate-600">
-                          {new Date(fee.due_date).toLocaleDateString('it-IT')}
-                        </span>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(fee.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handlePrint(fee)}
-                            className="text-slate-500 hover:text-teal-600"
-                            title="Stampa"
-                            data-testid={`print-fee-${fee.id}`}
-                          >
-                            <Printer className="h-4 w-4" />
-                          </Button>
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <p className="text-sm text-slate-500">Onorari</p>
+                            <p className="font-semibold text-slate-700">{client.fees_count || 0}</p>
+                          </div>
+                          {(client.total_pending > 0) && (
+                            <div className="text-right">
+                              <p className="text-sm text-slate-500">Da incassare</p>
+                              <p className="font-semibold text-amber-600">
+                                €{client.total_pending?.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          )}
+                          <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-teal-500" />
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
+        </TabsContent>
+
+        {/* TAB: Iguala (Onorari Mensili) */}
+        <TabsContent value="iguala" className="space-y-4">
+          <IgualaSection 
+            groupedIguala={groupedIguala}
+            clients={clients}
+            onAddFee={openNewFeeDialog}
+            onEditFee={openEditFeeDialog}
+            onDeleteFee={handleDeleteFee}
+            onMarkPaid={handleMarkAsPaid}
+            getStatusBadge={getStatusBadge}
+          />
+        </TabsContent>
+      </Tabs>
+
+      {/* Fee Dialog */}
+      <Dialog open={showFeeDialog} onOpenChange={setShowFeeDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Euro className="h-5 w-5 text-teal-500" />
+              {editingFee ? "Modifica Onorario" : "Nuovo Onorario"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSaveFee} className="space-y-4">
+            {/* Tipo Onorario */}
+            <div className="space-y-2">
+              <Label>Tipo Onorario</Label>
+              <Select 
+                value={feeForm.fee_type} 
+                onValueChange={(value) => setFeeForm({
+                  ...feeForm, 
+                  fee_type: value,
+                  is_recurring: value.startsWith('iguala_')
+                })}
+              >
+                <SelectTrigger className="border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Onorario Standard</SelectItem>
+                  <SelectItem value="consulenza">Consulenza</SelectItem>
+                  <SelectItem value="pratica">Pratica/Procedura</SelectItem>
+                  <SelectItem value="dichiarazione">Dichiarazione Fiscale</SelectItem>
+                  <SelectItem value="iguala_buste_paga">Iguala - Buste Paga</SelectItem>
+                  <SelectItem value="iguala_contabilita">Iguala - Contabilità Società</SelectItem>
+                  <SelectItem value="iguala_domicilio">Iguala - Domicilio Sociale</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Descrizione */}
+            <div className="space-y-2">
+              <Label>Descrizione *</Label>
+              <Input
+                value={feeForm.description}
+                onChange={(e) => setFeeForm({ ...feeForm, description: e.target.value })}
+                placeholder="Es: Consulenza fiscale Gennaio 2026"
+                required
+                className="border-slate-200"
+              />
+            </div>
+
+            {/* Importo */}
+            <div className="space-y-2">
+              <Label>Importo (€) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={feeForm.amount}
+                onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
+                placeholder="0.00"
+                required
+                className="border-slate-200"
+              />
+            </div>
+
+            {/* Scadenza - Solo se richiesta */}
+            {FEE_TYPES[feeForm.fee_type]?.requiresDueDate && (
+              <div className="space-y-2">
+                <Label>Data Scadenza *</Label>
+                <Input
+                  type="date"
+                  value={feeForm.due_date}
+                  onChange={(e) => setFeeForm({ ...feeForm, due_date: e.target.value })}
+                  required
+                  className="border-slate-200"
+                />
+                <p className="text-xs text-slate-500">
+                  Questo tipo di onorario richiede una data di scadenza
+                </p>
+              </div>
+            )}
+
+            {/* Mese di riferimento per Iguala */}
+            {feeForm.fee_type.startsWith('iguala_') && (
+              <div className="space-y-2">
+                <Label>Mese di Riferimento</Label>
+                <Input
+                  type="month"
+                  value={feeForm.recurring_month}
+                  onChange={(e) => setFeeForm({ ...feeForm, recurring_month: e.target.value })}
+                  className="border-slate-200"
+                />
+              </div>
+            )}
+
+            {/* Stato */}
+            <div className="space-y-2">
+              <Label>Stato</Label>
+              <Select 
+                value={feeForm.status} 
+                onValueChange={(value) => setFeeForm({ ...feeForm, status: value })}
+              >
+                <SelectTrigger className="border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">In Attesa</SelectItem>
+                  <SelectItem value="paid">Pagato</SelectItem>
+                  <SelectItem value="overdue">Scaduto</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Note */}
+            <div className="space-y-2">
+              <Label>Note (opzionale)</Label>
+              <Textarea
+                value={feeForm.notes}
+                onChange={(e) => setFeeForm({ ...feeForm, notes: e.target.value })}
+                placeholder="Note aggiuntive..."
+                className="border-slate-200"
+                rows={2}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowFeeDialog(false)}>
+                Annulla
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={savingFee}
+                className="bg-teal-500 hover:bg-teal-600 text-white"
+              >
+                {savingFee ? "Salvataggio..." : (editingFee ? "Aggiorna" : "Crea")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+// ==================== COMPONENTE: Dettaglio Cliente ====================
+const ClientFeesDetail = ({ 
+  client, 
+  fees, 
+  onBack, 
+  onAddFee, 
+  onEditFee, 
+  onDeleteFee, 
+  onMarkPaid,
+  getStatusBadge,
+  getFeeTypeBadge
+}) => {
+  const totalPending = fees.filter(f => f.status === 'pending').reduce((sum, f) => sum + f.amount, 0);
+  const totalPaid = fees.filter(f => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0);
+
+  return (
+    <Card className="bg-white border border-slate-200">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-500">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Indietro
+            </Button>
+            <div>
+              <CardTitle className="text-xl">{client.full_name}</CardTitle>
+              <p className="text-sm text-slate-500">{client.email}</p>
+            </div>
+          </div>
+          <Button onClick={onAddFee} className="bg-teal-500 hover:bg-teal-600 text-white">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuovo Onorario
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Mini Summary */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="p-4 bg-slate-50 rounded-lg text-center">
+            <p className="text-sm text-slate-500">Totale Onorari</p>
+            <p className="text-xl font-bold text-slate-800">{fees.length}</p>
+          </div>
+          <div className="p-4 bg-amber-50 rounded-lg text-center">
+            <p className="text-sm text-amber-600">In Attesa</p>
+            <p className="text-xl font-bold text-amber-600">
+              €{totalPending.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="p-4 bg-green-50 rounded-lg text-center">
+            <p className="text-sm text-green-600">Pagati</p>
+            <p className="text-xl font-bold text-green-600">
+              €{totalPaid.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        </div>
+
+        {/* Fees List */}
+        {fees.length === 0 ? (
+          <div className="text-center py-12">
+            <Euro className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-500">Nessun onorario per questo cliente</p>
+            <Button onClick={onAddFee} variant="outline" className="mt-4">
+              <Plus className="h-4 w-4 mr-2" />
+              Aggiungi il primo onorario
+            </Button>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50">
+                <TableHead>Descrizione</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Importo</TableHead>
+                <TableHead>Scadenza</TableHead>
+                <TableHead>Stato</TableHead>
+                <TableHead className="text-center">Azioni</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {fees.map((fee) => (
+                <TableRow key={fee.id} className="hover:bg-slate-50">
+                  <TableCell>
+                    <p className="font-medium">{fee.description}</p>
+                    {fee.notes && <p className="text-xs text-slate-400">{fee.notes}</p>}
+                  </TableCell>
+                  <TableCell>{getFeeTypeBadge(fee.fee_type)}</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    €{fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell>
+                    {fee.due_date ? (
+                      <span className="text-slate-600">
+                        {new Date(fee.due_date).toLocaleDateString('it-IT')}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(fee.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      {fee.status === 'pending' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onMarkPaid(fee)}
+                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                          title="Segna come pagato"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditFee(fee)}
+                        className="text-slate-500 hover:text-blue-600"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDeleteFee(fee)}
+                        className="text-slate-500 hover:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// ==================== COMPONENTE: Sezione Iguala ====================
+const IgualaSection = ({ 
+  groupedIguala, 
+  clients, 
+  onAddFee, 
+  onEditFee, 
+  onDeleteFee, 
+  onMarkPaid,
+  getStatusBadge
+}) => {
+  const [expandedSection, setExpandedSection] = useState(null);
+
+  const igualaCategories = [
+    { 
+      key: 'buste_paga', 
+      label: 'Buste Paga', 
+      icon: CreditCard, 
+      color: 'teal',
+      feeType: 'iguala_buste_paga',
+      description: 'Onorari mensili per elaborazione buste paga'
+    },
+    { 
+      key: 'contabilita', 
+      label: 'Contabilità Società', 
+      icon: Calculator, 
+      color: 'green',
+      feeType: 'iguala_contabilita',
+      description: 'Onorari mensili per gestione contabilità'
+    },
+    { 
+      key: 'domicilio', 
+      label: 'Domicilio Sociale', 
+      icon: MapPin, 
+      color: 'indigo',
+      feeType: 'iguala_domicilio',
+      description: 'Onorari mensili per servizio domiciliazione'
+    }
+  ];
+
+  const getClientName = (clientId) => {
+    const client = clients.find(c => c.id === clientId);
+    return client?.full_name || 'N/A';
+  };
+
+  const totalIguala = Object.values(groupedIguala).flat().reduce((sum, f) => sum + f.amount, 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <Card className="bg-gradient-to-r from-teal-500 to-teal-600 text-white border-0">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-white/20 rounded-xl">
+                <Repeat className="h-8 w-8" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold">Iguala - Onorari Mensili</h2>
+                <p className="text-teal-100">Gestione onorari ricorrenti mensili</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-teal-100 text-sm">Totale Mensile</p>
+              <p className="text-3xl font-bold">
+                €{totalIguala.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Categories */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {igualaCategories.map((category) => {
+          const fees = groupedIguala[category.key] || [];
+          const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
+          const isExpanded = expandedSection === category.key;
+          
+          return (
+            <Card 
+              key={category.key}
+              className={`bg-white border-2 transition-all cursor-pointer ${
+                isExpanded ? `border-${category.color}-400` : 'border-slate-200 hover:border-slate-300'
+              }`}
+              onClick={() => setExpandedSection(isExpanded ? null : category.key)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 bg-${category.color}-100 rounded-lg`}>
+                      <category.icon className={`h-5 w-5 text-${category.color}-600`} />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-800">{category.label}</h3>
+                      <p className="text-xs text-slate-500">{fees.length} clienti</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-800">
+                      €{totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                    </span>
+                    {isExpanded ? (
+                      <ChevronDown className="h-5 w-5 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-slate-400" />
+                    )}
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <div className="space-y-2 pt-4 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => onAddFee(category.feeType)}
+                      className="w-full mb-3 border-dashed"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Aggiungi {category.label}
+                    </Button>
+                    
+                    {fees.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">
+                        Nessun onorario in questa categoria
+                      </p>
+                    ) : (
+                      fees.map((fee) => (
+                        <div 
+                          key={fee.id}
+                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
+                        >
+                          <div>
+                            <p className="font-medium text-sm">{getClientName(fee.client_id)}</p>
+                            <p className="text-xs text-slate-500">{fee.description}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold">
+                              €{fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </span>
+                            {getStatusBadge(fee.status)}
+                            <div className="flex gap-1">
+                              {fee.status === 'pending' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onMarkPaid(fee)}
+                                  className="h-7 w-7 p-0 text-green-600"
+                                >
+                                  <CheckCircle2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onEditFee(fee)}
+                                className="h-7 w-7 p-0 text-slate-500"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 };
