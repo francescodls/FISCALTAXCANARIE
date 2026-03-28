@@ -222,6 +222,38 @@ class NoteResponse(BaseModel):
     created_at: str
     updated_at: str
 
+# ==================== TICKET MODELS ====================
+
+class TicketMessageCreate(BaseModel):
+    content: str
+
+class TicketMessage(BaseModel):
+    id: str
+    content: str
+    sender_id: str
+    sender_name: str
+    sender_role: str  # "cliente" o "commercialista"
+    created_at: str
+
+class TicketCreate(BaseModel):
+    subject: str
+    content: str
+
+class TicketUpdate(BaseModel):
+    status: Optional[str] = None  # "aperto", "chiuso", "archiviato"
+
+class TicketResponse(BaseModel):
+    id: str
+    subject: str
+    client_id: str
+    client_name: Optional[str] = None
+    status: str  # "aperto", "chiuso", "archiviato"
+    messages: List[TicketMessage] = []
+    created_by: str
+    created_at: str
+    updated_at: str
+    closed_at: Optional[str] = None
+
 class DeadlineCreate(BaseModel):
     title: str
     description: str
@@ -306,6 +338,43 @@ class ModelloTributarioResponse(BaseModel):
     video_youtube: Optional[str] = None
     video_thumbnail: Optional[str] = None  # Thumbnail calcolata
     link_approfondimento: Optional[str] = None
+    created_at: str
+
+# ==================== FEE (ONORARI) MODELS ====================
+
+class FeeCreate(BaseModel):
+    description: str
+    amount: float
+    due_date: Optional[str] = None  # Opzionale - richiesto solo per certi tipi
+    status: str = "pending"  # pending, paid, overdue
+    notes: Optional[str] = None
+    fee_type: str = "standard"  # standard, consulenza, pratica, dichiarazione, iguala_buste_paga, iguala_contabilita, iguala_domicilio
+    is_recurring: bool = False
+    recurring_month: Optional[str] = None  # YYYY-MM per Iguala
+
+class FeeUpdate(BaseModel):
+    description: Optional[str] = None
+    amount: Optional[float] = None
+    due_date: Optional[str] = None
+    status: Optional[str] = None
+    paid_date: Optional[str] = None
+    notes: Optional[str] = None
+    fee_type: Optional[str] = None
+    is_recurring: Optional[bool] = None
+    recurring_month: Optional[str] = None
+
+class FeeResponse(BaseModel):
+    id: str
+    client_id: str
+    description: str
+    amount: float
+    due_date: Optional[str] = None
+    status: str
+    paid_date: Optional[str] = None
+    notes: Optional[str] = None
+    fee_type: str = "standard"
+    is_recurring: bool = False
+    recurring_month: Optional[str] = None
     created_at: str
 
 # ==================== CLIENT CREATION MODELS ====================
@@ -2107,6 +2176,337 @@ async def delete_note(note_id: str, user: dict = Depends(require_commercialista)
         raise HTTPException(status_code=404, detail="Nota non trovata")
     return {"message": "Nota eliminata"}
 
+# ==================== TICKET ROUTES ====================
+
+@api_router.post("/tickets", response_model=TicketResponse)
+async def create_ticket(ticket_data: TicketCreate, user: dict = Depends(get_current_user)):
+    """Crea un nuovo ticket - accessibile sia a clienti che admin"""
+    ticket_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Determina client_id
+    if user["role"] == "cliente":
+        client_id = user["id"]
+    else:
+        raise HTTPException(status_code=400, detail="Solo i clienti possono aprire ticket")
+    
+    # Primo messaggio del ticket
+    first_message = {
+        "id": str(uuid.uuid4()),
+        "content": ticket_data.content,
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", "Cliente"),
+        "sender_role": user["role"],
+        "created_at": now
+    }
+    
+    ticket = {
+        "id": ticket_id,
+        "subject": ticket_data.subject,
+        "client_id": client_id,
+        "status": "aperto",
+        "messages": [first_message],
+        "created_by": user["id"],
+        "created_at": now,
+        "updated_at": now,
+        "closed_at": None
+    }
+    
+    await db.tickets.insert_one(ticket)
+    
+    # Crea notifica per admin
+    await db.admin_notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "type": "new_ticket",
+        "title": "Nuovo Ticket",
+        "message": f"Nuovo ticket da {user.get('full_name', 'Cliente')}: {ticket_data.subject}",
+        "ticket_id": ticket_id,
+        "client_id": client_id,
+        "read": False,
+        "created_at": now
+    })
+    
+    # Get client name
+    client = await db.users.find_one({"id": client_id}, {"_id": 0, "full_name": 1})
+    ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**ticket)
+
+@api_router.get("/tickets", response_model=List[TicketResponse])
+async def get_tickets(
+    client_id: Optional[str] = None,
+    status: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Recupera tickets - filtrati per ruolo utente"""
+    query = {}
+    
+    if user["role"] == "cliente":
+        # Cliente vede solo i propri ticket
+        query["client_id"] = user["id"]
+    elif client_id:
+        # Admin può filtrare per cliente
+        query["client_id"] = client_id
+    
+    # Filtro per stato
+    if status and status != "tutti":
+        query["status"] = status
+    
+    tickets = await db.tickets.find(query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
+    
+    # Aggiungi nomi clienti
+    client_ids = list(set(t["client_id"] for t in tickets))
+    clients = await db.users.find({"id": {"$in": client_ids}}, {"_id": 0, "id": 1, "full_name": 1}).to_list(1000)
+    client_map = {c["id"]: c.get("full_name") for c in clients}
+    
+    for ticket in tickets:
+        ticket["client_name"] = client_map.get(ticket["client_id"])
+    
+    return [TicketResponse(**t) for t in tickets]
+
+@api_router.get("/tickets/{ticket_id}", response_model=TicketResponse)
+async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
+    """Recupera singolo ticket"""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and ticket["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Aggiungi nome cliente
+    client = await db.users.find_one({"id": ticket["client_id"]}, {"_id": 0, "full_name": 1})
+    ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**ticket)
+
+@api_router.post("/tickets/{ticket_id}/messages", response_model=TicketResponse)
+async def add_ticket_message(ticket_id: str, message_data: TicketMessageCreate, user: dict = Depends(get_current_user)):
+    """Aggiungi messaggio a un ticket - sia cliente che admin"""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and ticket["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Verifica che il ticket non sia chiuso o archiviato
+    if ticket["status"] in ["chiuso", "archiviato"]:
+        raise HTTPException(status_code=400, detail="Non è possibile rispondere a un ticket chiuso o archiviato")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    new_message = {
+        "id": str(uuid.uuid4()),
+        "content": message_data.content,
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", "Utente"),
+        "sender_role": user["role"],
+        "created_at": now
+    }
+    
+    await db.tickets.update_one(
+        {"id": ticket_id},
+        {
+            "$push": {"messages": new_message},
+            "$set": {"updated_at": now}
+        }
+    )
+    
+    # Notifica all'altra parte
+    if user["role"] == "cliente":
+        # Notifica admin
+        await db.admin_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "ticket_reply",
+            "title": "Risposta Ticket",
+            "message": f"Nuova risposta da {user.get('full_name', 'Cliente')} al ticket: {ticket['subject']}",
+            "ticket_id": ticket_id,
+            "client_id": ticket["client_id"],
+            "read": False,
+            "created_at": now
+        })
+    
+    # Recupera ticket aggiornato
+    updated_ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    client = await db.users.find_one({"id": updated_ticket["client_id"]}, {"_id": 0, "full_name": 1})
+    updated_ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**updated_ticket)
+
+@api_router.put("/tickets/{ticket_id}/status", response_model=TicketResponse)
+async def update_ticket_status(ticket_id: str, status_data: TicketUpdate, user: dict = Depends(require_commercialista)):
+    """Aggiorna stato ticket - solo admin"""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    update_data = {"updated_at": now}
+    
+    if status_data.status:
+        update_data["status"] = status_data.status
+        if status_data.status == "chiuso":
+            update_data["closed_at"] = now
+    
+    await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
+    
+    updated_ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    client = await db.users.find_one({"id": updated_ticket["client_id"]}, {"_id": 0, "full_name": 1})
+    updated_ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**updated_ticket)
+
+@api_router.delete("/tickets/{ticket_id}")
+async def delete_ticket(ticket_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina ticket - solo admin"""
+    result = await db.tickets.delete_one({"id": ticket_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    return {"message": "Ticket eliminato"}
+
+@api_router.get("/tickets/{ticket_id}/export-pdf")
+async def export_ticket_pdf(ticket_id: str, user: dict = Depends(require_commercialista)):
+    """Esporta ticket in PDF con storico completo"""
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    # Get client info
+    client = await db.users.find_one({"id": ticket["client_id"]}, {"_id": 0})
+    client_name = client.get("full_name", "N/A") if client else "N/A"
+    client_email = client.get("email", "N/A") if client else "N/A"
+    
+    # Create PDF buffer
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor('#0d9488'), spaceAfter=20, alignment=TA_CENTER)
+    header_style = ParagraphStyle('Header', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#64748b'), alignment=TA_CENTER)
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#1e293b'), spaceBefore=15, spaceAfter=10)
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#334155'), spaceAfter=6)
+    message_client_style = ParagraphStyle('MessageClient', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#0f766e'), leftIndent=20, spaceAfter=10)
+    message_admin_style = ParagraphStyle('MessageAdmin', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e40af'), leftIndent=20, spaceAfter=10)
+    date_style = ParagraphStyle('Date', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94a3b8'))
+    
+    elements = []
+    
+    # Header
+    elements.append(Paragraph("FISCAL TAX CANARIE", header_style))
+    elements.append(Paragraph("Copia Certificata Ticket di Assistenza", header_style))
+    elements.append(Spacer(1, 20))
+    
+    # Title
+    elements.append(Paragraph(f"Ticket: {ticket['subject']}", title_style))
+    elements.append(Spacer(1, 10))
+    
+    # Status badge
+    status_colors = {"aperto": "#22c55e", "chiuso": "#64748b", "archiviato": "#ef4444"}
+    status_labels = {"aperto": "APERTO", "chiuso": "CHIUSO", "archiviato": "ARCHIVIATO"}
+    status = ticket.get("status", "aperto")
+    elements.append(Paragraph(f"<font color='{status_colors.get(status, '#64748b')}'>● {status_labels.get(status, status.upper())}</font>", ParagraphStyle('Status', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER)))
+    elements.append(Spacer(1, 20))
+    
+    # Info table
+    info_data = [
+        ["Cliente:", client_name],
+        ["Email:", client_email],
+        ["Data Apertura:", ticket.get("created_at", "N/A")[:19].replace("T", " ") if ticket.get("created_at") else "N/A"],
+        ["Ultimo Aggiornamento:", ticket.get("updated_at", "N/A")[:19].replace("T", " ") if ticket.get("updated_at") else "N/A"],
+    ]
+    if ticket.get("closed_at"):
+        info_data.append(["Data Chiusura:", ticket["closed_at"][:19].replace("T", " ")])
+    
+    info_table = Table(info_data, colWidths=[4*cm, 12*cm])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+        ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1e293b')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 20))
+    
+    # Separator
+    elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e2e8f0')))
+    elements.append(Spacer(1, 15))
+    
+    # Conversation history
+    elements.append(Paragraph("STORICO CONVERSAZIONE", section_style))
+    
+    messages = ticket.get("messages", [])
+    if messages:
+        for i, msg in enumerate(messages):
+            sender_name = msg.get("sender_name", "Utente")
+            sender_role = msg.get("sender_role", "")
+            created_at = msg.get("created_at", "")[:19].replace("T", " ") if msg.get("created_at") else ""
+            content = msg.get("content", "")
+            
+            # Message header
+            if sender_role == "cliente":
+                elements.append(Paragraph(f"<b>🟢 {sender_name} (Cliente)</b> - {created_at}", date_style))
+                elements.append(Paragraph(content, message_client_style))
+            else:
+                elements.append(Paragraph(f"<b>🔵 {sender_name} (Fiscal Tax Canarie)</b> - {created_at}", date_style))
+                elements.append(Paragraph(content, message_admin_style))
+            
+            if i < len(messages) - 1:
+                elements.append(Spacer(1, 5))
+    else:
+        elements.append(Paragraph("Nessun messaggio nel ticket.", normal_style))
+    
+    # Footer
+    elements.append(Spacer(1, 30))
+    elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e2e8f0')))
+    elements.append(Spacer(1, 10))
+    footer_text = f"Documento generato il {datetime.now(timezone.utc).strftime('%d/%m/%Y alle %H:%M:%S')} UTC"
+    elements.append(Paragraph(footer_text, ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94a3b8'), alignment=TA_CENTER)))
+    elements.append(Paragraph("Fiscal Tax Canarie - Gestionale Studio Professionale", ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94a3b8'), alignment=TA_CENTER)))
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    # Filename
+    safe_subject = "".join(c for c in ticket['subject'] if c.isalnum() or c in (' ', '-', '_')).strip()[:30]
+    filename = f"ticket_{safe_subject}_{ticket_id[:8]}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/admin/ticket-notifications")
+async def get_ticket_notifications(user: dict = Depends(require_commercialista)):
+    """Recupera notifiche ticket non lette per admin"""
+    notifications = await db.admin_notifications.find(
+        {"type": {"$in": ["new_ticket", "ticket_reply"]}, "read": False},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return notifications
+
+@api_router.put("/admin/ticket-notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user: dict = Depends(require_commercialista)):
+    """Segna notifica come letta"""
+    await db.admin_notifications.update_one({"id": notification_id}, {"$set": {"read": True}})
+    return {"message": "Notifica segnata come letta"}
+
 # ==================== DEADLINES ROUTES ====================
 
 @api_router.get("/deadlines", response_model=List[DeadlineResponse])
@@ -3406,6 +3806,380 @@ async def delete_invitation(invitation_id: str, user: dict = Depends(require_com
     )
     
     return {"message": "Invito eliminato con successo"}
+
+# ==================== FEES (ONORARI) ROUTES ====================
+
+@api_router.get("/fees/all")
+async def get_all_fees(
+    search: Optional[str] = None,
+    client_type: Optional[str] = None,
+    status: Optional[str] = None,
+    year: Optional[int] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Recupera tutti gli onorari con filtri opzionali.
+    - search: ricerca per descrizione o nome cliente
+    - client_type: filtra per tipo cliente (societa, autonomo, vivienda_vacacional, persona_fisica)
+    - status: filtra per stato (pending, paid, overdue)
+    - year: filtra per anno scadenza
+    """
+    # Prima recupera tutti i clienti per join
+    clients_cursor = db.users.find({"role": "cliente"}, {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1})
+    clients_list = await clients_cursor.to_list(10000)
+    clients_map = {c["id"]: c for c in clients_list}
+    
+    # Query per gli onorari
+    query = {}
+    
+    if status:
+        query["status"] = status
+    
+    if year:
+        # Filtra per anno della data di scadenza
+        query["due_date"] = {"$regex": f"^{year}"}
+    
+    # Recupera onorari
+    fees = await db.fees.find(query, {"_id": 0}).sort("due_date", -1).to_list(10000)
+    
+    # Arricchisci con info cliente e applica filtri aggiuntivi
+    result = []
+    for fee in fees:
+        client = clients_map.get(fee.get("client_id"), {})
+        
+        # Filtro per tipo cliente
+        if client_type and client.get("tipo_cliente") != client_type:
+            continue
+        
+        # Filtro per ricerca
+        if search:
+            search_lower = search.lower()
+            match = False
+            if search_lower in fee.get("description", "").lower():
+                match = True
+            if search_lower in client.get("full_name", "").lower():
+                match = True
+            if search_lower in client.get("email", "").lower():
+                match = True
+            if not match:
+                continue
+        
+        # Aggiungi info cliente al fee
+        fee["client_name"] = client.get("full_name", "N/A")
+        fee["client_email"] = client.get("email", "")
+        fee["client_type"] = client.get("tipo_cliente", "")
+        result.append(fee)
+    
+    return result
+
+@api_router.get("/fees/summary")
+async def get_global_fees_summary(user: dict = Depends(require_commercialista)):
+    """Ottiene un riepilogo globale degli onorari"""
+    fees = await db.fees.find({}, {"_id": 0}).to_list(10000)
+    
+    total_pending = sum(f["amount"] for f in fees if f.get("status") == "pending")
+    total_paid = sum(f["amount"] for f in fees if f.get("status") == "paid")
+    total_overdue = sum(f["amount"] for f in fees if f.get("status") == "overdue")
+    
+    # Raggruppa per cliente
+    by_client = {}
+    for fee in fees:
+        cid = fee.get("client_id")
+        if cid not in by_client:
+            by_client[cid] = {"pending": 0, "paid": 0, "count": 0}
+        by_client[cid]["count"] += 1
+        if fee.get("status") == "pending":
+            by_client[cid]["pending"] += fee["amount"]
+        elif fee.get("status") == "paid":
+            by_client[cid]["paid"] += fee["amount"]
+    
+    return {
+        "total_pending": total_pending,
+        "total_paid": total_paid,
+        "total_overdue": total_overdue,
+        "total_count": len(fees),
+        "clients_count": len(by_client)
+    }
+
+@api_router.get("/fees/by-client")
+async def get_fees_grouped_by_client(user: dict = Depends(require_commercialista)):
+    """Recupera tutti i clienti con i loro onorari raggruppati"""
+    # Recupera tutti i clienti
+    clients = await db.users.find(
+        {"role": "cliente"}, 
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1}
+    ).to_list(10000)
+    
+    # Recupera tutti gli onorari
+    fees = await db.fees.find({}, {"_id": 0}).to_list(10000)
+    
+    # Raggruppa per cliente
+    fees_by_client = {}
+    for fee in fees:
+        cid = fee.get("client_id")
+        if cid not in fees_by_client:
+            fees_by_client[cid] = []
+        fees_by_client[cid].append(fee)
+    
+    # Costruisci risultato
+    result = []
+    for client in clients:
+        client_fees = fees_by_client.get(client["id"], [])
+        total_pending = sum(f["amount"] for f in client_fees if f.get("status") == "pending")
+        total_paid = sum(f["amount"] for f in client_fees if f.get("status") == "paid")
+        
+        # Calcola totale Iguala mensile
+        iguala_monthly = sum(
+            f["amount"] for f in client_fees 
+            if f.get("fee_type", "").startswith("iguala_") or f.get("is_recurring")
+        )
+        
+        result.append({
+            "id": client["id"],
+            "full_name": client.get("full_name", "N/A"),
+            "email": client.get("email", ""),
+            "tipo_cliente": client.get("tipo_cliente", ""),
+            "fees": client_fees,
+            "fees_count": len(client_fees),
+            "total_pending": total_pending,
+            "total_paid": total_paid,
+            "iguala_monthly": iguala_monthly
+        })
+    
+    # Ordina per nome
+    result.sort(key=lambda x: x["full_name"].lower())
+    return result
+
+@api_router.get("/fees/export-excel")
+async def export_fees_excel(
+    category: Optional[str] = None,
+    fee_type: Optional[str] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """Esporta onorari in formato Excel con filtri"""
+    import io
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl non installato")
+    
+    # Recupera clienti con filtro categoria
+    client_query = {"role": "cliente"}
+    if category and category != "all":
+        client_query["tipo_cliente"] = category
+    
+    clients = await db.users.find(
+        client_query, 
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1}
+    ).to_list(10000)
+    
+    client_ids = [c["id"] for c in clients]
+    client_map = {c["id"]: c for c in clients}
+    
+    # Recupera onorari
+    fee_query = {"client_id": {"$in": client_ids}}
+    if fee_type and fee_type != "all":
+        if fee_type == "iguala":
+            fee_query["$or"] = [
+                {"fee_type": {"$regex": "^iguala_"}},
+                {"is_recurring": True}
+            ]
+        else:
+            fee_query["fee_type"] = fee_type
+    
+    fees = await db.fees.find(fee_query, {"_id": 0}).to_list(10000)
+    
+    # Crea workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Onorari"
+    
+    # Stili
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="2F855A", end_color="2F855A", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Header
+    headers = ["Cliente", "Tipo Cliente", "Email", "Descrizione Onorario", "Tipo Onorario", "Importo (€)", "Stato", "Scadenza", "Mese Rif."]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+    
+    # Dati
+    row = 2
+    for fee in fees:
+        client = client_map.get(fee.get("client_id"), {})
+        fee_type_labels = {
+            "standard": "Standard",
+            "consulenza": "Consulenza",
+            "pratica": "Pratica/Procedura",
+            "dichiarazione": "Dichiarazione Fiscale",
+            "iguala_buste_paga": "Iguala - Buste Paga",
+            "iguala_contabilita": "Iguala - Contabilità",
+            "iguala_domicilio": "Iguala - Domicilio"
+        }
+        status_labels = {"pending": "In Attesa", "paid": "Pagato", "overdue": "Scaduto"}
+        tipo_cliente_labels = {
+            "societa": "Società",
+            "autonomo": "Autonomo",
+            "vivienda_vacacional": "Vivienda Vacacional",
+            "persona_fisica": "Persona Fisica"
+        }
+        
+        ws.cell(row=row, column=1, value=client.get("full_name", "N/A")).border = thin_border
+        ws.cell(row=row, column=2, value=tipo_cliente_labels.get(client.get("tipo_cliente", ""), client.get("tipo_cliente", ""))).border = thin_border
+        ws.cell(row=row, column=3, value=client.get("email", "")).border = thin_border
+        ws.cell(row=row, column=4, value=fee.get("description", "")).border = thin_border
+        ws.cell(row=row, column=5, value=fee_type_labels.get(fee.get("fee_type", "standard"), fee.get("fee_type", ""))).border = thin_border
+        ws.cell(row=row, column=6, value=fee.get("amount", 0)).border = thin_border
+        ws.cell(row=row, column=6).number_format = '#,##0.00'
+        ws.cell(row=row, column=7, value=status_labels.get(fee.get("status", ""), fee.get("status", ""))).border = thin_border
+        ws.cell(row=row, column=8, value=fee.get("due_date", "-") or "-").border = thin_border
+        ws.cell(row=row, column=9, value=fee.get("recurring_month", "-") or "-").border = thin_border
+        row += 1
+    
+    # Aggiungi riga totale
+    if fees:
+        total_row = row + 1
+        ws.cell(row=total_row, column=5, value="TOTALE:").font = Font(bold=True)
+        total_amount = sum(f.get("amount", 0) for f in fees)
+        ws.cell(row=total_row, column=6, value=total_amount).font = Font(bold=True)
+        ws.cell(row=total_row, column=6).number_format = '#,##0.00'
+    
+    # Larghezza colonne
+    ws.column_dimensions['A'].width = 25
+    ws.column_dimensions['B'].width = 18
+    ws.column_dimensions['C'].width = 28
+    ws.column_dimensions['D'].width = 35
+    ws.column_dimensions['E'].width = 22
+    ws.column_dimensions['F'].width = 12
+    ws.column_dimensions['G'].width = 12
+    ws.column_dimensions['H'].width = 12
+    ws.column_dimensions['I'].width = 12
+    
+    # Salva in buffer
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    # Genera nome file
+    filename = f"onorari"
+    if category and category != "all":
+        filename += f"_{category}"
+    if fee_type and fee_type != "all":
+        filename += f"_{fee_type}"
+    filename += f"_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@api_router.get("/clients/{client_id}/fees", response_model=List[FeeResponse])
+async def get_client_fees(client_id: str, user: dict = Depends(require_commercialista)):
+    """Recupera tutti gli onorari di un cliente"""
+    fees = await db.fees.find({"client_id": client_id}, {"_id": 0}).sort("due_date", -1).to_list(1000)
+    return [FeeResponse(**fee) for fee in fees]
+
+@api_router.post("/clients/{client_id}/fees", response_model=FeeResponse)
+async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(require_commercialista)):
+    """Crea un nuovo onorario per un cliente"""
+    # Verifica che il cliente esista
+    client = await db.users.find_one({"id": client_id, "role": "cliente"})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    # Determina se is_recurring in base al fee_type
+    is_recurring = fee_data.is_recurring or fee_data.fee_type.startswith("iguala_")
+    
+    fee_id = str(uuid.uuid4())
+    fee = {
+        "id": fee_id,
+        "client_id": client_id,
+        "description": fee_data.description,
+        "amount": fee_data.amount,
+        "due_date": fee_data.due_date,
+        "status": fee_data.status,
+        "paid_date": None,
+        "notes": fee_data.notes,
+        "fee_type": fee_data.fee_type,
+        "is_recurring": is_recurring,
+        "recurring_month": fee_data.recurring_month,
+        "created_by": user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.fees.insert_one(fee)
+    
+    await log_activity(
+        "creazione_onorario",
+        f"Onorario €{fee_data.amount} ({fee_data.fee_type}) creato per cliente {client_id}",
+        user["id"]
+    )
+    
+    return FeeResponse(**fee)
+
+@api_router.put("/clients/{client_id}/fees/{fee_id}", response_model=FeeResponse)
+async def update_fee(client_id: str, fee_id: str, fee_data: FeeUpdate, user: dict = Depends(require_commercialista)):
+    """Aggiorna un onorario"""
+    update_dict = {k: v for k, v in fee_data.model_dump().items() if v is not None}
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
+    
+    # Se stato diventa "paid", imposta paid_date
+    if update_dict.get("status") == "paid" and not update_dict.get("paid_date"):
+        update_dict["paid_date"] = datetime.now(timezone.utc).isoformat()
+    
+    result = await db.fees.update_one(
+        {"id": fee_id, "client_id": client_id},
+        {"$set": update_dict}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Onorario non trovato")
+    
+    fee = await db.fees.find_one({"id": fee_id}, {"_id": 0})
+    return FeeResponse(**fee)
+
+@api_router.delete("/clients/{client_id}/fees/{fee_id}")
+async def delete_fee(client_id: str, fee_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina un onorario"""
+    result = await db.fees.delete_one({"id": fee_id, "client_id": client_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Onorario non trovato")
+    
+    await log_activity("eliminazione_onorario", f"Onorario {fee_id} eliminato", user["id"])
+    
+    return {"message": "Onorario eliminato"}
+
+@api_router.get("/clients/{client_id}/fees/summary")
+async def get_fees_summary(client_id: str, user: dict = Depends(require_commercialista)):
+    """Ottiene un riepilogo degli onorari di un cliente"""
+    fees = await db.fees.find({"client_id": client_id}, {"_id": 0}).to_list(1000)
+    
+    total_pending = sum(f["amount"] for f in fees if f["status"] == "pending")
+    total_paid = sum(f["amount"] for f in fees if f["status"] == "paid")
+    total = total_pending + total_paid
+    
+    return {
+        "total": total,
+        "total_paid": total_paid,
+        "total_pending": total_pending,
+        "count_total": len(fees),
+        "count_paid": len([f for f in fees if f["status"] == "paid"]),
+        "count_pending": len([f for f in fees if f["status"] == "pending"])
+    }
 
 # ==================== DIGITAL SIGNATURE ROUTES ====================
 
