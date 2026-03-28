@@ -27,7 +27,7 @@ from .declaration_models import (
 router = APIRouter(prefix="/declarations", tags=["declarations"])
 
 # Testo autorizzazione di default
-DEFAULT_AUTHORIZATION_TEXT = """Autorizzo Fiscal Tax Canarie SLP, CIF B44653517, con sede in Las Palmas de Gran Canaria, Calle Domingo J. Navarro n. 1, Planta 2, Oficina 5, a predisporre e presentare per mio conto la dichiarazione dei redditi sulla base dei dati e dei documenti da me forniti."""
+DEFAULT_AUTHORIZATION_TEXT = """Autorizzo espressamente Fiscal Tax Canarie SLP, con CIF B44653517, con sede in Las Palmas de Gran Canaria, Calle Domingo J. Navarro n. 1, Planta 2, Oficina 5, a predisporre e presentare in mio nome e per mio conto la dichiarazione dei redditi, sulla base dei dati e dei documenti da me forniti. Dichiaro che le informazioni trasmesse sono veritiere e complete per quanto a mia conoscenza e autorizzo il trattamento dei dati esclusivamente per le finalità connesse all'incarico professionale."""
 
 
 # ==================== DECLARATION TYPES ====================
