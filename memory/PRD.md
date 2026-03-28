@@ -5,7 +5,27 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 41 (28 Marzo 2026) - IN CORSO 🔄
+### Fase 42 (28 Marzo 2026) - COMPLETATA ✅
+
+**Refactoring Backend - Rimozione Codice Duplicato**
+
+**Lavoro Completato:**
+- ✅ Rimosso blocco TICKET ROUTES duplicato da `server.py` (righe 2179-2508, 330 righe)
+- ✅ Rimosso blocco FEES ROUTES duplicato da `server.py` (righe 3810-4183, 374 righe)
+- ✅ Rimosso blocco TICKET MODELS duplicato (30 righe)
+- ✅ Rimosso blocco FEE MODELS duplicato (36 righe)
+- ✅ **Totale: 774 righe rimosse** (da 6019 a 5245 righe)
+
+**Router Modulari Funzionanti:**
+- `/app/backend/routes/tickets.py` - Tutte le API tickets operative
+- `/app/backend/routes/fees_routes.py` - Tutte le API fees operative
+- `/app/backend/routes/declarations.py` - API dichiarazioni fiscali
+
+**Test:** Verificato al 100% con testing agent (iteration_23.json):
+- Backend: 19/21 test passati (2 endpoint non implementati: activity-log, dashboard/stats)
+- Frontend: 100% funzionante
+
+### Fase 41 (28 Marzo 2026) - COMPLETATA ✅
 
 **Nuova Sezione "Dichiarazioni" - Fase 1**
 
@@ -381,8 +401,8 @@ DELETE /api/clients/{client_id}/fees/{fee_id}
 - **consulente_lavoro**: Dashboard limitata, clienti assegnati, buste paga
 
 ## Next Tasks (P0-P1)
-1. **P1**: Continuare refactoring `server.py`:
-   - Rimuovere codice duplicato Tickets e Fees (già spostato in routes modulari)
+1. **P1**: Continuare refactoring `server.py` (ORA 5245 righe, ridotto da 6019):
+   - ✅ COMPLETATO: Rimosso codice duplicato Tickets e Fees (774 righe rimosse)
    - Creare router per: Deadlines, Documents, Employees, Consulenti, Clients, Auth
 2. **P1**: Refactoring `ClientDetail.jsx` (>2300 righe) in sotto-componenti
 3. **P1**: Refactoring `CommercialDashboard.jsx` (>1900 righe) in sotto-componenti
