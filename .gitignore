@@ -165,3 +165,7 @@ Tax
 Canarie.app/Contents/Frameworks/Electron
 Framework.framework/Versions/A/Electron
 Framework
+-e 
+# Environment files
+*.env
+*.env.*
