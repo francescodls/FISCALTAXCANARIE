@@ -17,7 +17,7 @@ import base64
 
 # Import AI service
 from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename, search_documents_semantic
-from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email, send_generic_email
+from email_service import send_welcome_email, notify_document_uploaded, notify_deadline_reminder, notify_new_note, send_invitation_email, send_generic_email, sync_contact_to_brevo, update_contact_list_brevo
 from chatbot_service import chat_with_assistant
 from signing_service import sign_pdf_with_p12, verify_pdf_signature, save_certificate, list_certificates, delete_certificate
 from storage_service import upload_file as cloud_upload, download_file as cloud_download, is_storage_enabled, init_b2_storage
@@ -612,6 +612,8 @@ async def register(user_data: UserCreate):
     
     # Sempre cliente - nessuna opzione per commercialista
     user_id = str(uuid.uuid4())
+    tipo_cliente = user_data.tipo_cliente or "autonomo"
+    
     user_doc = {
         "id": user_id,
         "email": user_data.email,
@@ -619,9 +621,17 @@ async def register(user_data: UserCreate):
         "full_name": user_data.full_name,
         "phone": user_data.phone,
         "codice_fiscale": user_data.codice_fiscale,
+        "nie": user_data.nie,
+        "nif": user_data.nif,
+        "cif": user_data.cif,
         "indirizzo": user_data.indirizzo,
+        "citta": user_data.citta,
+        "cap": user_data.cap,
+        "provincia": user_data.provincia,
+        "iban": user_data.iban,
         "regime_fiscale": user_data.regime_fiscale,
         "tipo_attivita": user_data.tipo_attivita,
+        "tipo_cliente": tipo_cliente,
         "role": "cliente",  # SEMPRE cliente
         "stato": "attivo",
         "note_interne": "",
@@ -630,13 +640,32 @@ async def register(user_data: UserCreate):
     await db.users.insert_one(user_doc)
     
     # Log attività
-    await log_activity("registrazione", f"Nuovo cliente registrato: {user_data.email}", user_id)
+    await log_activity("registrazione", f"Nuovo cliente registrato: {user_data.email} (tipo: {tipo_cliente})", user_id)
     
     # Invia email di benvenuto (in background)
     try:
         await send_welcome_email(user_data.email, user_data.full_name)
     except Exception as e:
         logger.error(f"Errore invio email benvenuto: {e}")
+    
+    # Sincronizza con Brevo (in background)
+    try:
+        brevo_result = await sync_contact_to_brevo(
+            email=user_data.email,
+            full_name=user_data.full_name,
+            tipo_cliente=tipo_cliente,
+            phone=user_data.phone,
+            codice_fiscale=user_data.codice_fiscale,
+            nie=user_data.nie,
+            nif=user_data.nif,
+            cif=user_data.cif
+        )
+        if brevo_result.get("success"):
+            logger.info(f"Contatto {user_data.email} sincronizzato con Brevo ({brevo_result.get('action')})")
+        else:
+            logger.warning(f"Sincronizzazione Brevo fallita per {user_data.email}: {brevo_result.get('error')}")
+    except Exception as e:
+        logger.error(f"Errore sincronizzazione Brevo: {e}")
     
     token = create_token(user_id, user_data.email, "cliente")
     user_response = UserResponse(
@@ -645,9 +674,17 @@ async def register(user_data: UserCreate):
         full_name=user_data.full_name,
         phone=user_data.phone,
         codice_fiscale=user_data.codice_fiscale,
+        nie=user_data.nie,
+        nif=user_data.nif,
+        cif=user_data.cif,
         indirizzo=user_data.indirizzo,
+        citta=user_data.citta,
+        cap=user_data.cap,
+        provincia=user_data.provincia,
+        iban=user_data.iban,
         regime_fiscale=user_data.regime_fiscale,
         tipo_attivita=user_data.tipo_attivita,
+        tipo_cliente=tipo_cliente,
         role="cliente",
         stato="attivo",
         created_at=user_doc["created_at"]
@@ -929,6 +966,13 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
     if not update_dict:
         raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
     
+    # Recupera il cliente per ottenere i dati precedenti
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    old_tipo_cliente = client.get("tipo_cliente")
+    
     # Se viene cambiato il tipo_cliente, aggiorna automaticamente le liste
     if "tipo_cliente" in update_dict:
         tipo_cliente = update_dict["tipo_cliente"]
@@ -937,7 +981,9 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
         list_name_map = {
             "autonomo": "Autonomi",
             "societa": "Società", 
-            "privato": "Privati"
+            "privato": "Privati",
+            "vivienda_vacacional": "Vivienda Vacacional",
+            "persona_fisica": "Persona Fisica"
         }
         
         list_name = list_name_map.get(tipo_cliente)
@@ -947,7 +993,7 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
             
             if not existing_list:
                 # Crea la lista automaticamente
-                list_colors = {"Autonomi": "#3b82f6", "Società": "#8b5cf6", "Privati": "#10b981"}
+                list_colors = {"Autonomi": "#3b82f6", "Società": "#8b5cf6", "Privati": "#10b981", "Vivienda Vacacional": "#f59e0b", "Persona Fisica": "#6b7280"}
                 new_list_id = str(uuid.uuid4())
                 await db.client_lists.insert_one({
                     "id": new_list_id,
@@ -973,6 +1019,21 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
                 {"id": client_id},
                 {"$addToSet": {"lists": existing_list["id"]}}
             )
+        
+        # Sincronizza con Brevo se il tipo_cliente è cambiato
+        if tipo_cliente != old_tipo_cliente:
+            try:
+                brevo_result = await update_contact_list_brevo(
+                    email=client["email"],
+                    new_tipo_cliente=tipo_cliente,
+                    old_tipo_cliente=old_tipo_cliente
+                )
+                if brevo_result.get("success"):
+                    logger.info(f"Lista Brevo aggiornata per {client['email']}: {old_tipo_cliente} -> {tipo_cliente}")
+                else:
+                    logger.warning(f"Aggiornamento lista Brevo fallito per {client['email']}: {brevo_result.get('error')}")
+            except Exception as e:
+                logger.error(f"Errore aggiornamento lista Brevo: {e}")
     
     result = await db.users.update_one({"id": client_id, "role": "cliente"}, {"$set": update_dict})
     if result.matched_count == 0:

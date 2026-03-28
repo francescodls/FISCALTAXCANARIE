@@ -5,6 +5,46 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 39 (28 Marzo 2026) - COMPLETATA ✅
+
+**Sincronizzazione Automatica Clienti con Brevo**
+
+**Richiesta Utente:** Sincronizzare automaticamente tutti i clienti registrati con Brevo, categorizzandoli in liste diverse in base alla tipologia (Autonomi, Società, etc.).
+
+**Implementazione Backend:**
+- Nuove funzioni in `email_service.py`:
+  - `sync_contact_to_brevo()` - Crea/aggiorna contatto in Brevo
+  - `update_contact_list_brevo()` - Aggiorna lista quando cambia tipo_cliente
+  - `remove_contact_from_brevo()` - Disattiva contatto
+
+- Mappatura tipo_cliente → Liste Brevo:
+  - `autonomo` → Lista Autonomi (ID env: BREVO_LIST_AUTONOMI)
+  - `societa` → Lista Società (ID env: BREVO_LIST_SOCIETA)
+  - `vivienda_vacacional` → Lista Vivienda (ID env: BREVO_LIST_VIVIENDA)
+  - `persona_fisica` → Lista Privati (ID env: BREVO_LIST_PRIVATI)
+
+- Attributi sincronizzati con Brevo:
+  - NOME, COGNOME, FULLNAME
+  - TIPO_CLIENTE
+  - TELEFONO
+  - CODICE_FISCALE, NIE, NIF, CIF
+
+**Trigger di Sincronizzazione:**
+1. **Registrazione Cliente** (`POST /auth/register`):
+   - Crea contatto in Brevo
+   - Assegna alla lista corretta in base a tipo_cliente
+   
+2. **Modifica Cliente** (`PUT /clients/{id}`):
+   - Se cambia tipo_cliente, aggiorna la lista Brevo
+   - Rimuove dalla vecchia lista, aggiunge alla nuova
+
+**Gestione Duplicati:**
+- Verifica se il contatto esiste già (by email)
+- Se esiste: aggiorna attributi e lista
+- Se non esiste: crea nuovo contatto
+
+**Test:** Verificato creazione contatto "testsync@example.com" in lista 3 (Società).
+
 ### Fase 38 (28 Marzo 2026) - COMPLETATA ✅
 
 **Sezione "Ticket" Globale nella Dashboard Amministratore**

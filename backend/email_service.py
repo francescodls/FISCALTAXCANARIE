@@ -567,3 +567,203 @@ async def notify_consulente_employee_request(
         subject=subject,
         html_content=html
     )
+
+# ==================== BREVO CONTACT SYNC ====================
+
+# Mappatura tipo_cliente -> ID lista Brevo
+# NOTA: Questi ID devono essere configurati nelle variabili d'ambiente o nel DB
+BREVO_LIST_IDS = {
+    "autonomo": int(os.environ.get('BREVO_LIST_AUTONOMI', '2')),
+    "societa": int(os.environ.get('BREVO_LIST_SOCIETA', '3')),
+    "vivienda_vacacional": int(os.environ.get('BREVO_LIST_VIVIENDA', '4')),
+    "persona_fisica": int(os.environ.get('BREVO_LIST_PRIVATI', '5')),
+    "default": int(os.environ.get('BREVO_LIST_DEFAULT', '2'))
+}
+
+async def sync_contact_to_brevo(
+    email: str,
+    full_name: str,
+    tipo_cliente: str = "autonomo",
+    phone: str = None,
+    codice_fiscale: str = None,
+    nie: str = None,
+    nif: str = None,
+    cif: str = None
+) -> Dict[str, Any]:
+    """
+    Sincronizza un contatto con Brevo.
+    - Se il contatto non esiste, lo crea e lo aggiunge alla lista corretta
+    - Se il contatto esiste già, lo aggiorna e verifica l'appartenenza alla lista
+    """
+    api_key = get_brevo_key()
+    if not api_key:
+        logger.warning("BREVO_API_KEY non configurata - sincronizzazione saltata")
+        return {"success": False, "error": "Chiave Brevo non configurata"}
+    
+    try:
+        import sib_api_v3_sdk
+        from sib_api_v3_sdk.rest import ApiException
+        
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = api_key
+        
+        contacts_api = sib_api_v3_sdk.ContactsApi(sib_api_v3_sdk.ApiClient(configuration))
+        
+        # Determina la lista corretta in base al tipo cliente
+        list_id = BREVO_LIST_IDS.get(tipo_cliente, BREVO_LIST_IDS["default"])
+        
+        # Prepara gli attributi del contatto
+        # Estrai nome e cognome
+        name_parts = full_name.strip().split(' ', 1) if full_name else ['', '']
+        first_name = name_parts[0] if len(name_parts) > 0 else ''
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        
+        attributes = {
+            "NOME": first_name,
+            "COGNOME": last_name,
+            "FULLNAME": full_name,
+            "TIPO_CLIENTE": tipo_cliente,
+            "TELEFONO": phone or "",
+            "CODICE_FISCALE": codice_fiscale or "",
+            "NIE": nie or "",
+            "NIF": nif or "",
+            "CIF": cif or ""
+        }
+        
+        # Verifica se il contatto esiste già
+        contact_exists = False
+        try:
+            existing_contact = contacts_api.get_contact_info(email)
+            contact_exists = True
+            logger.info(f"Contatto {email} già presente in Brevo")
+        except ApiException as e:
+            if e.status == 404:
+                contact_exists = False
+            else:
+                raise e
+        
+        if contact_exists:
+            # Aggiorna il contatto esistente
+            update_contact = sib_api_v3_sdk.UpdateContact(
+                attributes=attributes,
+                list_ids=[list_id]
+            )
+            contacts_api.update_contact(email, update_contact)
+            logger.info(f"Contatto {email} aggiornato in Brevo e aggiunto alla lista {list_id}")
+            
+            return {
+                "success": True,
+                "action": "updated",
+                "email": email,
+                "list_id": list_id,
+                "tipo_cliente": tipo_cliente
+            }
+        else:
+            # Crea nuovo contatto
+            create_contact = sib_api_v3_sdk.CreateContact(
+                email=email,
+                attributes=attributes,
+                list_ids=[list_id],
+                update_enabled=True
+            )
+            contacts_api.create_contact(create_contact)
+            logger.info(f"Nuovo contatto {email} creato in Brevo nella lista {list_id}")
+            
+            return {
+                "success": True,
+                "action": "created",
+                "email": email,
+                "list_id": list_id,
+                "tipo_cliente": tipo_cliente
+            }
+        
+    except ApiException as e:
+        logger.error(f"Errore API Brevo durante sincronizzazione contatto {email}: {e}")
+        return {"success": False, "error": f"Errore API Brevo: {e.reason}", "status": e.status}
+    except Exception as e:
+        logger.error(f"Errore sincronizzazione contatto Brevo {email}: {e}")
+        return {"success": False, "error": str(e)}
+
+async def update_contact_list_brevo(
+    email: str,
+    new_tipo_cliente: str,
+    old_tipo_cliente: str = None
+) -> Dict[str, Any]:
+    """
+    Aggiorna la lista di appartenenza di un contatto in Brevo.
+    Utile quando il tipo_cliente viene modificato.
+    """
+    api_key = get_brevo_key()
+    if not api_key:
+        return {"success": False, "error": "Chiave Brevo non configurata"}
+    
+    try:
+        import sib_api_v3_sdk
+        from sib_api_v3_sdk.rest import ApiException
+        
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = api_key
+        
+        contacts_api = sib_api_v3_sdk.ContactsApi(sib_api_v3_sdk.ApiClient(configuration))
+        
+        new_list_id = BREVO_LIST_IDS.get(new_tipo_cliente, BREVO_LIST_IDS["default"])
+        
+        # Se conosciamo la vecchia lista, rimuoviamo il contatto da essa
+        if old_tipo_cliente and old_tipo_cliente != new_tipo_cliente:
+            old_list_id = BREVO_LIST_IDS.get(old_tipo_cliente, BREVO_LIST_IDS["default"])
+            try:
+                contact_emails = sib_api_v3_sdk.RemoveContactFromList(emails=[email])
+                contacts_api.remove_contact_from_list(old_list_id, contact_emails)
+                logger.info(f"Contatto {email} rimosso dalla lista {old_list_id}")
+            except Exception as e:
+                logger.warning(f"Impossibile rimuovere contatto dalla vecchia lista: {e}")
+        
+        # Aggiungi alla nuova lista
+        update_contact = sib_api_v3_sdk.UpdateContact(
+            attributes={"TIPO_CLIENTE": new_tipo_cliente},
+            list_ids=[new_list_id]
+        )
+        contacts_api.update_contact(email, update_contact)
+        
+        logger.info(f"Contatto {email} spostato nella lista {new_list_id} (tipo: {new_tipo_cliente})")
+        
+        return {
+            "success": True,
+            "email": email,
+            "old_list": old_tipo_cliente,
+            "new_list": new_tipo_cliente,
+            "list_id": new_list_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Errore aggiornamento lista Brevo per {email}: {e}")
+        return {"success": False, "error": str(e)}
+
+async def remove_contact_from_brevo(email: str) -> Dict[str, Any]:
+    """Rimuove un contatto da Brevo (disattivazione)"""
+    api_key = get_brevo_key()
+    if not api_key:
+        return {"success": False, "error": "Chiave Brevo non configurata"}
+    
+    try:
+        import sib_api_v3_sdk
+        from sib_api_v3_sdk.rest import ApiException
+        
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = api_key
+        
+        contacts_api = sib_api_v3_sdk.ContactsApi(sib_api_v3_sdk.ApiClient(configuration))
+        
+        # Non eliminiamo, ma disattiviamo il contatto
+        update_contact = sib_api_v3_sdk.UpdateContact(
+            attributes={"STATO": "disattivato"}
+        )
+        contacts_api.update_contact(email, update_contact)
+        
+        logger.info(f"Contatto {email} disattivato in Brevo")
+        return {"success": True, "email": email, "action": "deactivated"}
+        
+    except Exception as e:
+        logger.error(f"Errore disattivazione contatto Brevo {email}: {e}")
+        return {"success": False, "error": str(e)}
+
