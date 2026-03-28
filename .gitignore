@@ -159,3 +159,9 @@ frontend/node_modules/.cache/default-development/22.pack
 *.env.*
 desktop-app/node_modules/electron/dist/electron
 desktop-app/dist/linux-arm64-unpacked/fiscal-tax-canarie
+desktop-app/dist/FiscalTaxCanarie-Mac.zip
+desktop-app/dist/mac/Fiscal
+Tax
+Canarie.app/Contents/Frameworks/Electron
+Framework.framework/Versions/A/Electron
+Framework
