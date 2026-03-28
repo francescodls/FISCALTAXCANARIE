@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
   Euro, 
@@ -17,12 +17,65 @@ import {
   CheckCircle, 
   Clock, 
   TrendingUp,
-  TrendingDown,
+  Receipt,
   Calendar,
-  Receipt
+  FileText,
+  Calculator,
+  CreditCard,
+  MapPin,
+  Repeat
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
+
+// ==================== TIPI DI ONORARIO ====================
+const FEE_TYPES = {
+  standard: {
+    label: "Onorario Standard",
+    requiresDueDate: false,
+    icon: Receipt,
+    color: "bg-slate-100 text-slate-700"
+  },
+  consulenza: {
+    label: "Consulenza",
+    requiresDueDate: false,
+    icon: FileText,
+    color: "bg-blue-100 text-blue-700"
+  },
+  pratica: {
+    label: "Pratica/Procedura",
+    requiresDueDate: true,
+    icon: Calendar,
+    color: "bg-purple-100 text-purple-700"
+  },
+  dichiarazione: {
+    label: "Dichiarazione Fiscale",
+    requiresDueDate: true,
+    icon: Calculator,
+    color: "bg-amber-100 text-amber-700"
+  },
+  iguala_buste_paga: {
+    label: "Iguala - Buste Paga",
+    requiresDueDate: false,
+    isIguala: true,
+    icon: CreditCard,
+    color: "bg-teal-100 text-teal-700"
+  },
+  iguala_contabilita: {
+    label: "Iguala - Contabilità Società",
+    requiresDueDate: false,
+    isIguala: true,
+    icon: Calculator,
+    color: "bg-green-100 text-green-700"
+  },
+  iguala_domicilio: {
+    label: "Iguala - Domicilio Sociale",
+    requiresDueDate: false,
+    isIguala: true,
+    icon: MapPin,
+    color: "bg-indigo-100 text-indigo-700"
+  }
+};
 
 const FeeManagement = ({ clientId, clientName, token, API }) => {
   const [fees, setFees] = useState([]);
@@ -37,7 +90,10 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
     amount: "",
     due_date: "",
     status: "pending",
-    notes: ""
+    notes: "",
+    fee_type: "standard",
+    is_recurring: false,
+    recurring_month: ""
   });
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -67,24 +123,31 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
     setSaving(true);
     
     try {
+      const feeTypeConfig = FEE_TYPES[formData.fee_type];
+      const feeData = {
+        description: formData.description,
+        amount: parseFloat(formData.amount),
+        status: formData.status,
+        notes: formData.notes || null,
+        fee_type: formData.fee_type,
+        is_recurring: formData.fee_type.startsWith("iguala_") || formData.is_recurring,
+        recurring_month: formData.fee_type.startsWith("iguala_") ? formData.recurring_month : null,
+        // Scadenza solo se richiesta dal tipo
+        due_date: feeTypeConfig?.requiresDueDate ? formData.due_date : null
+      };
+
       if (editingFee) {
-        await axios.put(`${API}/clients/${clientId}/fees/${editingFee.id}`, {
-          ...formData,
-          amount: parseFloat(formData.amount)
-        }, { headers });
+        await axios.put(`${API}/clients/${clientId}/fees/${editingFee.id}`, feeData, { headers });
         toast.success("Onorario aggiornato");
       } else {
-        await axios.post(`${API}/clients/${clientId}/fees`, {
-          ...formData,
-          amount: parseFloat(formData.amount)
-        }, { headers });
+        await axios.post(`${API}/clients/${clientId}/fees`, feeData, { headers });
         toast.success("Onorario creato");
       }
       
       resetForm();
       fetchFees();
     } catch (error) {
-      toast.error("Errore nel salvataggio");
+      toast.error(error.response?.data?.detail || "Errore nel salvataggio");
     } finally {
       setSaving(false);
     }
@@ -120,9 +183,12 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
     setFormData({
       description: fee.description,
       amount: fee.amount.toString(),
-      due_date: fee.due_date.split('T')[0],
+      due_date: fee.due_date ? fee.due_date.split('T')[0] : "",
       status: fee.status,
-      notes: fee.notes || ""
+      notes: fee.notes || "",
+      fee_type: fee.fee_type || "standard",
+      is_recurring: fee.is_recurring || false,
+      recurring_month: fee.recurring_month || ""
     });
     setShowForm(true);
   };
@@ -133,11 +199,41 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
       amount: "",
       due_date: "",
       status: "pending",
-      notes: ""
+      notes: "",
+      fee_type: "standard",
+      is_recurring: false,
+      recurring_month: ""
     });
     setEditingFee(null);
     setShowForm(false);
   };
+
+  const getFeeTypeBadge = (feeType) => {
+    const type = FEE_TYPES[feeType] || FEE_TYPES.standard;
+    const Icon = type.icon;
+    return (
+      <Badge className={`${type.color} border-0`}>
+        <Icon className="h-3 w-3 mr-1" />
+        {type.label}
+      </Badge>
+    );
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "paid":
+        return <Badge className="bg-green-100 text-green-700 border-green-200">Pagato</Badge>;
+      case "overdue":
+        return <Badge className="bg-red-100 text-red-700 border-red-200">Scaduto</Badge>;
+      default:
+        return <Badge className="bg-amber-100 text-amber-700 border-amber-200">In Attesa</Badge>;
+    }
+  };
+
+  // Calcola totale Iguala mensile
+  const igualaTotal = fees
+    .filter(f => f.fee_type?.startsWith("iguala_") || f.is_recurring)
+    .reduce((sum, f) => sum + f.amount, 0);
 
   if (loading) {
     return (
@@ -151,7 +247,7 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
     <div className="space-y-6">
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
@@ -161,7 +257,7 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                     €{summary.total_paid.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                   </p>
                   <p className="text-xs text-emerald-500 mt-1">
-                    {summary.count_paid} fatture
+                    {summary.count_paid} onorari
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
@@ -180,11 +276,30 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                     €{summary.total_pending.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                   </p>
                   <p className="text-xs text-amber-500 mt-1">
-                    {summary.count_pending} fatture
+                    {summary.count_pending} onorari
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
                   <Clock className="h-6 w-6 text-amber-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-teal-50 to-cyan-50 border-teal-200">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-teal-600 font-medium">Iguala Mensile</p>
+                  <p className="text-2xl font-bold text-teal-700">
+                    €{igualaTotal.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                  </p>
+                  <p className="text-xs text-teal-500 mt-1">
+                    onorari ricorrenti
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-teal-100 rounded-xl flex items-center justify-center">
+                  <Repeat className="h-6 w-6 text-teal-600" />
                 </div>
               </div>
             </CardContent>
@@ -199,7 +314,7 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                     €{summary.total.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {summary.count_total} fatture totali
+                    {summary.count_total} onorari totali
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
@@ -228,7 +343,7 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
 
       {/* Fee Form Dialog */}
       <Dialog open={showForm} onOpenChange={(open) => !open && resetForm()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Euro className="h-5 w-5 text-teal-500" />
@@ -236,34 +351,63 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
+            {/* Tipo Onorario */}
+            <div className="space-y-2">
+              <Label>Tipo Onorario</Label>
+              <Select 
+                value={formData.fee_type} 
+                onValueChange={(value) => setFormData({
+                  ...formData, 
+                  fee_type: value,
+                  is_recurring: value.startsWith('iguala_')
+                })}
+              >
+                <SelectTrigger className="border-slate-200" data-testid="fee-type-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Onorario Standard</SelectItem>
+                  <SelectItem value="consulenza">Consulenza</SelectItem>
+                  <SelectItem value="pratica">Pratica/Procedura</SelectItem>
+                  <SelectItem value="dichiarazione">Dichiarazione Fiscale</SelectItem>
+                  <SelectItem value="iguala_buste_paga">Iguala - Buste Paga</SelectItem>
+                  <SelectItem value="iguala_contabilita">Iguala - Contabilità Società</SelectItem>
+                  <SelectItem value="iguala_domicilio">Iguala - Domicilio Sociale</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Descrizione */}
             <div className="space-y-2">
               <Label>Descrizione *</Label>
               <Input
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Es: Consulenza fiscale Gennaio 2025"
+                placeholder="Es: Consulenza fiscale Gennaio 2026"
                 required
                 className="border-slate-200"
                 data-testid="fee-description-input"
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Importo (€) *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.amount}
-                  onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                  placeholder="150.00"
-                  required
-                  className="border-slate-200"
-                  data-testid="fee-amount-input"
-                />
-              </div>
-              
+            {/* Importo */}
+            <div className="space-y-2">
+              <Label>Importo (€) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                placeholder="150.00"
+                required
+                className="border-slate-200"
+                data-testid="fee-amount-input"
+              />
+            </div>
+
+            {/* Scadenza - Solo se richiesta dal tipo */}
+            {FEE_TYPES[formData.fee_type]?.requiresDueDate && (
               <div className="space-y-2">
                 <Label>Data Scadenza *</Label>
                 <Input
@@ -274,9 +418,27 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                   className="border-slate-200"
                   data-testid="fee-date-input"
                 />
+                <p className="text-xs text-slate-500">
+                  Questo tipo di onorario richiede una data di scadenza
+                </p>
               </div>
-            </div>
+            )}
+
+            {/* Mese di riferimento per Iguala */}
+            {formData.fee_type.startsWith('iguala_') && (
+              <div className="space-y-2">
+                <Label>Mese di Riferimento</Label>
+                <Input
+                  type="month"
+                  value={formData.recurring_month}
+                  onChange={(e) => setFormData({ ...formData, recurring_month: e.target.value })}
+                  className="border-slate-200"
+                  data-testid="fee-recurring-month-input"
+                />
+              </div>
+            )}
             
+            {/* Stato */}
             <div className="space-y-2">
               <Label>Stato</Label>
               <Select 
@@ -289,10 +451,12 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                 <SelectContent>
                   <SelectItem value="pending">In attesa</SelectItem>
                   <SelectItem value="paid">Pagato</SelectItem>
+                  <SelectItem value="overdue">Scaduto</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
+            {/* Note */}
             <div className="space-y-2">
               <Label>Note (opzionale)</Label>
               <Textarea
@@ -338,26 +502,41 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                   className={`flex items-center justify-between p-4 rounded-lg border ${
                     fee.status === 'paid' 
                       ? 'bg-emerald-50 border-emerald-200' 
+                      : fee.status === 'overdue'
+                      ? 'bg-red-50 border-red-200'
                       : 'bg-amber-50 border-amber-200'
                   }`}
+                  data-testid={`fee-row-${fee.id}`}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      fee.status === 'paid' ? 'bg-emerald-100' : 'bg-amber-100'
+                      fee.status === 'paid' ? 'bg-emerald-100' : 
+                      fee.status === 'overdue' ? 'bg-red-100' : 'bg-amber-100'
                     }`}>
                       {fee.status === 'paid' ? (
                         <CheckCircle className="h-5 w-5 text-emerald-600" />
+                      ) : fee.status === 'overdue' ? (
+                        <Clock className="h-5 w-5 text-red-600" />
                       ) : (
                         <Clock className="h-5 w-5 text-amber-600" />
                       )}
                     </div>
                     <div>
                       <p className="font-medium text-slate-900">{fee.description}</p>
-                      <div className="flex items-center gap-3 text-sm text-slate-500">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          Scadenza: {format(parseISO(fee.due_date), "d MMM yyyy", { locale: it })}
-                        </span>
+                      <div className="flex items-center gap-3 text-sm text-slate-500 mt-1 flex-wrap">
+                        {getFeeTypeBadge(fee.fee_type)}
+                        {fee.due_date && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Scadenza: {format(parseISO(fee.due_date), "d MMM yyyy", { locale: it })}
+                          </span>
+                        )}
+                        {fee.recurring_month && (
+                          <span className="flex items-center gap-1 text-teal-600">
+                            <Repeat className="h-3.5 w-3.5" />
+                            Mese: {fee.recurring_month}
+                          </span>
+                        )}
                         {fee.paid_date && (
                           <span className="text-emerald-600">
                             Pagato: {format(parseISO(fee.paid_date), "d MMM yyyy", { locale: it })}
@@ -373,17 +552,12 @@ const FeeManagement = ({ clientId, clientName, token, API }) => {
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <p className={`text-xl font-bold ${
-                        fee.status === 'paid' ? 'text-emerald-700' : 'text-amber-700'
+                        fee.status === 'paid' ? 'text-emerald-700' : 
+                        fee.status === 'overdue' ? 'text-red-700' : 'text-amber-700'
                       }`}>
                         €{fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                       </p>
-                      <Badge className={
-                        fee.status === 'paid' 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : 'bg-amber-100 text-amber-700'
-                      }>
-                        {fee.status === 'paid' ? 'Pagato' : 'In attesa'}
-                      </Badge>
+                      {getStatusBadge(fee.status)}
                     </div>
                     
                     <div className="flex flex-col gap-1">

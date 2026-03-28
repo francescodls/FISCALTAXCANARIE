@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Response
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -301,9 +302,12 @@ class ModelloTributarioResponse(BaseModel):
 class FeeCreate(BaseModel):
     description: str
     amount: float
-    due_date: str
-    status: str = "pending"  # pending, paid
+    due_date: Optional[str] = None  # Opzionale - richiesto solo per certi tipi
+    status: str = "pending"  # pending, paid, overdue
     notes: Optional[str] = None
+    fee_type: str = "standard"  # standard, consulenza, pratica, dichiarazione, iguala_buste_paga, iguala_contabilita, iguala_domicilio
+    is_recurring: bool = False
+    recurring_month: Optional[str] = None  # YYYY-MM per Iguala
 
 class FeeUpdate(BaseModel):
     description: Optional[str] = None
@@ -312,16 +316,22 @@ class FeeUpdate(BaseModel):
     status: Optional[str] = None
     paid_date: Optional[str] = None
     notes: Optional[str] = None
+    fee_type: Optional[str] = None
+    is_recurring: Optional[bool] = None
+    recurring_month: Optional[str] = None
 
 class FeeResponse(BaseModel):
     id: str
     client_id: str
     description: str
     amount: float
-    due_date: str
+    due_date: Optional[str] = None
     status: str
     paid_date: Optional[str] = None
     notes: Optional[str] = None
+    fee_type: str = "standard"
+    is_recurring: bool = False
+    recurring_month: Optional[str] = None
     created_at: str
 
 # ==================== CLIENT CREATION MODELS ====================
@@ -3511,6 +3521,190 @@ async def get_global_fees_summary(user: dict = Depends(require_commercialista)):
         "clients_count": len(by_client)
     }
 
+@api_router.get("/fees/by-client")
+async def get_fees_grouped_by_client(user: dict = Depends(require_commercialista)):
+    """Recupera tutti i clienti con i loro onorari raggruppati"""
+    # Recupera tutti i clienti
+    clients = await db.users.find(
+        {"role": "cliente"}, 
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1}
+    ).to_list(10000)
+    
+    # Recupera tutti gli onorari
+    fees = await db.fees.find({}, {"_id": 0}).to_list(10000)
+    
+    # Raggruppa per cliente
+    fees_by_client = {}
+    for fee in fees:
+        cid = fee.get("client_id")
+        if cid not in fees_by_client:
+            fees_by_client[cid] = []
+        fees_by_client[cid].append(fee)
+    
+    # Costruisci risultato
+    result = []
+    for client in clients:
+        client_fees = fees_by_client.get(client["id"], [])
+        total_pending = sum(f["amount"] for f in client_fees if f.get("status") == "pending")
+        total_paid = sum(f["amount"] for f in client_fees if f.get("status") == "paid")
+        
+        # Calcola totale Iguala mensile
+        iguala_monthly = sum(
+            f["amount"] for f in client_fees 
+            if f.get("fee_type", "").startswith("iguala_") or f.get("is_recurring")
+        )
+        
+        result.append({
+            "id": client["id"],
+            "full_name": client.get("full_name", "N/A"),
+            "email": client.get("email", ""),
+            "tipo_cliente": client.get("tipo_cliente", ""),
+            "fees": client_fees,
+            "fees_count": len(client_fees),
+            "total_pending": total_pending,
+            "total_paid": total_paid,
+            "iguala_monthly": iguala_monthly
+        })
+    
+    # Ordina per nome
+    result.sort(key=lambda x: x["full_name"].lower())
+    return result
+
+@api_router.get("/fees/export-excel")
+async def export_fees_excel(
+    category: Optional[str] = None,
+    fee_type: Optional[str] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """Esporta onorari in formato Excel con filtri"""
+    import io
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    except ImportError:
+        raise HTTPException(status_code=500, detail="openpyxl non installato")
+    
+    # Recupera clienti con filtro categoria
+    client_query = {"role": "cliente"}
+    if category and category != "all":
+        client_query["tipo_cliente"] = category
+    
+    clients = await db.users.find(
+        client_query, 
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1}
+    ).to_list(10000)
+    
+    client_ids = [c["id"] for c in clients]
+    client_map = {c["id"]: c for c in clients}
+    
+    # Recupera onorari
+    fee_query = {"client_id": {"$in": client_ids}}
+    if fee_type and fee_type != "all":
+        if fee_type == "iguala":
+            fee_query["$or"] = [
+                {"fee_type": {"$regex": "^iguala_"}},
+                {"is_recurring": True}
+            ]
+        else:
+            fee_query["fee_type"] = fee_type
+    
+    fees = await db.fees.find(fee_query, {"_id": 0}).to_list(10000)
+    
+    # Crea workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Onorari"
+    
+    # Stili
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="2F855A", end_color="2F855A", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Header
+    headers = ["Cliente", "Tipo Cliente", "Email", "Descrizione Onorario", "Tipo Onorario", "Importo (€)", "Stato", "Scadenza", "Mese Rif."]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.border = thin_border
+    
+    # Dati
+    row = 2
+    for fee in fees:
+        client = client_map.get(fee.get("client_id"), {})
+        fee_type_labels = {
+            "standard": "Standard",
+            "consulenza": "Consulenza",
+            "pratica": "Pratica/Procedura",
+            "dichiarazione": "Dichiarazione Fiscale",
+            "iguala_buste_paga": "Iguala - Buste Paga",
+            "iguala_contabilita": "Iguala - Contabilità",
+            "iguala_domicilio": "Iguala - Domicilio"
+        }
+        status_labels = {"pending": "In Attesa", "paid": "Pagato", "overdue": "Scaduto"}
+        tipo_cliente_labels = {
+            "societa": "Società",
+            "autonomo": "Autonomo",
+            "vivienda_vacacional": "Vivienda Vacacional",
+            "persona_fisica": "Persona Fisica"
+        }
+        
+        ws.cell(row=row, column=1, value=client.get("full_name", "N/A")).border = thin_border
+        ws.cell(row=row, column=2, value=tipo_cliente_labels.get(client.get("tipo_cliente", ""), client.get("tipo_cliente", ""))).border = thin_border
+        ws.cell(row=row, column=3, value=client.get("email", "")).border = thin_border
+        ws.cell(row=row, column=4, value=fee.get("description", "")).border = thin_border
+        ws.cell(row=row, column=5, value=fee_type_labels.get(fee.get("fee_type", "standard"), fee.get("fee_type", ""))).border = thin_border
+        ws.cell(row=row, column=6, value=fee.get("amount", 0)).border = thin_border
+        ws.cell(row=row, column=6).number_format = '#,##0.00'
+        ws.cell(row=row, column=7, value=status_labels.get(fee.get("status", ""), fee.get("status", ""))).border = thin_border
+        ws.cell(row=row, column=8, value=fee.get("due_date", "-") or "-").border = thin_border
+        ws.cell(row=row, column=9, value=fee.get("recurring_month", "-") or "-").border = thin_border
+        row += 1
+    
+    # Aggiungi riga totale
+    if fees:
+        total_row = row + 1
+        ws.cell(row=total_row, column=5, value="TOTALE:").font = Font(bold=True)
+        total_amount = sum(f.get("amount", 0) for f in fees)
+        ws.cell(row=total_row, column=6, value=total_amount).font = Font(bold=True)
+        ws.cell(row=total_row, column=6).number_format = '#,##0.00'
+    
+    # Larghezza colonne
+    ws.column_dimensions['A'].width = 25
+    ws.column_dimensions['B'].width = 18
+    ws.column_dimensions['C'].width = 28
+    ws.column_dimensions['D'].width = 35
+    ws.column_dimensions['E'].width = 22
+    ws.column_dimensions['F'].width = 12
+    ws.column_dimensions['G'].width = 12
+    ws.column_dimensions['H'].width = 12
+    ws.column_dimensions['I'].width = 12
+    
+    # Salva in buffer
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    # Genera nome file
+    filename = f"onorari"
+    if category and category != "all":
+        filename += f"_{category}"
+    if fee_type and fee_type != "all":
+        filename += f"_{fee_type}"
+    filename += f"_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 @api_router.get("/clients/{client_id}/fees", response_model=List[FeeResponse])
 async def get_client_fees(client_id: str, user: dict = Depends(require_commercialista)):
     """Recupera tutti gli onorari di un cliente"""
@@ -3525,6 +3719,9 @@ async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(r
     if not client:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
     
+    # Determina se is_recurring in base al fee_type
+    is_recurring = fee_data.is_recurring or fee_data.fee_type.startswith("iguala_")
+    
     fee_id = str(uuid.uuid4())
     fee = {
         "id": fee_id,
@@ -3535,6 +3732,9 @@ async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(r
         "status": fee_data.status,
         "paid_date": None,
         "notes": fee_data.notes,
+        "fee_type": fee_data.fee_type,
+        "is_recurring": is_recurring,
+        "recurring_month": fee_data.recurring_month,
         "created_by": user["id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -3542,7 +3742,7 @@ async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(r
     
     await log_activity(
         "creazione_onorario",
-        f"Onorario €{fee_data.amount} creato per cliente {client_id}",
+        f"Onorario €{fee_data.amount} ({fee_data.fee_type}) creato per cliente {client_id}",
         user["id"]
     )
     

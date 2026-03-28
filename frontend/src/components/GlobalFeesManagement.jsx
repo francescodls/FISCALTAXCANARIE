@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -56,7 +55,9 @@ import {
   CreditCard,
   Calculator,
   MapPin,
-  ArrowLeft
+  ArrowLeft,
+  Download,
+  FileSpreadsheet
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL + "/api";
@@ -129,6 +130,7 @@ const GlobalFeesManagement = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [clientTypeFilter, setClientTypeFilter] = useState("all");
+  const [exportLoading, setExportLoading] = useState(false);
   
   // Dialog state
   const [showFeeDialog, setShowFeeDialog] = useState(false);
@@ -144,6 +146,11 @@ const GlobalFeesManagement = ({ token }) => {
     recurring_month: ""
   });
   const [savingFee, setSavingFee] = useState(false);
+  
+  // Export dialog
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportCategory, setExportCategory] = useState("all");
+  const [exportFeeType, setExportFeeType] = useState("all");
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -185,6 +192,9 @@ const GlobalFeesManagement = ({ token }) => {
             .reduce((sum, f) => sum + f.amount, 0),
           total_paid: (feesMap[client.id] || [])
             .filter(f => f.status === 'paid')
+            .reduce((sum, f) => sum + f.amount, 0),
+          iguala_monthly: (feesMap[client.id] || [])
+            .filter(f => f.fee_type?.startsWith('iguala_') || f.is_recurring)
             .reduce((sum, f) => sum + f.amount, 0)
         }));
         
@@ -208,19 +218,13 @@ const GlobalFeesManagement = ({ token }) => {
 
   const fetchIgualaFees = async () => {
     try {
-      const response = await axios.get(`${API}/fees/all?fee_type=iguala`, { headers });
-      setIgualaFees(response.data);
+      const response = await axios.get(`${API}/fees/all`, { headers });
+      const iguala = response.data.filter(f => 
+        f.fee_type?.startsWith('iguala_') || f.is_recurring
+      );
+      setIgualaFees(iguala);
     } catch (error) {
-      // Se l'endpoint non supporta il filtro, filtriamo client-side
-      try {
-        const response = await axios.get(`${API}/fees/all`, { headers });
-        const iguala = response.data.filter(f => 
-          f.fee_type?.startsWith('iguala_') || f.is_recurring
-        );
-        setIgualaFees(iguala);
-      } catch (err) {
-        console.error("Errore caricamento Iguala:", err);
-      }
+      console.error("Errore caricamento Iguala:", error);
     }
   };
 
@@ -230,6 +234,47 @@ const GlobalFeesManagement = ({ token }) => {
       setClientFees(response.data);
     } catch (error) {
       toast.error("Errore nel caricamento degli onorari");
+    }
+  };
+
+  // ==================== EXPORT EXCEL ====================
+  const handleExportExcel = async () => {
+    setExportLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (exportCategory !== "all") params.append("category", exportCategory);
+      if (exportFeeType !== "all") params.append("fee_type", exportFeeType);
+      
+      const response = await axios.get(`${API}/fees/export-excel?${params.toString()}`, {
+        headers,
+        responseType: 'blob'
+      });
+      
+      // Download file
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Get filename from header or generate
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'onorari.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=(.+)/);
+        if (filenameMatch) filename = filenameMatch[1];
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("File Excel scaricato");
+      setShowExportDialog(false);
+    } catch (error) {
+      toast.error("Errore nell'esportazione");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -369,9 +414,17 @@ const GlobalFeesManagement = ({ token }) => {
     other: igualaFees.filter(f => !f.fee_type?.startsWith('iguala_') && f.is_recurring)
   };
 
+  // Calcola totali Iguala per cliente
+  const clientsWithIguala = clients.filter(c => c.iguala_monthly > 0);
+  const totalIgualaMonthly = clientsWithIguala.reduce((sum, c) => sum + (c.iguala_monthly || 0), 0);
+
   const getClientTypeIcon = (type) => {
     const TypeIcon = CLIENT_TYPES.find(t => t.value === type)?.icon || User;
     return <TypeIcon className="h-4 w-4" />;
+  };
+
+  const getClientTypeLabel = (type) => {
+    return CLIENT_TYPES.find(t => t.value === type)?.label || type || "N/A";
   };
 
   const getStatusBadge = (status) => {
@@ -454,7 +507,7 @@ const GlobalFeesManagement = ({ token }) => {
               <div>
                 <p className="text-sm text-slate-500">Iguala Mensili</p>
                 <p className="text-2xl font-bold text-teal-600">
-                  {igualaFees.length}
+                  €{totalIgualaMonthly.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                 </p>
               </div>
               <div className="p-3 bg-teal-100 rounded-xl">
@@ -463,6 +516,19 @@ const GlobalFeesManagement = ({ token }) => {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Export Button */}
+      <div className="flex justify-end">
+        <Button 
+          variant="outline" 
+          onClick={() => setShowExportDialog(true)}
+          className="border-green-200 text-green-700 hover:bg-green-50"
+          data-testid="export-excel-btn"
+        >
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          Esporta Excel
+        </Button>
       </div>
 
       {/* Main Content with Tabs */}
@@ -604,11 +670,19 @@ const GlobalFeesManagement = ({ token }) => {
           <IgualaSection 
             groupedIguala={groupedIguala}
             clients={clients}
+            clientsWithIguala={clientsWithIguala}
+            totalIgualaMonthly={totalIgualaMonthly}
             onAddFee={openNewFeeDialog}
             onEditFee={openEditFeeDialog}
             onDeleteFee={handleDeleteFee}
             onMarkPaid={handleMarkAsPaid}
             getStatusBadge={getStatusBadge}
+            getClientTypeLabel={getClientTypeLabel}
+            getClientTypeIcon={getClientTypeIcon}
+            onExport={() => {
+              setExportFeeType("iguala");
+              setShowExportDialog(true);
+            }}
           />
         </TabsContent>
       </Tabs>
@@ -751,6 +825,87 @@ const GlobalFeesManagement = ({ token }) => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Export Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-green-600" />
+              Esporta Onorari in Excel
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Filtra per Categoria Cliente</Label>
+              <Select value={exportCategory} onValueChange={setExportCategory}>
+                <SelectTrigger className="border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutte le categorie</SelectItem>
+                  <SelectItem value="societa">Solo Società</SelectItem>
+                  <SelectItem value="autonomo">Solo Autonomi</SelectItem>
+                  <SelectItem value="vivienda_vacacional">Solo Vivienda Vacacional</SelectItem>
+                  <SelectItem value="persona_fisica">Solo Persona Fisica</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Filtra per Tipo Onorario</Label>
+              <Select value={exportFeeType} onValueChange={setExportFeeType}>
+                <SelectTrigger className="border-slate-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti i tipi</SelectItem>
+                  <SelectItem value="iguala">Solo Iguala (Mensili)</SelectItem>
+                  <SelectItem value="standard">Solo Standard</SelectItem>
+                  <SelectItem value="consulenza">Solo Consulenza</SelectItem>
+                  <SelectItem value="pratica">Solo Pratica/Procedura</SelectItem>
+                  <SelectItem value="dichiarazione">Solo Dichiarazione Fiscale</SelectItem>
+                  <SelectItem value="iguala_buste_paga">Solo Iguala Buste Paga</SelectItem>
+                  <SelectItem value="iguala_contabilita">Solo Iguala Contabilità</SelectItem>
+                  <SelectItem value="iguala_domicilio">Solo Iguala Domicilio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="bg-slate-50 rounded-lg p-3 text-sm text-slate-600">
+              <p className="font-medium mb-1">Il file Excel conterrà:</p>
+              <ul className="list-disc list-inside space-y-1 text-xs">
+                <li>Cliente, Email, Tipo Cliente</li>
+                <li>Descrizione, Tipo e Importo Onorario</li>
+                <li>Stato, Scadenza, Mese di riferimento</li>
+                <li>Totale in fondo al file</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={handleExportExcel}
+              disabled={exportLoading}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {exportLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Esportazione...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Scarica Excel
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -769,6 +924,7 @@ const ClientFeesDetail = ({
 }) => {
   const totalPending = fees.filter(f => f.status === 'pending').reduce((sum, f) => sum + f.amount, 0);
   const totalPaid = fees.filter(f => f.status === 'paid').reduce((sum, f) => sum + f.amount, 0);
+  const igualaTotal = fees.filter(f => f.fee_type?.startsWith('iguala_') || f.is_recurring).reduce((sum, f) => sum + f.amount, 0);
 
   return (
     <Card className="bg-white border border-slate-200">
@@ -792,7 +948,7 @@ const ClientFeesDetail = ({
       </CardHeader>
       <CardContent>
         {/* Mini Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="p-4 bg-slate-50 rounded-lg text-center">
             <p className="text-sm text-slate-500">Totale Onorari</p>
             <p className="text-xl font-bold text-slate-800">{fees.length}</p>
@@ -807,6 +963,12 @@ const ClientFeesDetail = ({
             <p className="text-sm text-green-600">Pagati</p>
             <p className="text-xl font-bold text-green-600">
               €{totalPaid.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <div className="p-4 bg-teal-50 rounded-lg text-center">
+            <p className="text-sm text-teal-600">Iguala Mensile</p>
+            <p className="text-xl font-bold text-teal-600">
+              €{igualaTotal.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
             </p>
           </div>
         </div>
@@ -839,6 +1001,12 @@ const ClientFeesDetail = ({
                   <TableCell>
                     <p className="font-medium">{fee.description}</p>
                     {fee.notes && <p className="text-xs text-slate-400">{fee.notes}</p>}
+                    {fee.recurring_month && (
+                      <p className="text-xs text-teal-600 flex items-center gap-1 mt-1">
+                        <Repeat className="h-3 w-3" />
+                        Mese: {fee.recurring_month}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell>{getFeeTypeBadge(fee.fee_type)}</TableCell>
                   <TableCell className="text-right font-semibold">
@@ -899,28 +1067,37 @@ const ClientFeesDetail = ({
 const IgualaSection = ({ 
   groupedIguala, 
   clients, 
+  clientsWithIguala,
+  totalIgualaMonthly,
   onAddFee, 
   onEditFee, 
   onDeleteFee, 
   onMarkPaid,
-  getStatusBadge
+  getStatusBadge,
+  getClientTypeLabel,
+  getClientTypeIcon,
+  onExport
 }) => {
-  const [expandedSection, setExpandedSection] = useState(null);
+  const [viewMode, setViewMode] = useState("categories"); // categories | clients
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const igualaCategories = [
     { 
       key: 'buste_paga', 
       label: 'Buste Paga', 
       icon: CreditCard, 
-      color: 'teal',
+      bgColor: 'bg-teal-100',
+      textColor: 'text-teal-600',
       feeType: 'iguala_buste_paga',
       description: 'Onorari mensili per elaborazione buste paga'
     },
     { 
       key: 'contabilita', 
       label: 'Contabilità Società', 
-      icon: Calculator, 
-      color: 'green',
+      icon: Calculator,
+      bgColor: 'bg-green-100',
+      textColor: 'text-green-600',
       feeType: 'iguala_contabilita',
       description: 'Onorari mensili per gestione contabilità'
     },
@@ -928,7 +1105,8 @@ const IgualaSection = ({
       key: 'domicilio', 
       label: 'Domicilio Sociale', 
       icon: MapPin, 
-      color: 'indigo',
+      bgColor: 'bg-indigo-100',
+      textColor: 'text-indigo-600',
       feeType: 'iguala_domicilio',
       description: 'Onorari mensili per servizio domiciliazione'
     }
@@ -939,7 +1117,13 @@ const IgualaSection = ({
     return client?.full_name || 'N/A';
   };
 
-  const totalIguala = Object.values(groupedIguala).flat().reduce((sum, f) => sum + f.amount, 0);
+  // Filtra clienti con Iguala
+  const filteredClientsWithIguala = clientsWithIguala.filter(client => {
+    const matchesSearch = !searchTerm || 
+      client.full_name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === "all" || client.tipo_cliente === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <div className="space-y-4">
@@ -956,66 +1140,103 @@ const IgualaSection = ({
                 <p className="text-teal-100">Gestione onorari ricorrenti mensili</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-teal-100 text-sm">Totale Mensile</p>
-              <p className="text-3xl font-bold">
-                €{totalIguala.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
-              </p>
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-teal-100 text-sm">Totale Mensile</p>
+                <p className="text-3xl font-bold">
+                  €{totalIgualaMonthly.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                </p>
+                <p className="text-teal-100 text-xs">{clientsWithIguala.length} clienti</p>
+              </div>
+              <Button 
+                variant="secondary"
+                onClick={onExport}
+                className="bg-white/20 hover:bg-white/30 text-white border-0"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Esporta
+              </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Categories */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {igualaCategories.map((category) => {
-          const fees = groupedIguala[category.key] || [];
-          const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
-          const isExpanded = expandedSection === category.key;
-          
-          return (
-            <Card 
-              key={category.key}
-              className={`bg-white border-2 transition-all cursor-pointer ${
-                isExpanded ? `border-${category.color}-400` : 'border-slate-200 hover:border-slate-300'
-              }`}
-              onClick={() => setExpandedSection(isExpanded ? null : category.key)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 bg-${category.color}-100 rounded-lg`}>
-                      <category.icon className={`h-5 w-5 text-${category.color}-600`} />
+      {/* View Toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === "categories" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("categories")}
+            className={viewMode === "categories" ? "bg-teal-500 hover:bg-teal-600" : ""}
+          >
+            Per Categoria
+          </Button>
+          <Button
+            variant={viewMode === "clients" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("clients")}
+            className={viewMode === "clients" ? "bg-teal-500 hover:bg-teal-600" : ""}
+          >
+            Lista Clienti
+          </Button>
+        </div>
+        
+        {viewMode === "clients" && (
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Cerca cliente..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-64 border-slate-200"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-48 border-slate-200">
+                <SelectValue placeholder="Filtra categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tutte le categorie</SelectItem>
+                <SelectItem value="societa">Società</SelectItem>
+                <SelectItem value="autonomo">Autonomo</SelectItem>
+                <SelectItem value="vivienda_vacacional">Vivienda Vacacional</SelectItem>
+                <SelectItem value="persona_fisica">Persona Fisica</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {viewMode === "categories" ? (
+        // Vista per Categorie (originale)
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {igualaCategories.map((category) => {
+            const fees = groupedIguala[category.key] || [];
+            const totalAmount = fees.reduce((sum, f) => sum + f.amount, 0);
+            const CategoryIcon = category.icon;
+            
+            return (
+              <Card key={category.key} className="bg-white border border-slate-200">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 ${category.bgColor} rounded-lg`}>
+                        <CategoryIcon className={`h-5 w-5 ${category.textColor}`} />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-800">{category.label}</h3>
+                        <p className="text-xs text-slate-500">{fees.length} clienti</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-800">{category.label}</h3>
-                      <p className="text-xs text-slate-500">{fees.length} clienti</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800">
+                    <span className={`font-bold ${category.textColor}`}>
                       €{totalAmount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                     </span>
-                    {isExpanded ? (
-                      <ChevronDown className="h-5 w-5 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5 text-slate-400" />
-                    )}
                   </div>
-                </div>
-
-                {isExpanded && (
-                  <div className="space-y-2 pt-4 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => onAddFee(category.feeType)}
-                      className="w-full mb-3 border-dashed"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Aggiungi {category.label}
-                    </Button>
-                    
+                </CardHeader>
+                <CardContent className="pt-2">
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
                     {fees.length === 0 ? (
                       <p className="text-sm text-slate-500 text-center py-4">
                         Nessun onorario in questa categoria
@@ -1024,24 +1245,23 @@ const IgualaSection = ({
                       fees.map((fee) => (
                         <div 
                           key={fee.id}
-                          className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
+                          className="flex items-center justify-between p-2 bg-slate-50 rounded-lg text-sm"
                         >
-                          <div>
-                            <p className="font-medium text-sm">{getClientName(fee.client_id)}</p>
-                            <p className="text-xs text-slate-500">{fee.description}</p>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{getClientName(fee.client_id)}</p>
+                            <p className="text-xs text-slate-500 truncate">{fee.description}</p>
                           </div>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <span className="font-semibold">
                               €{fee.amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                             </span>
-                            {getStatusBadge(fee.status)}
                             <div className="flex gap-1">
                               {fee.status === 'pending' && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => onMarkPaid(fee)}
-                                  className="h-7 w-7 p-0 text-green-600"
+                                  className="h-6 w-6 p-0 text-green-600"
                                 >
                                   <CheckCircle2 className="h-3 w-3" />
                                 </Button>
@@ -1050,7 +1270,7 @@ const IgualaSection = ({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => onEditFee(fee)}
-                                className="h-7 w-7 p-0 text-slate-500"
+                                className="h-6 w-6 p-0 text-slate-500"
                               >
                                 <Edit className="h-3 w-3" />
                               </Button>
@@ -1060,12 +1280,112 @@ const IgualaSection = ({
                       ))
                     )}
                   </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        // Vista Lista Clienti
+        <Card className="bg-white border border-slate-200">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50">
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead className="text-center">Buste Paga</TableHead>
+                  <TableHead className="text-center">Contabilità</TableHead>
+                  <TableHead className="text-center">Domicilio</TableHead>
+                  <TableHead className="text-right">Totale Mensile</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredClientsWithIguala.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-slate-500">
+                      Nessun cliente con Iguala trovato
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredClientsWithIguala.map((client) => {
+                    // Calcola importi per categoria
+                    const clientFees = client.fees || [];
+                    const bustePaga = clientFees.filter(f => f.fee_type === 'iguala_buste_paga').reduce((s, f) => s + f.amount, 0);
+                    const contabilita = clientFees.filter(f => f.fee_type === 'iguala_contabilita').reduce((s, f) => s + f.amount, 0);
+                    const domicilio = clientFees.filter(f => f.fee_type === 'iguala_domicilio').reduce((s, f) => s + f.amount, 0);
+                    
+                    return (
+                      <TableRow key={client.id} className="hover:bg-slate-50">
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 rounded-lg">
+                              {getClientTypeIcon(client.tipo_cliente)}
+                            </div>
+                            <div>
+                              <p className="font-medium">{client.full_name}</p>
+                              <p className="text-xs text-slate-500">{client.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {getClientTypeLabel(client.tipo_cliente)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {bustePaga > 0 ? (
+                            <span className="font-semibold text-teal-600">
+                              €{bustePaga.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {contabilita > 0 ? (
+                            <span className="font-semibold text-green-600">
+                              €{contabilita.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {domicilio > 0 ? (
+                            <span className="font-semibold text-indigo-600">
+                              €{domicilio.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className="font-bold text-slate-800">
+                            €{(client.iguala_monthly || 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+              </TableBody>
+            </Table>
+            
+            {/* Totale Footer */}
+            {filteredClientsWithIguala.length > 0 && (
+              <div className="border-t border-slate-200 p-4 bg-slate-50 flex justify-between items-center">
+                <span className="font-semibold text-slate-700">
+                  Totale {filteredClientsWithIguala.length} clienti
+                </span>
+                <span className="text-xl font-bold text-teal-600">
+                  €{filteredClientsWithIguala.reduce((s, c) => s + (c.iguala_monthly || 0), 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

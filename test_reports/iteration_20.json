@@ -1,0 +1,148 @@
+{
+  "summary": "Iteration 20 - Complete testing of new Onorari features: GlobalFeesManagement tabs (Per Cliente, Iguala Mensili), Export Excel with filters, FeeManagement with fee_type dropdown and conditional fields. All features working correctly.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Fee Dialog",
+        "issues": ["Console warning: Missing Description or aria-describedby for DialogContent - accessibility improvement needed"]
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "✅ Tab 'Onorari' in admin dashboard with 4 summary cards (Clienti con Onorari, In Attesa, Pagati, Iguala Mensili)",
+    "✅ Tab 'Per Cliente' - lista clienti con conteggio onorari cliccabile",
+    "✅ Tab 'Iguala (Mensili)' - header con totale mensile €150,00",
+    "✅ Toggle 'Per Categoria' / 'Lista Clienti' nella sezione Iguala",
+    "✅ Vista Per Categoria con 3 cards: Buste Paga, Contabilità Società, Domicilio Sociale",
+    "✅ Vista Lista Clienti con tabella (Cliente, Categoria, Buste Paga, Contabilità, Domicilio, Totale)",
+    "✅ Pulsante 'Esporta Excel' con dialog filtri (categoria cliente, tipo onorario)",
+    "✅ FeeManagement.jsx nella scheda singolo cliente - campo 'Tipo Onorario' con dropdown",
+    "✅ Dropdown Tipo Onorario con 7 opzioni: Standard, Consulenza, Pratica/Procedura, Dichiarazione Fiscale, Iguala Buste Paga, Iguala Contabilità, Iguala Domicilio",
+    "✅ Campo 'Data Scadenza' condizionale - visibile solo per Pratica/Procedura e Dichiarazione Fiscale",
+    "✅ Campo 'Mese di Riferimento' per tipi Iguala",
+    "✅ Creazione nuovo onorario Iguala con fee_type e recurring_month funzionante",
+    "✅ Existing Iguala fee displayed correctly with badge, month reference, and paid status"
+  ],
+
+  "backend_tests": {
+    "total": 14,
+    "passed": 14,
+    "failed": 0,
+    "tests": [
+      "test_login_success",
+      "test_get_fees_all",
+      "test_get_fees_summary",
+      "test_get_fees_by_client",
+      "test_get_fees_export_excel",
+      "test_get_fees_export_excel_with_filters",
+      "test_get_fees_export_excel_with_fee_type_filter",
+      "test_get_clients",
+      "test_get_client_fees",
+      "test_get_client_fees_summary",
+      "test_create_fee_with_fee_type",
+      "test_create_iguala_fee",
+      "test_create_pratica_fee_with_due_date",
+      "test_fees_all_filters"
+    ]
+  },
+
+  "test_report_links": [
+    "/app/backend/tests/test_fees_iteration20.py",
+    "/app/test_reports/pytest/pytest_results_iteration20.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "GlobalFeesManagement.jsx correctly implements all requested features with proper tabs and views",
+    "FeeManagement.jsx correctly implements conditional fields based on fee_type",
+    "Backend endpoints support all required filters and fee_type/recurring_month fields",
+    "Minor: DialogContent missing aria-describedby for accessibility"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_fees_iteration20.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (14/14 tests passed)",
+    "frontend": "100% (13/13 UI tests passed)"
+  },
+
+  "test_credentials": {
+    "admin": {
+      "email": "info@fiscaltaxcanarie.com",
+      "password": "Triana48+"
+    }
+  },
+
+  "seed_data_creation": "Using existing Iguala fee: 'Iguala Buste Paga Gennaio 2026' (€150,00) for client FRANCESCO JUNIOR DE LISO",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "All Onorari features are fully functional. GlobalFeesManagement has two tabs: 'Per Cliente' (client list with fee counts) and 'Iguala (Mensili)' (with Per Categoria/Lista Clienti toggle). Export Excel works with category and fee_type filters. FeeManagement in client detail shows conditional fields: 'Data Scadenza' for Pratica/Dichiarazione types, 'Mese di Riferimento' for Iguala types.",
+
+  "features_verified": {
+    "global_fees_management": {
+      "summary_cards": {
+        "status": "WORKING",
+        "description": "4 cards: Clienti con Onorari (1), In Attesa (€250,00), Pagati (€150,00), Iguala Mensili (€150,00)"
+      },
+      "tab_per_cliente": {
+        "status": "WORKING",
+        "description": "Shows list of clients with fee counts, clickable to view details"
+      },
+      "tab_iguala_mensili": {
+        "status": "WORKING",
+        "description": "Header with total monthly €150,00, toggle between Per Categoria and Lista Clienti views"
+      },
+      "per_categoria_view": {
+        "status": "WORKING",
+        "description": "3 category cards: Buste Paga, Contabilità Società, Domicilio Sociale with amounts"
+      },
+      "lista_clienti_view": {
+        "status": "WORKING",
+        "description": "Table with columns: Cliente, Categoria, Buste Paga, Contabilità, Domicilio, Totale"
+      },
+      "export_excel": {
+        "status": "WORKING",
+        "description": "Dialog with category and fee_type filters, downloads Excel file"
+      }
+    },
+    "fee_management_client": {
+      "fee_type_dropdown": {
+        "status": "WORKING",
+        "description": "7 options: Standard, Consulenza, Pratica/Procedura, Dichiarazione Fiscale, Iguala Buste Paga, Iguala Contabilità, Iguala Domicilio"
+      },
+      "conditional_due_date": {
+        "status": "WORKING",
+        "description": "Data Scadenza field appears only for Pratica/Procedura and Dichiarazione Fiscale"
+      },
+      "conditional_recurring_month": {
+        "status": "WORKING",
+        "description": "Mese di Riferimento field appears only for Iguala types"
+      }
+    }
+  },
+
+  "api_endpoints_tested": {
+    "GET /api/fees/all": "WORKING - Returns list of fees with filters (status, client_type, search)",
+    "GET /api/fees/summary": "WORKING - Returns total_pending, total_paid, total_overdue, total_count",
+    "GET /api/fees/by-client": "WORKING - Returns clients with their fees grouped",
+    "GET /api/fees/export-excel": "WORKING - Returns Excel file with optional category and fee_type filters",
+    "GET /api/clients/{id}/fees": "WORKING - Returns fees for specific client",
+    "GET /api/clients/{id}/fees/summary": "WORKING - Returns fee summary for specific client",
+    "POST /api/clients/{id}/fees": "WORKING - Creates fee with fee_type, is_recurring, recurring_month, due_date"
+  }
+}
