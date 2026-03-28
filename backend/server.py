@@ -281,6 +281,7 @@ class ModelloTributarioCreate(BaseModel):
     documenti_necessari: List[str] = []
     note_operative: Optional[str] = None
     video_youtube: Optional[str] = None  # URL video YouTube
+    link_approfondimento: Optional[str] = None  # URL pagina esterna di approfondimento
 
 class ModelloTributarioResponse(BaseModel):
     id: str
@@ -295,6 +296,7 @@ class ModelloTributarioResponse(BaseModel):
     note_operative: Optional[str] = None
     video_youtube: Optional[str] = None
     video_thumbnail: Optional[str] = None  # Thumbnail calcolata
+    link_approfondimento: Optional[str] = None
     created_at: str
 
 # ==================== FEE (ONORARI) MODELS ====================

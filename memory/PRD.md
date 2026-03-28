@@ -5,6 +5,29 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 36 (28 Marzo 2026) - COMPLETATA ✅
+
+**Campo "Link di Approfondimento" per Modelli Tributari**
+
+**Richiesta Utente:** Aggiungere per ogni modello tributario un campo per inserire un URL di approfondimento esterno, visibile ai clienti come pulsante "Approfondisci".
+
+**Implementazione Backend:**
+- Aggiunto campo `link_approfondimento: Optional[str]` ai modelli Pydantic `ModelloTributarioCreate` e `ModelloTributarioResponse`
+- Il campo viene salvato nel database e restituito dagli endpoint GET
+
+**Implementazione Frontend Admin (`ModelsManagement.jsx`):**
+- Aggiunto campo input URL "Link di Approfondimento (opzionale)" nel form di creazione/modifica modello
+- Validazione URL lato frontend (blocca salvataggio se URL non valido)
+- Icona ExternalLink blu per identificare visivamente il campo
+- Testo descrittivo sotto il campo
+
+**Implementazione Frontend Cliente (`ClientDashboard.jsx`):**
+- Nel dialog del modello, se `link_approfondimento` è valorizzato, viene mostrato un pulsante blu "Approfondisci"
+- Il pulsante apre il link in una nuova scheda (`target="_blank"`)
+- Se il campo è vuoto/null, il pulsante non viene mostrato
+
+**Test:** Verificato creazione modello con link e visualizzazione corretta.
+
 ### Fase 35 (28 Marzo 2026) - COMPLETATA ✅
 
 **1. Disabilitazione Notifiche Email per Upload Documenti**

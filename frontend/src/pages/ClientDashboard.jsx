@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   Circle,
   Bell,
-  Mail
+  Mail,
+  ExternalLink
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -1152,6 +1153,20 @@ const ClientDashboard = () => {
                               <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
                                 <h5 className="font-semibold text-teal-800 mb-2">Note operative</h5>
                                 <p className="text-teal-700 text-sm">{modello.note_operative}</p>
+                              </div>
+                            )}
+                            {modello.link_approfondimento && (
+                              <div className="pt-4 border-t border-slate-200">
+                                <a 
+                                  href={modello.link_approfondimento}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium"
+                                  data-testid={`link-approfondimento-${modello.id}`}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  Approfondisci
+                                </a>
                               </div>
                             )}
                           </div>

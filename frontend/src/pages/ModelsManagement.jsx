@@ -18,7 +18,8 @@ import {
   Save,
   BookOpen,
   Video,
-  X
+  X,
+  ExternalLink
 } from "lucide-react";
 
 const ModelsManagement = () => {
@@ -40,7 +41,8 @@ const ModelsManagement = () => {
     scadenza_tipica: "",
     documenti_necessari: [],
     note_operative: "",
-    video_youtube: ""
+    video_youtube: "",
+    link_approfondimento: ""
   });
   
   const [newDocumento, setNewDocumento] = useState("");
@@ -74,7 +76,8 @@ const ModelsManagement = () => {
       scadenza_tipica: "",
       documenti_necessari: [],
       note_operative: "",
-      video_youtube: ""
+      video_youtube: "",
+      link_approfondimento: ""
     });
     setNewDocumento("");
     setEditingModello(null);
@@ -92,7 +95,8 @@ const ModelsManagement = () => {
       scadenza_tipica: modello.scadenza_tipica || "",
       documenti_necessari: modello.documenti_necessari || [],
       note_operative: modello.note_operative || "",
-      video_youtube: modello.video_youtube || ""
+      video_youtube: modello.video_youtube || "",
+      link_approfondimento: modello.link_approfondimento || ""
     });
     setIsDialogOpen(true);
   };
@@ -110,13 +114,28 @@ const ModelsManagement = () => {
       return;
     }
     
+    // Validazione URL link approfondimento
+    if (form.link_approfondimento && form.link_approfondimento.trim()) {
+      try {
+        new URL(form.link_approfondimento.trim());
+      } catch {
+        toast.error("Il link di approfondimento non è un URL valido");
+        return;
+      }
+    }
+    
     setSaving(true);
     try {
+      const dataToSend = {
+        ...form,
+        link_approfondimento: form.link_approfondimento?.trim() || null
+      };
+      
       if (editingModello) {
-        await axios.put(`${API}/modelli-tributari/${editingModello.id}`, form, { headers });
+        await axios.put(`${API}/modelli-tributari/${editingModello.id}`, dataToSend, { headers });
         toast.success("Modello aggiornato");
       } else {
-        await axios.post(`${API}/modelli-tributari`, form, { headers });
+        await axios.post(`${API}/modelli-tributari`, dataToSend, { headers });
         toast.success("Modello creato");
       }
       setIsDialogOpen(false);
@@ -406,6 +425,23 @@ const ModelsManagement = () => {
                   />
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <ExternalLink className="h-4 w-4 text-blue-500" />
+                Link di Approfondimento (opzionale)
+              </Label>
+              <Input
+                value={form.link_approfondimento}
+                onChange={(e) => setForm({...form, link_approfondimento: e.target.value})}
+                placeholder="https://esempio.com/guida-modello-303"
+                type="url"
+                data-testid="link-approfondimento-input"
+              />
+              <p className="text-xs text-slate-500">
+                URL di una pagina esterna con spiegazioni dettagliate. Sarà visibile ai clienti come "Approfondisci".
+              </p>
             </div>
 
             <DialogFooter>
