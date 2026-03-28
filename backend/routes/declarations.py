@@ -21,7 +21,8 @@ from .declaration_models import (
     TaxReturnCapitalGains, TaxReturnDeductions, TaxReturnCanaryDeductions,
     TaxReturnAuthorization, TaxReturnDocument, TaxReturnClientNote,
     TaxReturnAdminNote, TaxReturnIntegrationRequest, TaxReturnStatusLog,
-    IntegrationRequestCreate, IntegrationRequestResponse
+    IntegrationRequestCreate, IntegrationRequestResponse,
+    DeclarationMessageCreate, ClientDeclarationSummary
 )
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
@@ -165,6 +166,9 @@ async def create_tax_return(data: TaxReturnCreate, user: dict = Depends(get_curr
         "notas_cliente": [],
         "notas_admin": [],
         "richieste_integrazione": [],
+        
+        # Conversazione interna
+        "conversazione": [],
         
         # Autorizzazione
         "autorizacion": None,
@@ -925,3 +929,207 @@ async def respond_to_integration_request(
     )
     
     return {"message": "Risposta inviata"}
+
+
+# ==================== CLIENTI CON DICHIARAZIONI (ADMIN VIEW) ====================
+
+@router.get("/clients-with-declarations", response_model=List[ClientDeclarationSummary])
+async def get_clients_with_declarations(
+    search: Optional[str] = None,
+    tipo_cliente: Optional[str] = None,
+    has_pending_requests: Optional[bool] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Recupera lista clienti con riepilogo delle loro dichiarazioni.
+    Vista principale admin: organizzata per cliente.
+    """
+    db = get_db()
+    
+    # Recupera tutti i clienti
+    client_query = {"role": "cliente"}
+    if tipo_cliente:
+        client_query["tipo_cliente"] = tipo_cliente
+    
+    clients = await db.users.find(client_query, {"_id": 0}).to_list(10000)
+    
+    # Recupera tutte le dichiarazioni
+    tax_returns = await db.tax_returns.find({}, {"_id": 0}).to_list(10000)
+    
+    # Raggruppa dichiarazioni per cliente
+    client_returns = {}
+    for tr in tax_returns:
+        cid = tr["client_id"]
+        if cid not in client_returns:
+            client_returns[cid] = []
+        client_returns[cid].append(tr)
+    
+    result = []
+    for client in clients:
+        client_id = client["id"]
+        returns = client_returns.get(client_id, [])
+        
+        # Filtro ricerca
+        if search:
+            search_lower = search.lower()
+            if (search_lower not in client.get("full_name", "").lower() and
+                search_lower not in client.get("email", "").lower()):
+                continue
+        
+        # Conta per stato
+        bozza = len([r for r in returns if r.get("stato") == "bozza"])
+        inviate = len([r for r in returns if r.get("stato") == "inviata"])
+        in_revisione = len([r for r in returns if r.get("stato") == "in_revisione"])
+        presentate = len([r for r in returns if r.get("stato") == "presentata"])
+        doc_incompleta = len([r for r in returns if r.get("stato") == "documentazione_incompleta"])
+        
+        # Conta richieste pendenti
+        richieste_pendenti = 0
+        for r in returns:
+            richieste_pendenti += len([req for req in r.get("richieste_integrazione", []) if req.get("stato") == "pendente"])
+        
+        # Filtro has_pending_requests
+        if has_pending_requests is not None:
+            if has_pending_requests and richieste_pendenti == 0:
+                continue
+            if not has_pending_requests and richieste_pendenti > 0:
+                continue
+        
+        # Conta messaggi non letti (conversazione)
+        unread_messages = 0
+        for r in returns:
+            for msg in r.get("conversazione", []):
+                if msg.get("sender_role") == "cliente" and not msg.get("read_by_admin"):
+                    unread_messages += 1
+        
+        # Ultima attività
+        last_activity = None
+        if returns:
+            sorted_returns = sorted(returns, key=lambda x: x.get("updated_at", ""), reverse=True)
+            last_activity = sorted_returns[0].get("updated_at")
+        
+        # Includi solo clienti con dichiarazioni o se non filtrato
+        if len(returns) > 0:
+            result.append(ClientDeclarationSummary(
+                client_id=client_id,
+                client_name=client.get("full_name", "N/A"),
+                client_email=client.get("email"),
+                tipo_cliente=client.get("tipo_cliente"),
+                total_declarations=len(returns),
+                declarations_bozza=bozza,
+                declarations_inviate=inviate,
+                declarations_in_revisione=in_revisione,
+                declarations_presentate=presentate,
+                declarations_doc_incompleta=doc_incompleta,
+                total_richieste_pendenti=richieste_pendenti,
+                unread_messages=unread_messages,
+                last_activity=last_activity
+            ))
+    
+    # Ordina per ultima attività
+    result.sort(key=lambda x: x.last_activity or "", reverse=True)
+    
+    return result
+
+
+# ==================== CONVERSAZIONE DICHIARAZIONE ====================
+
+@router.post("/tax-returns/{tax_return_id}/messages")
+async def add_declaration_message(
+    tax_return_id: str,
+    data: DeclarationMessageCreate,
+    user: dict = Depends(get_current_user)
+):
+    """Aggiunge un messaggio alla conversazione della dichiarazione"""
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    message = {
+        "id": str(uuid.uuid4()),
+        "content": data.content,
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", "Utente"),
+        "sender_role": user["role"],
+        "created_at": now,
+        "read_by_admin": user["role"] == "commercialista",
+        "read_by_client": user["role"] == "cliente"
+    }
+    
+    await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {
+            "$push": {"conversazione": message},
+            "$set": {"updated_at": now}
+        }
+    )
+    
+    # Invia email di notifica
+    try:
+        from email_service import send_generic_email
+        
+        if user["role"] == "commercialista":
+            # Notifica al cliente
+            client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
+            if client and client.get("email"):
+                await send_generic_email(
+                    client["email"],
+                    f"[Fiscal Tax] Nuovo messaggio - Dichiarazione {tax_return['anno_fiscale']}",
+                    f"""
+                    <h2>Nuovo Messaggio sulla tua Dichiarazione</h2>
+                    <p>Gentile {client.get('full_name', 'Cliente')},</p>
+                    <p>Hai ricevuto un nuovo messaggio riguardo la tua dichiarazione dei redditi {tax_return['anno_fiscale']}:</p>
+                    <blockquote style="border-left: 3px solid #0d9488; padding-left: 15px; color: #555;">
+                        {data.content}
+                    </blockquote>
+                    <p>Accedi alla piattaforma per rispondere.</p>
+                    <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
+                    """
+                )
+        else:
+            # Notifica all'admin (il cliente ha risposto)
+            # Potresti inviare email all'admin qui se necessario
+            pass
+    except Exception as e:
+        pass  # Non bloccare se email fallisce
+    
+    return {"message": "Messaggio inviato", "message_id": message["id"]}
+
+
+@router.put("/tax-returns/{tax_return_id}/messages/mark-read")
+async def mark_messages_read(
+    tax_return_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Segna tutti i messaggi come letti"""
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    field_to_update = "read_by_admin" if user["role"] == "commercialista" else "read_by_client"
+    
+    # Aggiorna tutti i messaggi
+    conversazione = tax_return.get("conversazione", [])
+    for msg in conversazione:
+        msg[field_to_update] = True
+    
+    await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {"$set": {"conversazione": conversazione}}
+    )
+    
+    return {"message": "Messaggi segnati come letti"}

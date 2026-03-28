@@ -1,0 +1,77 @@
+{
+  "summary": "Completed testing of new Admin Declarations View features (iteration 24). All backend APIs and frontend features working correctly. Admin can now view declarations organized by client, see declaration details with 4 tabs, send messages in conversation, and request documentation/clarifications.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_declarations_iteration24.py",
+    "/app/test_reports/pytest/pytest_results_iteration24.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All new endpoints properly implemented with correct authentication (require_commercialista for admin-only endpoints)",
+    "ClientDeclarationSummary model correctly aggregates declaration stats per client",
+    "Message system properly tracks read status for both admin and client",
+    "Integration request system sends email notifications to clients",
+    "Frontend components properly use data-testid attributes for testing"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_declarations_iteration24.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "admin": "info@fiscaltaxcanarie.com / Triana48+"
+  },
+  "seed_data_creation": "No new seed data created. Used existing client FRANCESCO JUNIOR DE LISO with 1 tax return in bozza status.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin Declarations View fully functional. Features tested: 1) GET /api/declarations/clients-with-declarations returns list of clients with declaration summaries, 2) POST /api/declarations/tax-returns/{id}/messages sends messages to conversation, 3) PUT /api/declarations/tax-returns/{id}/messages/mark-read marks messages as read, 4) Frontend shows clients list with stats, client detail with declarations, declaration detail with 4 tabs (Panoramica, Dati Inseriti, Documenti, Comunicazioni), 5) Conversation system working with message display and send functionality, 6) Integration request dialog working with section selector, message field, and document list.",
+  "features_tested": {
+    "backend_api": {
+      "clients_with_declarations": "GET /api/declarations/clients-with-declarations - Working (returns client summaries with declaration counts)",
+      "clients_with_declarations_search": "GET /api/declarations/clients-with-declarations?search=FRANCESCO - Working (filters by name/email)",
+      "clients_with_declarations_pending": "GET /api/declarations/clients-with-declarations?has_pending_requests=true - Working (filters by pending requests)",
+      "tax_returns_list": "GET /api/declarations/tax-returns - Working (returns all tax returns)",
+      "tax_returns_by_client": "GET /api/declarations/tax-returns?client_id={id} - Working (filters by client)",
+      "tax_return_detail": "GET /api/declarations/tax-returns/{id} - Working (returns full declaration with conversazione)",
+      "send_message": "POST /api/declarations/tax-returns/{id}/messages - Working (adds message to conversazione)",
+      "mark_messages_read": "PUT /api/declarations/tax-returns/{id}/messages/mark-read - Working (updates read status)",
+      "create_integration_request": "POST /api/declarations/tax-returns/{id}/integration-requests - Working (creates request and sends email)"
+    },
+    "frontend_ui": {
+      "admin_declarations_clients_view": "Working - Shows stats cards (Clienti, Dichiarazioni, Richieste Pendenti, Messaggi Non Letti) and client list",
+      "client_selection": "Working - Clicking client row shows their declarations",
+      "client_declarations_list": "Working - Shows declaration cards with status badges and indicators",
+      "declaration_detail_view": "Working - Shows header with status, 4 tabs, and full declaration info",
+      "panoramica_tab": "Working - Shows Informazioni Pratica, Autorizzazione, Sezioni Compilate, Richieste Pendenti",
+      "dati_inseriti_tab": "Working - Shows all 12 sections with data",
+      "documenti_tab": "Working - Shows uploaded documents list",
+      "comunicazioni_tab": "Working - Shows conversation with messages and send input",
+      "message_sending": "Working - Can type and send messages in conversation",
+      "richiedi_documentazione_button": "Working - Opens dialog with Sezione, Messaggio, Documenti Richiesti fields",
+      "status_change_dropdown": "Working - Admin can change declaration status"
+    }
+  },
+  "test_data_created": {
+    "messages": [
+      "Test message from admin for testing purposes",
+      "Test message from pytest - iteration 24"
+    ],
+    "integration_requests": [
+      {
+        "seccion": "datos_personales",
+        "mensaje": "Test integration request from pytest - please provide additional documents",
+        "documentos_richiesti": ["Documento identità", "Codice fiscale"]
+      }
+    ]
+  }
+}

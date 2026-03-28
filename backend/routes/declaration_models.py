@@ -381,6 +381,9 @@ class TaxReturnResponse(BaseModel):
     notas_admin: List[TaxReturnAdminNote] = []
     richieste_integrazione: List[TaxReturnIntegrationRequest] = []
     
+    # Conversazione interna (messaggi tra admin e cliente)
+    conversazione: List[Dict[str, Any]] = []
+    
     # Autorizzazione
     autorizacion: Optional[TaxReturnAuthorization] = None
     
@@ -438,3 +441,56 @@ class IntegrationRequestCreate(BaseModel):
 class IntegrationRequestResponse(BaseModel):
     """Risposta cliente a richiesta integrazione"""
     risposta: str
+
+
+# ==================== CONVERSAZIONE DICHIARAZIONE ====================
+
+class DeclarationMessageCreate(BaseModel):
+    """Creazione messaggio nella conversazione"""
+    content: str
+
+
+class DeclarationMessage(BaseModel):
+    """Messaggio nella conversazione di una dichiarazione"""
+    id: str
+    content: str
+    sender_id: str
+    sender_name: str
+    sender_role: str  # "cliente" o "commercialista"
+    created_at: str
+    read_by_admin: bool = False
+    read_by_client: bool = False
+
+
+# ==================== VISTA CLIENTI CON DICHIARAZIONI ====================
+
+class ClientDeclarationSummary(BaseModel):
+    """Riepilogo dichiarazioni per singolo cliente"""
+    client_id: str
+    client_name: str
+    client_email: Optional[str] = None
+    tipo_cliente: Optional[str] = None
+    
+    # Conteggi dichiarazioni
+    total_declarations: int = 0
+    declarations_bozza: int = 0
+    declarations_inviate: int = 0
+    declarations_in_revisione: int = 0
+    declarations_presentate: int = 0
+    declarations_doc_incompleta: int = 0
+    
+    # Richieste pendenti totali
+    total_richieste_pendenti: int = 0
+    
+    # Messaggi non letti
+    unread_messages: int = 0
+    
+    # Ultima attività
+    last_activity: Optional[str] = None
+
+
+class ClientDeclarationsListResponse(BaseModel):
+    """Lista clienti con riepilogo dichiarazioni"""
+    clients: List[ClientDeclarationSummary]
+    total_clients: int
+    total_declarations: int

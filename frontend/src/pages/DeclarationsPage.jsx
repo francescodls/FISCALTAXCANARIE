@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import TaxReturnForm from '../components/TaxReturnForm';
+import AdminDeclarationsView from '../components/AdminDeclarationsView';
+import DeclarationDetailView from '../components/DeclarationDetailView';
 import LanguageSelector from '../components/LanguageSelector';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -27,6 +29,7 @@ const DeclarationsPage = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState(null);
+  const [showAdminDetail, setShowAdminDetail] = useState(false);
   const [filters, setFilters] = useState({
     anno: '',
     stato: '',
@@ -123,9 +126,25 @@ const DeclarationsPage = () => {
       }
       
       setSelectedReturn(data);
-      setShowForm(true);
+      if (isAdmin) {
+        setShowAdminDetail(true);
+      } else {
+        setShowForm(true);
+      }
     } catch (error) {
       toast.error(error.message || 'Errore caricamento pratica');
+    }
+  };
+
+  // Callback per admin quando seleziona dichiarazione dalla vista clienti
+  const handleSelectDeclaration = async (decl) => {
+    await openReturn(decl.id);
+  };
+
+  // Ricarica dichiarazione dopo modifica
+  const reloadDeclaration = async () => {
+    if (selectedReturn?.id) {
+      await openReturn(selectedReturn.id);
     }
   };
 
@@ -187,6 +206,49 @@ const DeclarationsPage = () => {
     presentata: taxReturns.filter(t => t.stato === 'presentata').length
   };
 
+  // Vista Admin: Dettaglio Dichiarazione
+  if (isAdmin && showAdminDetail && selectedReturn) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" onClick={() => navigate("/admin")}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+              <div className="h-6 w-px bg-slate-200" />
+              <h1 className="text-xl font-bold text-slate-900">Dichiarazioni</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <LanguageSelector />
+              <Badge variant="outline" className="flex items-center gap-1">
+                <User className="w-3 h-3" />
+                {user?.full_name || user?.email}
+              </Badge>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+        <main className="max-w-7xl mx-auto px-6 py-8">
+          <DeclarationDetailView
+            declaration={selectedReturn}
+            token={token}
+            user={user}
+            onBack={() => {
+              setShowAdminDetail(false);
+              setSelectedReturn(null);
+            }}
+            onUpdate={reloadDeclaration}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Vista Cliente: Form Dichiarazione
   if (showForm && selectedReturn) {
     return (
       <div className="min-h-screen bg-stone-50">
@@ -229,6 +291,44 @@ const DeclarationsPage = () => {
     );
   }
 
+  // Vista Admin: Lista Clienti con Dichiarazioni
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" onClick={() => navigate("/admin")}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+              <div className="h-6 w-px bg-slate-200" />
+              <h1 className="text-xl font-bold text-slate-900">Dichiarazioni</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <LanguageSelector />
+              <Badge variant="outline" className="flex items-center gap-1">
+                <User className="w-3 h-3" />
+                {user?.full_name || user?.email}
+              </Badge>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+        <main className="max-w-7xl mx-auto px-6 py-8">
+          <AdminDeclarationsView
+            token={token}
+            user={user}
+            onSelectDeclaration={handleSelectDeclaration}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Vista Cliente: Lista proprie dichiarazioni
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Header */}
