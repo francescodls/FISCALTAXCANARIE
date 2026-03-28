@@ -21,7 +21,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 // Sezioni del form
 const SECTIONS = [
-  { id: 'filtro', name: 'Selezione Sezioni', icon: CheckCircle, required: true },
+  { id: 'filtro', name: 'Introduzione', icon: CheckCircle, required: true },
   { id: 'datos_personales', name: 'Dati Personali', icon: User, required: true },
   { id: 'situacion_familiar', name: 'Situazione Familiare', icon: Users },
   { id: 'rentas_trabajo', name: 'Redditi da Lavoro', icon: Briefcase },
@@ -330,12 +330,9 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
     signatureRef.current?.clear();
   };
 
-  // Filtra sezioni visibili
-  const visibleSections = SECTIONS.filter(section => {
-    if (section.required) return true;
-    if (section.id === 'documentos' || section.id === 'notas') return true;
-    return formData.secciones_habilitadas[section.id];
-  });
+  // Mostra TUTTE le sezioni (non più filtrate per checkbox)
+  // L'admin vede tutto, il cliente può compilare tutto
+  const visibleSections = SECTIONS;
 
   const currentSectionData = visibleSections[currentSection];
 
@@ -439,36 +436,48 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-2">
-          Quali situazioni hai avuto nell'anno {taxReturn.anno_fiscale}?
+          Dichiarazione dei Redditi {taxReturn.anno_fiscale}
         </h3>
         <p className="text-slate-500">
-          Seleziona le sezioni pertinenti. Le altre non verranno mostrate.
+          Compila le sezioni pertinenti alla tua situazione. Puoi navigare tra le sezioni usando i pulsanti in alto o "Precedente" / "Successivo".
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {SECTIONS.filter(s => !s.required && s.id !== 'documentos' && s.id !== 'notas').map(section => (
-          <label 
-            key={section.id}
-            className={`flex items-center gap-4 p-4 border rounded-lg cursor-pointer transition-all ${
-              formData.secciones_habilitadas[section.id] 
-                ? 'border-teal-500 bg-teal-50' 
-                : 'hover:border-slate-300'
-            }`}
-          >
-            <Checkbox
-              checked={formData.secciones_habilitadas[section.id] || false}
-              onCheckedChange={(checked) => handleFieldChange('secciones_habilitadas', section.id, checked)}
-              disabled={!isEditable}
-            />
-            <div className="flex items-center gap-3">
-              <section.icon className={`w-5 h-5 ${
-                formData.secciones_habilitadas[section.id] ? 'text-teal-600' : 'text-slate-400'
-              }`} />
-              <span className="font-medium">{section.name}</span>
-            </div>
-          </label>
-        ))}
+      <Card className="bg-teal-50 border-teal-200">
+        <CardContent className="p-4">
+          <h4 className="font-medium text-teal-800 mb-3">Sezioni disponibili:</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {SECTIONS.filter(s => !s.required && s.id !== 'documentos' && s.id !== 'notas').map(section => (
+              <div key={section.id} className="flex items-center gap-2 text-sm">
+                <section.icon className="w-4 h-4 text-teal-600" />
+                <span>{section.name}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <h4 className="font-medium text-blue-800 mb-2">Come procedere:</h4>
+          <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+            <li>Compila i <strong>Dati Personali</strong> (obbligatori)</li>
+            <li>Vai alle sezioni pertinenti e inserisci i tuoi dati</li>
+            <li>In ogni sezione puoi aggiungere note e caricare documenti</li>
+            <li>Alla fine, firma l'<strong>Autorizzazione</strong> e invia la pratica</li>
+          </ol>
+        </CardContent>
+      </Card>
+
+      <div className="text-center">
+        <Button 
+          onClick={() => setCurrentSection(1)} 
+          className="bg-teal-600 hover:bg-teal-700"
+          size="lg"
+        >
+          Inizia la compilazione
+          <ArrowRight className="w-4 h-4 ml-2" />
+        </Button>
       </div>
     </div>
   );
