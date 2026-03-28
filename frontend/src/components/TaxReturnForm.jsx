@@ -16,6 +16,7 @@ import {
   MessageSquare, FileUp, Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ClientIntegrationRequests from './ClientIntegrationRequests';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -35,6 +36,7 @@ const SECTIONS = [
   { id: 'deducciones', name: 'Spese Deducibili', icon: Receipt },
   { id: 'deducciones_canarias', name: 'Deduzioni Canarie', icon: MapPin },
   { id: 'documentos', name: 'Documenti', icon: FileText },
+  { id: 'comunicazioni', name: 'Richieste e Messaggi', icon: MessageSquare, showBadge: true },
   { id: 'notas', name: 'Note', icon: MessageSquare },
   { id: 'autorizacion', name: 'Autorizzazione', icon: Pen, required: true }
 ];
@@ -77,6 +79,7 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
   const [clientNotes, setClientNotes] = useState(taxReturn.notas_cliente || []);
   const [adminNotes, setAdminNotes] = useState(taxReturn.notas_admin || []);
   const [integrationRequests, setIntegrationRequests] = useState(taxReturn.richieste_integrazione || []);
+  const [conversazione, setConversazione] = useState(taxReturn.conversazione || []);
   const [uploading, setUploading] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [newAdminNote, setNewAdminNote] = useState('');
@@ -423,6 +426,8 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
         return renderCanaryDeductionsData();
       case 'documentos':
         return renderDocumentsSection();
+      case 'comunicazioni':
+        return renderCommunicationsSection();
       case 'notas':
         return renderNotesSection();
       case 'autorizacion':
@@ -1853,6 +1858,48 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
     </div>
   );
 
+  // Funzione per ricaricare i dati della dichiarazione
+  const reloadTaxReturn = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${taxReturn.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && onUpdate) {
+        onUpdate(data);
+        setIntegrationRequests(data.richieste_integrazione || []);
+        setConversazione(data.conversazione || []);
+        setDocuments(data.documentos || []);
+      }
+    } catch (error) {
+      console.error('Errore ricaricamento dati:', error);
+    }
+  };
+
+  const renderCommunicationsSection = () => (
+    <div className="space-y-6">
+      <div className="text-center mb-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">
+          Richieste e Comunicazioni
+        </h3>
+        <p className="text-slate-500">
+          Qui trovi le richieste di documentazione dal commercialista e puoi comunicare direttamente con lui.
+        </p>
+      </div>
+      
+      <ClientIntegrationRequests
+        taxReturn={{
+          ...taxReturn,
+          richieste_integrazione: integrationRequests,
+          conversazione: conversazione
+        }}
+        token={token}
+        user={user}
+        onUpdate={reloadTaxReturn}
+      />
+    </div>
+  );
+
   const renderNotesSection = () => (
     <div className="space-y-6">
       {/* Note del cliente */}
@@ -2112,19 +2159,35 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {visibleSections.map((section, idx) => (
-              <Button
-                key={section.id}
-                variant={idx === currentSection ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCurrentSection(idx)}
-                className={idx === currentSection ? 'bg-teal-600' : ''}
-              >
-                <section.icon className="w-4 h-4 mr-1" />
-                <span className="hidden md:inline">{section.name}</span>
-                <span className="md:hidden">{idx + 1}</span>
-              </Button>
-            ))}
+            {visibleSections.map((section, idx) => {
+              // Conta richieste pendenti per sezione comunicazioni
+              const pendingRequests = section.id === 'comunicazioni' 
+                ? integrationRequests.filter(r => r.stato === 'pendente').length 
+                : 0;
+              const unreadMessages = section.id === 'comunicazioni'
+                ? conversazione.filter(m => m.sender_role === 'commercialista' && !m.read_by_client).length
+                : 0;
+              const totalBadge = pendingRequests + unreadMessages;
+              
+              return (
+                <Button
+                  key={section.id}
+                  variant={idx === currentSection ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setCurrentSection(idx)}
+                  className={`relative ${idx === currentSection ? 'bg-teal-600' : ''} ${section.id === 'comunicazioni' && totalBadge > 0 ? 'border-yellow-400' : ''}`}
+                >
+                  <section.icon className="w-4 h-4 mr-1" />
+                  <span className="hidden md:inline">{section.name}</span>
+                  <span className="md:hidden">{idx + 1}</span>
+                  {section.id === 'comunicazioni' && totalBadge > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                      {totalBadge}
+                    </span>
+                  )}
+                </Button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>

@@ -1,0 +1,79 @@
+{
+  "summary": "Completed testing of Client Integration Requests feature (iteration 25). Fixed critical backend bug where respond endpoint used PUT+Form instead of POST+JSON. All features working correctly: client can view pending requests, respond to requests, upload documents, and communicate via conversation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [],
+    "fixed": [
+      {
+        "endpoint": "POST /api/declarations/tax-returns/{id}/integration-requests/{req_id}/respond",
+        "issue": "Endpoint was using PUT method with Form data, but frontend sends POST with JSON body",
+        "fix": "Changed from PUT+Form to POST+JSON to match frontend implementation",
+        "file": "/app/backend/routes/declarations.py"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "TaxReturnForm",
+        "issues": ["Minor HTML nesting warning: <div> inside <p> causing hydration warning (non-blocking)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_client_integration_requests_iteration25.py",
+    "/app/test_reports/pytest/pytest_results_iteration25.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend respond endpoint now correctly uses POST method with JSON body (IntegrationRequestResponse model)",
+    "ClientIntegrationRequests component properly displays pending requests with section badges, messages, and document lists",
+    "Response dialog includes helpful suggestion about document upload",
+    "Conversation section shows bidirectional messages with proper styling",
+    "Tab badge correctly shows count of pending requests"
+  ],
+  "updated_files": [
+    "/app/backend/routes/declarations.py",
+    "/app/backend/tests/test_client_integration_requests_iteration25.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all features verified via Playwright)"
+  },
+  "test_credentials": {
+    "admin": "info@fiscaltaxcanarie.com / Triana48+",
+    "client": "francesco@fiscaltaxcanarie.com / TestClient123!"
+  },
+  "seed_data_creation": "Set password for existing client FRANCESCO JUNIOR DE LISO to enable testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Client Integration Requests feature fully functional. Features tested: 1) Client can view pending integration requests in 'Richieste e Messaggi' section, 2) Each request shows section badge, message, and requested documents list, 3) 'Rispondi' button opens dialog for client response, 4) 'Carica Documento' button allows document upload, 5) Conversation section shows bidirectional messages, 6) Tab badge shows count of pending requests. Backend endpoint fixed from PUT+Form to POST+JSON.",
+  "features_tested": {
+    "backend_api": {
+      "create_integration_request": "POST /api/declarations/tax-returns/{id}/integration-requests - Working (admin creates request)",
+      "respond_to_request": "POST /api/declarations/tax-returns/{id}/integration-requests/{req_id}/respond - Working (client responds with JSON body)",
+      "upload_document": "POST /api/declarations/tax-returns/{id}/documents - Working (with optional richiesta_id)",
+      "send_message": "POST /api/declarations/tax-returns/{id}/messages - Working",
+      "mark_messages_read": "PUT /api/declarations/tax-returns/{id}/messages/mark-read - Working",
+      "get_tax_return": "GET /api/declarations/tax-returns/{id} - Working (includes richieste_integrazione and conversazione)"
+    },
+    "frontend_ui": {
+      "richieste_e_messaggi_tab": "Working - Shows in TaxReturnForm with badge count",
+      "pending_requests_alert": "Working - Yellow alert showing count of pending requests",
+      "request_cards": "Working - Each request shows section badge, date, message, documents list",
+      "rispondi_button": "Working - Opens dialog with request message and response textarea",
+      "carica_documento_button": "Working - Triggers file upload with richiesta_id",
+      "response_dialog": "Working - Shows request message, textarea, suggestion, and submit button",
+      "conversation_section": "Working - Shows messages with sender info and timestamps",
+      "message_input": "Working - Textarea with send button for new messages"
+    }
+  },
+  "bug_fix_details": {
+    "issue": "Frontend-Backend mismatch on respond endpoint",
+    "root_cause": "Backend used @router.put with Form(...) parameter, frontend sent POST with JSON body",
+    "solution": "Changed backend to @router.post with IntegrationRequestResponse Pydantic model",
+    "verification": "Client successfully sent response via UI, verified in database with status='risposta'"
+  }
+}

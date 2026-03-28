@@ -893,14 +893,14 @@ async def create_integration_request(
     return {"message": "Richiesta integrazione creata", "request_id": request_id}
 
 
-@router.put("/tax-returns/{tax_return_id}/integration-requests/{request_id}/respond")
+@router.post("/tax-returns/{tax_return_id}/integration-requests/{request_id}/respond")
 async def respond_to_integration_request(
     tax_return_id: str,
     request_id: str,
-    risposta: str = Form(...),
+    data: IntegrationRequestResponse,
     user: dict = Depends(get_current_user)
 ):
-    """Risponde a una richiesta di integrazione"""
+    """Risponde a una richiesta di integrazione (client only)"""
     db = get_db()
     
     if user["role"] != "cliente":
@@ -920,7 +920,7 @@ async def respond_to_integration_request(
         {"id": tax_return_id, "richieste_integrazione.id": request_id},
         {
             "$set": {
-                "richieste_integrazione.$.risposta_cliente": risposta,
+                "richieste_integrazione.$.risposta_cliente": data.risposta,
                 "richieste_integrazione.$.risposta_at": now,
                 "richieste_integrazione.$.stato": "risposta",
                 "updated_at": now
