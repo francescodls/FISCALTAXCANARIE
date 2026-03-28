@@ -1724,22 +1724,9 @@ async def upload_document_with_ai(
         user["id"]
     )
     
-    # Invia notifica email al cliente (se identificato)
-    if final_client_id and not needs_verification:
-        try:
-            client_data = await db.users.find_one({"id": final_client_id}, {"_id": 0})
-            if client_data and client_data.get("email"):
-                doc_title = ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename
-                doc_desc = ai_result.get("descrizione_estesa") if ai_result.get("success") else None
-                await notify_document_uploaded(
-                    client_email=client_data["email"],
-                    client_name=client_data["full_name"],
-                    doc_title=doc_title,
-                    doc_description=doc_desc
-                )
-                logger.info(f"Email notifica documento inviata a {client_data['email']}")
-        except Exception as e:
-            logger.error(f"Errore invio email notifica documento: {e}")
+    # NOTA: Notifiche email per upload documenti DISABILITATE su richiesta utente
+    # Le notifiche automatiche per caricamento documenti non vengono inviate
+    # Rimangono attive solo: notifiche scadenze, comunicazioni globali/amministrative
     
     return {
         "id": doc_id,
@@ -1907,19 +1894,7 @@ async def upload_documents_batch(
                 "success": True
             })
             
-            # Notifica cliente se identificato con alta confidenza
-            if final_client_id and not needs_verification:
-                try:
-                    client_data = await db.users.find_one({"id": final_client_id}, {"_id": 0})
-                    if client_data and client_data.get("email"):
-                        await notify_document_uploaded(
-                            client_email=client_data["email"],
-                            client_name=client_data["full_name"],
-                            doc_title=document["title"],
-                            doc_description=document.get("description")
-                        )
-                except Exception as e:
-                    logger.error(f"Errore invio email notifica: {e}")
+            # NOTA: Notifiche email per upload documenti DISABILITATE su richiesta utente
                     
         except Exception as e:
             logger.error(f"Errore elaborazione file {file.filename}: {e}")
@@ -2788,38 +2763,8 @@ async def clear_conversation(conversation_id: str, user: dict = Depends(get_curr
 
 # ==================== NOTIFICATION ROUTES ====================
 
-@api_router.post("/notifications/send-document")
-async def send_document_notification(
-    client_id: str = Form(...),
-    doc_title: str = Form(...),
-    doc_description: str = Form(None),
-    user: dict = Depends(require_commercialista)
-):
-    """Invia notifica email per nuovo documento"""
-    client = await db.users.find_one({"id": client_id}, {"_id": 0})
-    if not client:
-        raise HTTPException(status_code=404, detail="Cliente non trovato")
-    
-    result = await notify_document_uploaded(
-        client_email=client["email"],
-        client_name=client["full_name"],
-        doc_title=doc_title,
-        doc_description=doc_description
-    )
-    
-    # Log notifica
-    await db.notifications.insert_one({
-        "id": str(uuid.uuid4()),
-        "type": "document_uploaded",
-        "client_id": client_id,
-        "client_email": client["email"],
-        "subject": f"Nuovo documento: {doc_title}",
-        "sent_by": user["id"],
-        "result": result,
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
-    
-    return result
+# NOTA: Endpoint /notifications/send-document RIMOSSO su richiesta utente
+# Le notifiche automatiche per caricamento documenti non vengono più inviate
 
 @api_router.post("/notifications/send-deadline-reminder")
 async def send_deadline_reminder(

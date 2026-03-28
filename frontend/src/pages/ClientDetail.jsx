@@ -40,21 +40,18 @@ import {
   Bell,
   Send,
   Euro,
-  FileSignature,
   Shield,
-  Key,
   Building2,
   X,
   Briefcase,
   Folder,
-  FileCheck
+  Key
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
 import FeeManagement from "@/components/FeeManagement";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
-import SignatureManagement from "@/components/SignatureManagement";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
 
@@ -138,18 +135,6 @@ const ClientDetail = () => {
   const [savingClient, setSavingClient] = useState(false);
   const [deletingClient, setDeletingClient] = useState(false);
   
-  // Digital signature state
-  const [showSignDialog, setShowSignDialog] = useState(false);
-  const [signingDoc, setSigningDoc] = useState(null);
-  const [certificates, setCertificates] = useState([]);
-  const [signForm, setSignForm] = useState({
-    certificate_name: "",
-    certificate_password: "",
-    reason: "Documento firmato digitalmente",
-    location: "Isole Canarie, Spagna"
-  });
-  const [signing, setSigning] = useState(false);
-
   // Bank credentials state
   const [bankCredentials, setBankCredentials] = useState([]);
   const [bankEntities, setBankEntities] = useState([]);
@@ -164,13 +149,6 @@ const ClientDetail = () => {
   const [additionalEmails, setAdditionalEmails] = useState([]);
   const [newEmail, setNewEmail] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
-
-  // Client certificates state
-  const [clientCertificates, setClientCertificates] = useState([]);
-  const [showClientCertDialog, setShowClientCertDialog] = useState(false);
-  const [clientCertForm, setClientCertForm] = useState({ name: "", notes: "" });
-  const [clientCertFile, setClientCertFile] = useState(null);
-  const [uploadingClientCert, setUploadingClientCert] = useState(false);
 
   // Document rename state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -199,9 +177,7 @@ const ClientDetail = () => {
 
   useEffect(() => {
     fetchData();
-    fetchCertificates();
     fetchBankData();
-    fetchClientCertificates();
   }, [clientId]);
 
   const fetchData = async () => {
@@ -701,107 +677,6 @@ const ClientDetail = () => {
     }
   };
 
-  // Fetch certificates
-  const fetchCertificates = async () => {
-    try {
-      const response = await axios.get(`${API}/certificates`, { headers });
-      setCertificates(response.data);
-    } catch (error) {
-      console.error("Errore caricamento certificati:", error);
-    }
-  };
-
-  // Sign document
-  const handleSignDocument = async () => {
-    if (!signForm.certificate_name || !signForm.certificate_password) {
-      toast.error("Seleziona un certificato e inserisci la password");
-      return;
-    }
-    
-    setSigning(true);
-    try {
-      const formData = new FormData();
-      formData.append("certificate_name", signForm.certificate_name);
-      formData.append("certificate_password", signForm.certificate_password);
-      formData.append("reason", signForm.reason);
-      formData.append("location", signForm.location);
-      
-      await axios.post(`${API}/documents/${signingDoc.id}/sign`, formData, {
-        headers: {
-          ...headers,
-          "Content-Type": "multipart/form-data"
-        }
-      });
-      
-      toast.success("Documento firmato con successo!");
-      setShowSignDialog(false);
-      setSignForm({
-        certificate_name: "",
-        certificate_password: "",
-        reason: "Documento firmato digitalmente",
-        location: "Isole Canarie, Spagna"
-      });
-      setSigningDoc(null);
-      fetchData();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || "Errore nella firma del documento");
-    } finally {
-      setSigning(false);
-    }
-  };
-
-  // Client Certificates
-  const fetchClientCertificates = async () => {
-    try {
-      const response = await axios.get(`${API}/clients/${clientId}/certificates`, { headers });
-      setClientCertificates(response.data);
-    } catch (error) {
-      console.error("Errore caricamento certificati cliente:", error);
-    }
-  };
-
-  const handleUploadClientCertificate = async (e) => {
-    e.preventDefault();
-    if (!clientCertFile || !clientCertForm.name) {
-      toast.error("Seleziona un file .p12 e inserisci un nome");
-      return;
-    }
-    
-    setUploadingClientCert(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", clientCertFile);
-      formData.append("certificate_name", clientCertForm.name);
-      if (clientCertForm.notes) formData.append("notes", clientCertForm.notes);
-      
-      await axios.post(`${API}/clients/${clientId}/certificates`, formData, {
-        headers: { ...headers, "Content-Type": "multipart/form-data" }
-      });
-      
-      toast.success("Certificato caricato con successo");
-      setShowClientCertDialog(false);
-      setClientCertForm({ name: "", notes: "" });
-      setClientCertFile(null);
-      fetchClientCertificates();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || "Errore nel caricamento del certificato");
-    } finally {
-      setUploadingClientCert(false);
-    }
-  };
-
-  const handleDeleteClientCertificate = async (certId) => {
-    if (!window.confirm("Sei sicuro di voler eliminare questo certificato?")) return;
-    
-    try {
-      await axios.delete(`${API}/clients/${clientId}/certificates/${certId}`, { headers });
-      toast.success("Certificato eliminato");
-      fetchClientCertificates();
-    } catch (error) {
-      toast.error("Errore nell'eliminazione del certificato");
-    }
-  };
-
   // Document Rename
   const openRenameDialog = (doc) => {
     setRenameDoc(doc);
@@ -1053,22 +928,6 @@ const ClientDetail = () => {
             >
               <Briefcase className="h-4 w-4 mr-2" />
               Dipendenti
-            </TabsTrigger>
-            <TabsTrigger 
-              value="signatures" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
-              data-testid="tab-signatures"
-            >
-              <FileSignature className="h-4 w-4 mr-2" />
-              Firma Digitale
-            </TabsTrigger>
-            <TabsTrigger 
-              value="clientcerts" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
-              data-testid="tab-clientcerts"
-            >
-              <FileCheck className="h-4 w-4 mr-2" />
-              Certificati
             </TabsTrigger>
           </TabsList>
 
@@ -2660,290 +2519,8 @@ const ClientDetail = () => {
               isConsulente={user?.role === "consulente_lavoro"}
             />
           </TabsContent>
-
-          {/* Digital Signatures Tab */}
-          <TabsContent value="signatures" className="space-y-6">
-            <SignatureManagement 
-              token={token} 
-              clientId={clientId}
-              clientName={client?.full_name}
-            />
-          </TabsContent>
-
-          {/* Client Certificates Tab */}
-          <TabsContent value="clientcerts" className="space-y-6">
-            <Card className="bg-white border border-slate-200">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="font-heading text-lg flex items-center gap-2">
-                    <FileCheck className="h-5 w-5 text-teal-500" />
-                    Certificati Digitali del Cliente
-                  </CardTitle>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Certificati associati specificamente a questo cliente
-                  </p>
-                </div>
-                <Dialog open={showClientCertDialog} onOpenChange={setShowClientCertDialog}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Carica Certificato
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                      <DialogTitle className="flex items-center gap-2">
-                        <Upload className="h-5 w-5 text-teal-500" />
-                        Carica Certificato Digitale
-                      </DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleUploadClientCertificate} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Nome certificato *</Label>
-                        <Input
-                          value={clientCertForm.name}
-                          onChange={(e) => setClientCertForm({ ...clientCertForm, name: e.target.value })}
-                          placeholder="Es: Certificato firma 2024"
-                          required
-                          className="border-slate-200"
-                          data-testid="client-cert-name"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>File certificato (.p12) *</Label>
-                        <Input
-                          type="file"
-                          accept=".p12"
-                          onChange={(e) => setClientCertFile(e.target.files[0])}
-                          required
-                          className="border-slate-200"
-                          data-testid="client-cert-file"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Note (opzionale)</Label>
-                        <Input
-                          value={clientCertForm.notes}
-                          onChange={(e) => setClientCertForm({ ...clientCertForm, notes: e.target.value })}
-                          placeholder="Note aggiuntive"
-                          className="border-slate-200"
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" type="button" onClick={() => setShowClientCertDialog(false)}>
-                          Annulla
-                        </Button>
-                        <Button 
-                          type="submit" 
-                          disabled={uploadingClientCert}
-                          className="bg-teal-500 hover:bg-teal-600 text-white"
-                          data-testid="upload-client-cert-submit"
-                        >
-                          {uploadingClientCert ? "Caricamento..." : "Carica"}
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                {clientCertificates.length > 0 ? (
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {clientCertificates.map((cert) => (
-                      <Card key={cert.id} className="border border-slate-200 hover:border-teal-300 transition-colors">
-                        <CardContent className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="p-2 bg-teal-100 rounded-lg">
-                              <Key className="h-6 w-6 text-teal-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-slate-800 truncate">{cert.name}</h4>
-                              <p className="text-sm text-slate-500 truncate">{cert.filename}</p>
-                              {cert.notes && (
-                                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{cert.notes}</p>
-                              )}
-                              <p className="text-xs text-slate-400 mt-2">
-                                Caricato: {new Date(cert.created_at).toLocaleDateString('it-IT')}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 mt-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex-1 border-slate-200 hover:bg-teal-50 hover:border-teal-300"
-                              onClick={async () => {
-                                try {
-                                  const res = await axios.get(`${API}/clients/${clientId}/certificates/${cert.id}/download`, { headers });
-                                  const certData = res.data;
-                                  const byteCharacters = atob(certData.file_data);
-                                  const byteNumbers = new Array(byteCharacters.length);
-                                  for (let i = 0; i < byteCharacters.length; i++) {
-                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                                  }
-                                  const byteArray = new Uint8Array(byteNumbers);
-                                  const blob = new Blob([byteArray], { type: 'application/x-pkcs12' });
-                                  const url = window.URL.createObjectURL(blob);
-                                  const a = document.createElement('a');
-                                  a.href = url;
-                                  a.download = certData.filename;
-                                  document.body.appendChild(a);
-                                  a.click();
-                                  window.URL.revokeObjectURL(url);
-                                  document.body.removeChild(a);
-                                  toast.success("Certificato scaricato");
-                                } catch (error) {
-                                  toast.error("Errore nel download del certificato");
-                                }
-                              }}
-                              data-testid={`download-client-cert-${cert.id}`}
-                            >
-                              <Download className="h-4 w-4 mr-2" />
-                              Scarica
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-red-200 text-red-600 hover:bg-red-50"
-                              onClick={() => handleDeleteClientCertificate(cert.id)}
-                              data-testid={`delete-client-cert-${cert.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-16">
-                    <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FileCheck className="h-10 w-10 text-slate-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-slate-900 mb-2">Nessun certificato</h3>
-                    <p className="text-slate-500 max-w-md mx-auto">
-                      Carica un certificato digitale (.p12) per questo cliente. 
-                      Il cliente potrà visualizzarlo e scaricarlo dalla sua dashboard.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </main>
-
-      {/* Digital Signature Dialog */}
-      <Dialog open={showSignDialog} onOpenChange={setShowSignDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileSignature className="h-5 w-5 text-teal-500" />
-              Firma Digitale
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Stai per firmare digitalmente: <strong>{signingDoc?.title}</strong>
-            </p>
-            
-            {certificates.length === 0 ? (
-              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-amber-800 font-medium">Nessun certificato disponibile</p>
-                    <p className="text-xs text-amber-700 mt-1">
-                      Carica prima un certificato .p12 dalla sezione{" "}
-                      <button 
-                        onClick={() => navigate("/admin/signatures")}
-                        className="underline font-medium"
-                      >
-                        Firma Digitale
-                      </button>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>Certificato</Label>
-                  <Select 
-                    value={signForm.certificate_name}
-                    onValueChange={(v) => setSignForm({ ...signForm, certificate_name: v })}
-                  >
-                    <SelectTrigger className="border-slate-200">
-                      <SelectValue placeholder="Seleziona certificato" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {certificates.map((cert) => (
-                        <SelectItem key={cert.id} value={cert.name}>
-                          {cert.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Password Certificato</Label>
-                  <Input
-                    type="password"
-                    value={signForm.certificate_password}
-                    onChange={(e) => setSignForm({ ...signForm, certificate_password: e.target.value })}
-                    placeholder="Inserisci la password"
-                    className="border-slate-200"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Motivo della Firma</Label>
-                  <Input
-                    value={signForm.reason}
-                    onChange={(e) => setSignForm({ ...signForm, reason: e.target.value })}
-                    className="border-slate-200"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Luogo</Label>
-                  <Input
-                    value={signForm.location}
-                    onChange={(e) => setSignForm({ ...signForm, location: e.target.value })}
-                    className="border-slate-200"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-          
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setShowSignDialog(false)}>
-              Annulla
-            </Button>
-            {certificates.length > 0 && (
-              <Button 
-                onClick={handleSignDocument}
-                disabled={signing || !signForm.certificate_name || !signForm.certificate_password}
-                className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
-              >
-                {signing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                    Firma in corso...
-                  </>
-                ) : (
-                  <>
-                    <FileSignature className="h-4 w-4 mr-2" />
-                    Firma Documento
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Document Preview Modal */}
       <DocumentPreview

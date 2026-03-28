@@ -5,9 +5,25 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 35 (28 Marzo 2026) - COMPLETATA ✅
+
+**1. Disabilitazione Notifiche Email per Upload Documenti**
+- Rimosse tutte le chiamate automatiche a `notify_document_uploaded()` nel backend
+- Le notifiche per upload documenti non vengono più inviate automaticamente via Brevo
+- Rimangono attive: notifiche scadenze, promemoria, comunicazioni globali/amministrative
+
+**2. Rimozione Completa Sezioni Certificati Digitali / Firma Digitale**
+- Rimosso tab "Firma Digitale" dalla scheda cliente admin (`ClientDetail.jsx`)
+- Rimosso tab "Certificati" dalla scheda cliente admin (`ClientDetail.jsx`)
+- Rimosso tab "Certificati" dalla dashboard cliente (`ClientDashboard.jsx`)
+- Rimossa route `/admin/signatures` da `App.js`
+- Rimosse tutte le variabili, funzioni e import relativi a certificati e firma digitale
+- Interfaccia semplificata e pulita
+
 ### Fase 34 (28 Marzo 2026) - COMPLETATA ✅
 
 **Ristrutturazione Completa Sezione "Onorari" + Export Excel**
+(vedere dettagli nella sezione precedente del PRD)
 
 **Richiesta Utente:** Gestione onorari coerente tra vista globale e scheda cliente, con sezione "Iguala mensile" che mostri lista completa clienti e relativi importi ricorrenti, più export Excel con filtri per categoria.
 
