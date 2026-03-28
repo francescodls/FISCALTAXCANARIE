@@ -5,6 +5,40 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 44 (28 Marzo 2026) - COMPLETATA ✅
+
+**Vista Cliente per Richieste di Documentazione**
+
+**Richiesta Utente:** Permettere al cliente di rispondere alle richieste di documentazione dell'admin, caricare documenti e comunicare tramite conversazione interna.
+
+**Frontend Implementato:**
+- ✅ `/app/frontend/src/components/ClientIntegrationRequests.jsx` (NUOVO):
+  - Alert giallo con conteggio richieste pendenti
+  - Card per ogni richiesta con:
+    - Badge sezione
+    - Messaggio dell'admin
+    - Lista documenti richiesti
+    - Pulsante "Rispondi" → Dialog per risposta testuale
+    - Pulsante "Carica Documento" → Upload file
+  - Richieste completate in verde
+  - Conversazione bidirezionale cliente ↔ admin
+
+- ✅ `/app/frontend/src/components/TaxReturnForm.jsx` (modificato):
+  - Nuova sezione "Richieste e Messaggi" (id: comunicazioni)
+  - Tab con badge numerico (richieste + messaggi non letti)
+  - Integrazione con ClientIntegrationRequests
+
+**Backend Fix (da Testing Agent):**
+- ✅ Corretto endpoint `respond`: da PUT+Form a POST+JSON per compatibilità con frontend
+
+**Test:** Verificato al 100% con testing agent (iteration_25.json):
+- Backend: 11/11 test passati
+- Frontend: Tutte le funzionalità verificate via Playwright
+
+**Credenziali Test Cliente:**
+- Email: francesco@fiscaltaxcanarie.com
+- Password: TestClient123!
+
 ### Fase 43 (28 Marzo 2026) - COMPLETATA ✅
 
 **Ristrutturazione Sezione Dichiarazioni per Admin**
