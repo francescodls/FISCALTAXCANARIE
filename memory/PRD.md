@@ -5,6 +5,44 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 45 (28 Marzo 2026) - COMPLETATA ✅
+
+**App Desktop Electron per Amministratore**
+
+**Richiesta Utente:** Creare un'applicazione desktop installabile per Mac (con predisposizione Windows) che sia un wrapper stabile della piattaforma web esistente, destinata solo all'amministratore e al team interno.
+
+**Implementato:**
+- ✅ Progetto Electron completo in `/app/desktop-app/`
+- ✅ Wrapper della web app `https://app.fiscaltaxcanarie.com`
+- ✅ Sessione persistente (non richiede login ripetuto)
+- ✅ Icona nella system tray con menu rapido
+- ✅ Menu applicazione nativo (Mac style)
+- ✅ Scorciatoie da tastiera (Cmd+1 Dashboard, Cmd+2 Clienti, etc.)
+- ✅ Pagina offline con retry automatico
+- ✅ Preferenze notifiche (attiva/disattiva)
+- ✅ Navigazione rapida tra sezioni
+- ✅ Build configurato per Mac (DMG) e Windows (NSIS)
+
+**File Struttura:**
+```
+/app/desktop-app/
+├── main.js              # Processo principale Electron
+├── preload.js           # Bridge sicuro
+├── offline.html         # Pagina offline
+├── package.json         # Config + build
+├── build/               # Icone (png, ico, icns)
+└── README.md            # Istruzioni build
+```
+
+**Comandi Build:**
+- `npm run build:mac` → DMG per macOS
+- `npm run build:win` → EXE per Windows
+- `npm run build:all` → Entrambi
+
+**Note Distribuzione:**
+- Versione test: non firmata (avviso sicurezza su Mac)
+- Per distribuzione: richiede Apple Developer Certificate ($99/anno)
+
 ### Fase 44 (28 Marzo 2026) - COMPLETATA ✅
 
 **Vista Cliente per Richieste di Documentazione**
