@@ -5,7 +5,83 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 40 (28 Marzo 2026) - IN CORSO 🔄
+### Fase 41 (28 Marzo 2026) - IN CORSO 🔄
+
+**Nuova Sezione "Dichiarazioni" - Fase 1**
+
+**Richiesta Utente:** Creare sistema completo per gestione dichiarazione dei redditi con:
+- Form multi-step condizionale (14 sezioni)
+- Firma grafometrica obbligatoria
+- Generazione PDF autorizzazione
+- Dashboard admin con filtri avanzati
+- Struttura modulare per aggiungere altri tipi di dichiarazione (720, Società, etc.)
+
+**Backend Implementato:**
+- ✅ `/app/backend/routes/declaration_models.py` - Modelli Pydantic completi:
+  - `DeclarationTypeCreate/Response` - Tipi dichiarazione configurabili
+  - `TaxReturnPersonalData`, `TaxReturnFamilyData`, `TaxReturnEmploymentIncome`
+  - `TaxReturnSelfEmployment`, `TaxReturnProperties`, `TaxReturnRentals`
+  - `TaxReturnInvestments`, `TaxReturnCrypto`, `TaxReturnCapitalGains`
+  - `TaxReturnDeductions`, `TaxReturnCanaryDeductions`
+  - `TaxReturnAuthorization` - Firma e consenso
+  - `TaxReturnDocument`, `TaxReturnClientNote`, `TaxReturnAdminNote`
+  - `TaxReturnIntegrationRequest` - Richieste integrazione documentale
+
+- ✅ `/app/backend/routes/declarations.py` - API complete:
+  - `GET/POST /api/declarations/types` - CRUD tipi dichiarazione
+  - `GET/POST /api/declarations/tax-returns` - CRUD pratiche
+  - `PUT /api/declarations/tax-returns/{id}/sections/{section}` - Aggiorna sezione
+  - `PUT /api/declarations/tax-returns/{id}/status` - Cambia stato
+  - `POST /api/declarations/tax-returns/{id}/sign` - Firma autorizzazione
+  - `GET /api/declarations/tax-returns/{id}/authorization-pdf` - Scarica PDF
+  - `POST /api/declarations/tax-returns/{id}/documents` - Upload documenti
+  - `POST /api/declarations/tax-returns/{id}/integration-requests` - Richieste integrazione
+  - Notifiche email Brevo per invio pratica e richieste integrazione
+
+**Frontend Implementato:**
+- ✅ `/app/frontend/src/pages/DeclarationsPage.jsx`:
+  - Pagina dedicata Dichiarazioni (sia admin che cliente)
+  - Lista tipi dichiarazione con card selezionabili
+  - Stats cards (Totale, In Bozza, Inviate, In Revisione, Presentate)
+  - Filtri per anno, stato, ricerca cliente
+  - Lista pratiche con badge stato e indicatori sezioni
+
+- ✅ `/app/frontend/src/components/TaxReturnForm.jsx`:
+  - Form multi-step con navigazione
+  - Sezioni condizionali (visibili solo se abilitate)
+  - Sezioni implementate: Filtro, Dati Personali, Situazione Familiare, Redditi Lavoro, Autonomo, Immobili
+  - Componente firma grafometrica (react-signature-canvas)
+  - Checkbox consenso obbligatoria
+  - Validazione firma prima dell'invio
+
+- ✅ Routes in App.js:
+  - `/admin/declarations` - Dashboard admin
+  - `/declarations` - Dashboard cliente
+
+- ✅ Navigazione:
+  - Card "Dichiarazioni" in CommercialDashboard
+  - Pulsante "Dichiarazioni" in ClientDashboard welcome banner
+
+**Librerie Installate:**
+- `react-signature-canvas` - Firma grafometrica touch/mouse
+
+**Stati Pratica:**
+1. `bozza` - In compilazione dal cliente
+2. `inviata` - Inviata al commercialista
+3. `documentazione_incompleta` - Richiesta integrazione
+4. `in_revisione` - In lavorazione
+5. `pronta` - Pronta per presentazione
+6. `presentata` - Presentata all'AdE
+7. `archiviata` - Chiusa
+
+**Da Completare (Fase 2):**
+- Sezioni form rimanenti: Canoni Locazione, Affitto Pagato, Investimenti, Criptomonete, Plusvalenze, Deduzioni, Deduzioni Canarie
+- Dashboard documenti con upload categorizzato
+- Sezione Note cliente
+- Admin: gestione creazione nuovi tipi dichiarazione (UI)
+- Contatore pratiche dinamico nella stats card
+
+### Fase 40 (28 Marzo 2026) - COMPLETATO ✅
 
 **Refactoring Backend - Modularizzazione Routes**
 

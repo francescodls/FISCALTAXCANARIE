@@ -21,6 +21,7 @@ import ClientLists from "@/pages/ClientLists";
 import ModelsManagement from "@/pages/ModelsManagement";
 import DeadlinesManagement from "@/pages/DeadlinesManagement";
 import BackupPage from "@/pages/BackupPage";
+import DeclarationsPage from "@/pages/DeclarationsPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -228,6 +229,16 @@ function AppRoutes() {
       <Route path="/admin/backup" element={
         <ProtectedRoute requiredRole="commercialista">
           <BackupPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/declarations" element={
+        <ProtectedRoute requiredRole="commercialista">
+          <DeclarationsPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/declarations" element={
+        <ProtectedRoute requiredRole="cliente">
+          <DeclarationsPage />
         </ProtectedRoute>
       } />
       <Route path="/consulente" element={

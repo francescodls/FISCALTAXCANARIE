@@ -28,6 +28,7 @@ import secrets
 from routes.deps import set_db
 from routes.tickets import router as tickets_router, admin_router as tickets_admin_router
 from routes.fees_routes import router as fees_global_router, client_fees_router
+from routes.declarations import router as declarations_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -6001,6 +6002,7 @@ api_router.include_router(tickets_router)
 api_router.include_router(tickets_admin_router)
 api_router.include_router(fees_global_router)
 api_router.include_router(client_fees_router)
+api_router.include_router(declarations_router)
 
 app.include_router(api_router)
 

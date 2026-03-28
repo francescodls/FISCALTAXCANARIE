@@ -1,0 +1,67 @@
+{
+  "summary": "Completed comprehensive testing of Declarations (Dichiarazioni) feature for Fiscal Tax Canarie. All 11 backend API tests passed. Frontend UI testing verified all features working correctly for both admin and client roles.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_declarations_iteration22.py",
+    "/app/test_reports/pytest/pytest_results_iteration22.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_declarations_iteration22.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all features verified)"
+  },
+  "test_credentials": {
+    "admin": "info@fiscaltaxcanarie.com / Triana48+",
+    "client": "francesco@fiscaltaxcanarie.com / Triana48+"
+  },
+  "seed_data_creation": "Default declaration type 'redditi' auto-created. One existing tax return for FRANCESCO JUNIOR DE LISO in 'bozza' status.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Declarations feature fully implemented and tested. Backend endpoints: GET /api/declarations/types, POST /api/declarations/types, PUT /api/declarations/types/{id}, DELETE /api/declarations/types/{id}, GET /api/declarations/tax-returns, POST /api/declarations/tax-returns, GET /api/declarations/tax-returns/{id}, PUT /api/declarations/tax-returns/{id}/sections/{section}, PUT /api/declarations/tax-returns/{id}/status, DELETE /api/declarations/tax-returns/{id}, GET /api/declarations/tax-returns/{id}/authorization-text, POST /api/declarations/tax-returns/{id}/sign, GET /api/declarations/tax-returns/{id}/authorization-pdf. Frontend components: DeclarationsPage.jsx (main page), TaxReturnForm.jsx (multi-step form). Admin sees all tax returns with stats, client sees only their own with 'Nuova Dichiarazione' button.",
+  "features_tested": {
+    "backend_api": {
+      "get_declaration_types": "GET /api/declarations/types - Returns list of declaration types",
+      "create_declaration_type": "POST /api/declarations/types - Admin only",
+      "get_tax_returns": "GET /api/declarations/tax-returns - Filtered by role",
+      "get_tax_returns_filters": "Supports anno_fiscale and stato query params",
+      "admin_cannot_create_return": "POST /api/declarations/tax-returns - Returns 400 for admin",
+      "authorization_text": "GET /api/declarations/tax-returns/{id}/authorization-text",
+      "authentication_required": "All endpoints require valid JWT token"
+    },
+    "admin_dashboard": {
+      "dichiarazioni_card_visible": true,
+      "card_clickable": true,
+      "navigation_to_declarations_page": true
+    },
+    "admin_declarations_page": {
+      "header_visible": true,
+      "declaration_types_cards": true,
+      "stats_cards": true,
+      "filters_working": true,
+      "tax_returns_list": true,
+      "empty_state_message": "Shown when no returns"
+    },
+    "client_dashboard": {
+      "dichiarazioni_button_visible": true,
+      "navigation_to_declarations_page": true
+    },
+    "client_declarations_page": {
+      "nuova_dichiarazione_button": true,
+      "declaration_types_cards": true,
+      "filters_working": true,
+      "own_tax_returns_visible": true
+    }
+  }
+}

@@ -384,6 +384,14 @@ const ClientDashboard = () => {
                     <Button 
                       variant="secondary" 
                       className="bg-white/20 hover:bg-white/30 text-white border-0"
+                      onClick={() => navigate("/declarations")}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Dichiarazioni
+                    </Button>
+                    <Button 
+                      variant="secondary" 
+                      className="bg-white/20 hover:bg-white/30 text-white border-0"
                       onClick={() => setActiveTab("documents")}
                     >
                       <FileText className="h-4 w-4 mr-2" />
