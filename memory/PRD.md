@@ -5,6 +5,50 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 40 (28 Marzo 2026) - IN CORSO 🔄
+
+**Refactoring Backend - Modularizzazione Routes**
+
+**Obiettivo:** Spezzare il monolite `server.py` (~6000 righe) in moduli separati per migliorare manutenibilità.
+
+**Lavoro Completato:**
+- ✅ Creato `/app/backend/routes/tickets.py` - Router modulare per sistema Ticket
+  - Tutti gli endpoint CRUD Tickets spostati
+  - Export PDF ticket
+  - Notifiche admin ticket
+- ✅ Creato `/app/backend/routes/fees_routes.py` - Router modulare per Onorari
+  - `/api/fees/all`, `/api/fees/summary`, `/api/fees/by-client`
+  - `/api/fees/export-excel`
+  - CRUD onorari per cliente
+- ✅ Aggiornato `/app/backend/routes/models.py` con modelli Ticket e Fee aggiornati
+- ✅ Aggiornato `/app/backend/routes/__init__.py` con nuovi export
+- ✅ Aggiornato `/app/backend/server.py`:
+  - Import nuovi router
+  - Inizializzazione `set_db(db)` per condividere connessione DB
+  - Include router: `tickets_router`, `tickets_admin_router`, `fees_global_router`, `client_fees_router`
+
+**Struttura Routes Modulari:**
+```
+/app/backend/routes/
+├── __init__.py          # Export router
+├── deps.py              # Dipendenze condivise (get_db, get_current_user, etc.)
+├── models.py            # Modelli Pydantic condivisi
+├── tickets.py           # ✅ NUOVO - Routes Ticket (350+ righe)
+├── fees_routes.py       # ✅ NUOVO - Routes Onorari (370+ righe)
+├── auth.py              # Placeholder (da completare)
+├── clients.py           # Placeholder (da completare)
+├── documents.py         # Placeholder (da completare)
+├── employees.py         # Placeholder (da completare)
+├── consulenti.py        # Placeholder (da completare)
+└── admin.py             # Placeholder (da completare)
+```
+
+**Test:** Verificato che entrambe le routes modulari funzionano correttamente via API e frontend.
+
+**Da Completare (prossime sessioni):**
+- Rimuovere codice duplicato da `server.py` (Tickets ~330 righe, Fees ~380 righe)
+- Creare router per: Deadlines, Documents, Employees, Consulenti, Clients, Auth
+
 ### Fase 39 (28 Marzo 2026) - COMPLETATA ✅
 
 **Sincronizzazione Automatica Clienti con Brevo**
@@ -261,10 +305,12 @@ DELETE /api/clients/{client_id}/fees/{fee_id}
 - **consulente_lavoro**: Dashboard limitata, clienti assegnati, buste paga
 
 ## Next Tasks (P0-P1)
-1. **P1**: Refactoring `server.py` (~5600+ righe) in moduli separati (APIRouter per risorsa)
-2. **P1**: Refactoring `ClientDetail.jsx` (>2900 righe) in sotto-componenti
+1. **P1**: Continuare refactoring `server.py`:
+   - Rimuovere codice duplicato Tickets e Fees (già spostato in routes modulari)
+   - Creare router per: Deadlines, Documents, Employees, Consulenti, Clients, Auth
+2. **P1**: Refactoring `ClientDetail.jsx` (>2300 righe) in sotto-componenti
 3. **P1**: Refactoring `CommercialDashboard.jsx` (>1900 righe) in sotto-componenti
-4. **P1**: Completare traduzione testi UI usando `t()` function (IT/EN/ES)
+4. **P2**: Completare traduzione testi UI usando `t()` function (IT/EN/ES)
 
 ## Future Tasks (P2-P3)
 - P2: Integrazione Dropbox (in attesa risposta utente)

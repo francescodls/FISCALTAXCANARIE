@@ -236,6 +236,38 @@ class NoteResponse(BaseModel):
     created_at: str
     updated_at: str
 
+# ==================== TICKET MODELS ====================
+
+class TicketMessageCreate(BaseModel):
+    content: str
+
+class TicketMessage(BaseModel):
+    id: str
+    content: str
+    sender_id: str
+    sender_name: str
+    sender_role: str  # "cliente" o "commercialista"
+    created_at: str
+
+class TicketCreate(BaseModel):
+    subject: str
+    content: str
+
+class TicketUpdate(BaseModel):
+    status: Optional[str] = None  # "aperto", "chiuso", "archiviato"
+
+class TicketResponse(BaseModel):
+    id: str
+    subject: str
+    client_id: str
+    client_name: Optional[str] = None
+    status: str  # "aperto", "chiuso", "archiviato"
+    messages: List[TicketMessage] = []
+    created_by: str
+    created_at: str
+    updated_at: str
+    closed_at: Optional[str] = None
+
 # ==================== DEADLINE MODELS ====================
 
 class DeadlineCreate(BaseModel):
@@ -281,9 +313,12 @@ class DeadlineResponse(BaseModel):
 class FeeCreate(BaseModel):
     description: str
     amount: float
-    due_date: str
-    status: str = "pending"
+    due_date: Optional[str] = None  # Opzionale - richiesto solo per certi tipi
+    status: str = "pending"  # pending, paid, overdue
     notes: Optional[str] = None
+    fee_type: str = "standard"  # standard, consulenza, pratica, dichiarazione, iguala_buste_paga, iguala_contabilita, iguala_domicilio
+    is_recurring: bool = False
+    recurring_month: Optional[str] = None  # YYYY-MM per Iguala
 
 class FeeUpdate(BaseModel):
     description: Optional[str] = None
@@ -292,16 +327,22 @@ class FeeUpdate(BaseModel):
     status: Optional[str] = None
     paid_date: Optional[str] = None
     notes: Optional[str] = None
+    fee_type: Optional[str] = None
+    is_recurring: Optional[bool] = None
+    recurring_month: Optional[str] = None
 
 class FeeResponse(BaseModel):
     id: str
     client_id: str
     description: str
     amount: float
-    due_date: str
+    due_date: Optional[str] = None
     status: str
     paid_date: Optional[str] = None
     notes: Optional[str] = None
+    fee_type: str = "standard"
+    is_recurring: bool = False
+    recurring_month: Optional[str] = None
     created_at: str
 
 # ==================== EMPLOYEE MODELS ====================

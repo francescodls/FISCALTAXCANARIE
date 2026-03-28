@@ -24,6 +24,11 @@ from storage_service import upload_file as cloud_upload, download_file as cloud_
 from backup_service import create_client_backup, create_full_backup, export_database_json
 import secrets
 
+# Import modular routes
+from routes.deps import set_db
+from routes.tickets import router as tickets_router, admin_router as tickets_admin_router
+from routes.fees_routes import router as fees_global_router, client_fees_router
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -31,6 +36,9 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Initialize database for modular routes
+set_db(db)
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET')
@@ -5988,6 +5996,12 @@ async def send_client_notification(
     return {"success": True, "email_sent": email_sent}
 
 # Include router and middleware
+# Include modular routes (new refactored routes)
+api_router.include_router(tickets_router)
+api_router.include_router(tickets_admin_router)
+api_router.include_router(fees_global_router)
+api_router.include_router(client_fees_router)
+
 app.include_router(api_router)
 
 app.add_middleware(
