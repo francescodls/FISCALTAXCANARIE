@@ -28,7 +28,8 @@ import {
   Circle,
   Bell,
   Mail,
-  ExternalLink
+  ExternalLink,
+  MessageSquare
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -39,6 +40,7 @@ import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementClient from "@/components/EmployeeManagementClient";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
+import TicketManagementClient from "@/components/TicketManagementClient";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { DialogFooter } from "@/components/ui/dialog";
 
@@ -328,11 +330,12 @@ const ClientDashboard = () => {
               {t("payslips.title")}
             </TabsTrigger>
             <TabsTrigger 
-              value="notes" 
+              value="tickets" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
-              data-testid="tab-notes"
+              data-testid="tab-tickets"
             >
-              {t("common.notes")}
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Ticket
             </TabsTrigger>
             <TabsTrigger 
               value="communications" 
@@ -551,44 +554,27 @@ const ClientDashboard = () => {
               </Card>
             </div>
 
-            {/* Recent Communications */}
-            {notes.length > 0 && (
-              <Card className="bg-white border border-slate-200">
-                <CardHeader className="pb-2">
-                  <CardTitle className="font-heading text-lg flex items-center gap-2">
-                    <StickyNote className="h-5 w-5 text-amber-500" />
-                    Ultime Comunicazioni
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {notes.slice(0, 2).map((note) => (
-                      <div 
-                        key={note.id} 
-                        className="p-4 bg-amber-50 rounded-lg border-l-4 border-amber-400"
-                      >
-                        <div className="flex items-start justify-between">
-                          <h4 className="font-semibold text-slate-900 text-sm">{note.title}</h4>
-                          <span className="text-xs text-slate-400">
-                            {format(parseISO(note.created_at), "d MMM", { locale: it })}
-                          </span>
-                        </div>
-                        <p className="text-slate-600 text-sm mt-1 line-clamp-2">{note.content}</p>
-                      </div>
-                    ))}
-                    {notes.length > 2 && (
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-teal-600 hover:text-teal-700"
-                        onClick={() => setActiveTab("notes")}
-                      >
-                        Vedi tutte le comunicazioni ({notes.length})
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* Quick Access to Tickets */}
+            <Card className="bg-white border border-slate-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5 text-teal-500" />
+                  Ticket di Assistenza
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-500 mb-4">
+                  Hai bisogno di assistenza? Apri un ticket per contattare lo studio.
+                </p>
+                <Button 
+                  className="w-full bg-teal-500 hover:bg-teal-600 text-white"
+                  onClick={() => setActiveTab("tickets")}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Vai ai Ticket
+                </Button>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Deadlines Tab */}
@@ -936,39 +922,13 @@ const ClientDashboard = () => {
             </Card>
           </TabsContent>
 
-          {/* Notes Tab */}
-          <TabsContent value="notes" className="space-y-6">
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-xl">Comunicazioni e Appunti</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {notes.length > 0 ? (
-                  <div className="space-y-4">
-                    {notes.map((note) => (
-                      <div 
-                        key={note.id} 
-                        className="p-5 bg-stone-50 rounded-lg border-l-4 border-teal-500"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <h4 className="font-semibold text-slate-900">{note.title}</h4>
-                          <span className="text-xs text-slate-400">
-                            {format(parseISO(note.created_at), "d MMM yyyy", { locale: it })}
-                          </span>
-                        </div>
-                        <p className="text-slate-600 whitespace-pre-wrap">{note.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <StickyNote className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nessuna comunicazione disponibile</p>
-                    <p className="text-sm text-slate-400">Le comunicazioni del tuo commercialista appariranno qui</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Tickets Tab */}
+          <TabsContent value="tickets" className="space-y-6">
+            <TicketManagementClient 
+              token={token}
+              clientId={user?.id}
+              API={API}
+            />
           </TabsContent>
 
           {/* Communications History Tab */}

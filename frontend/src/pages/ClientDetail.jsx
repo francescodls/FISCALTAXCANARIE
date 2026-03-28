@@ -45,7 +45,8 @@ import {
   X,
   Briefcase,
   Folder,
-  Key
+  Key,
+  MessageSquare
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -54,6 +55,7 @@ import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
+import TicketManagementAdmin from "@/components/TicketManagementAdmin";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -819,8 +821,8 @@ const ClientDetail = () => {
                     {deadlines.length} Scadenze
                   </Badge>
                   <Badge className="bg-purple-50 text-purple-700 border border-purple-100 px-4 py-2">
-                    <StickyNote className="h-4 w-4 mr-2" />
-                    {notes.length} Appunti
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Ticket
                   </Badge>
                   <Button
                     variant="outline"
@@ -890,12 +892,12 @@ const ClientDetail = () => {
               Scadenze
             </TabsTrigger>
             <TabsTrigger 
-              value="notes" 
+              value="tickets" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
-              data-testid="tab-notes"
+              data-testid="tab-tickets"
             >
-              <StickyNote className="h-4 w-4 mr-2" />
-              Appunti
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Ticket
             </TabsTrigger>
             <TabsTrigger 
               value="notifications" 
@@ -1429,171 +1431,14 @@ const ClientDetail = () => {
             </Card>
           </TabsContent>
 
-          {/* Notes Tab */}
-          <TabsContent value="notes" className="space-y-6">
-            {/* Create/Edit Note Form */}
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-lg flex items-center gap-2">
-                  <StickyNote className="h-5 w-5 text-teal-500" />
-                  {editingNote ? "Modifica Appunto" : "Nuovo Appunto"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleNoteSave} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="note-title">Titolo</Label>
-                    <Input
-                      id="note-title"
-                      value={noteForm.title}
-                      onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
-                      placeholder="Titolo dell'appunto"
-                      required
-                      className="border-slate-200"
-                      data-testid="note-title-input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="note-content">Contenuto</Label>
-                    <Textarea
-                      id="note-content"
-                      value={noteForm.content}
-                      onChange={(e) => setNoteForm({ ...noteForm, content: e.target.value })}
-                      placeholder="Scrivi l'appunto..."
-                      required
-                      className="border-slate-200 min-h-[150px]"
-                      data-testid="note-content-input"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Switch
-                        id="note-internal"
-                        checked={noteForm.is_internal}
-                        onCheckedChange={(checked) => setNoteForm({ ...noteForm, is_internal: checked })}
-                        data-testid="note-internal-switch"
-                      />
-                      <Label htmlFor="note-internal" className="flex items-center gap-2 cursor-pointer">
-                        {noteForm.is_internal ? (
-                          <>
-                            <EyeOff className="h-4 w-4 text-amber-500" />
-                            <span className="text-amber-600">Nota interna (solo tu puoi vederla)</span>
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="h-4 w-4 text-teal-500" />
-                            <span className="text-teal-600">Visibile al cliente</span>
-                          </>
-                        )}
-                      </Label>
-                    </div>
-                    <div className="flex gap-2">
-                      {editingNote && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingNote(null);
-                            setNoteForm({ title: "", content: "", is_internal: false });
-                          }}
-                          className="border-slate-200"
-                        >
-                          Annulla
-                        </Button>
-                      )}
-                      <Button
-                        type="submit"
-                        disabled={savingNote}
-                        className="bg-teal-500 hover:bg-teal-600 text-slate-900 font-semibold"
-                        data-testid="note-save-btn"
-                      >
-                        {savingNote ? (
-                          <div className="flex items-center gap-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-900 border-t-transparent"></div>
-                            Salvataggio...
-                          </div>
-                        ) : (
-                          <>
-                            <Plus className="h-4 w-4 mr-2" />
-                            {editingNote ? "Aggiorna" : "Crea Appunto"}
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Notes List */}
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-lg">Appunti</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {notes.length > 0 ? (
-                  <div className="space-y-4">
-                    {notes.map((note) => (
-                      <div 
-                        key={note.id} 
-                        className={`p-5 bg-stone-50 rounded-lg border-l-4 ${
-                          note.is_internal ? "border-amber-500" : "border-teal-500"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <h4 className="font-semibold text-slate-900">{note.title}</h4>
-                            <Badge className={note.is_internal 
-                              ? "bg-amber-50 text-amber-700 border border-amber-100" 
-                              : "bg-teal-50 text-teal-700 border border-teal-100"
-                            }>
-                              {note.is_internal ? (
-                                <>
-                                  <EyeOff className="h-3 w-3 mr-1" />
-                                  Interno
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  Pubblico
-                                </>
-                              )}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400">
-                              {format(parseISO(note.created_at), "d MMM yyyy", { locale: it })}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => startEditNote(note)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Edit className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deleteNote(note.id)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Trash2 className="h-4 w-4 text-red-400 hover:text-red-600" />
-                            </Button>
-                          </div>
-                        </div>
-                        <p className="text-slate-600 whitespace-pre-wrap">{note.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <StickyNote className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nessun appunto creato</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Tickets Tab */}
+          <TabsContent value="tickets" className="space-y-6">
+            <TicketManagementAdmin 
+              token={token}
+              clientId={clientId}
+              clientName={client?.full_name}
+              API={API}
+            />
           </TabsContent>
 
           {/* Deadlines Tab */}

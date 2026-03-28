@@ -213,6 +213,38 @@ class NoteResponse(BaseModel):
     created_at: str
     updated_at: str
 
+# ==================== TICKET MODELS ====================
+
+class TicketMessageCreate(BaseModel):
+    content: str
+
+class TicketMessage(BaseModel):
+    id: str
+    content: str
+    sender_id: str
+    sender_name: str
+    sender_role: str  # "cliente" o "commercialista"
+    created_at: str
+
+class TicketCreate(BaseModel):
+    subject: str
+    content: str
+
+class TicketUpdate(BaseModel):
+    status: Optional[str] = None  # "aperto", "chiuso", "archiviato"
+
+class TicketResponse(BaseModel):
+    id: str
+    subject: str
+    client_id: str
+    client_name: Optional[str] = None
+    status: str  # "aperto", "chiuso", "archiviato"
+    messages: List[TicketMessage] = []
+    created_by: str
+    created_at: str
+    updated_at: str
+    closed_at: Optional[str] = None
+
 class DeadlineCreate(BaseModel):
     title: str
     description: str
@@ -2073,6 +2105,212 @@ async def delete_note(note_id: str, user: dict = Depends(require_commercialista)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Nota non trovata")
     return {"message": "Nota eliminata"}
+
+# ==================== TICKET ROUTES ====================
+
+@api_router.post("/tickets", response_model=TicketResponse)
+async def create_ticket(ticket_data: TicketCreate, user: dict = Depends(get_current_user)):
+    """Crea un nuovo ticket - accessibile sia a clienti che admin"""
+    ticket_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Determina client_id
+    if user["role"] == "cliente":
+        client_id = user["id"]
+    else:
+        raise HTTPException(status_code=400, detail="Solo i clienti possono aprire ticket")
+    
+    # Primo messaggio del ticket
+    first_message = {
+        "id": str(uuid.uuid4()),
+        "content": ticket_data.content,
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", "Cliente"),
+        "sender_role": user["role"],
+        "created_at": now
+    }
+    
+    ticket = {
+        "id": ticket_id,
+        "subject": ticket_data.subject,
+        "client_id": client_id,
+        "status": "aperto",
+        "messages": [first_message],
+        "created_by": user["id"],
+        "created_at": now,
+        "updated_at": now,
+        "closed_at": None
+    }
+    
+    await db.tickets.insert_one(ticket)
+    
+    # Crea notifica per admin
+    await db.admin_notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "type": "new_ticket",
+        "title": "Nuovo Ticket",
+        "message": f"Nuovo ticket da {user.get('full_name', 'Cliente')}: {ticket_data.subject}",
+        "ticket_id": ticket_id,
+        "client_id": client_id,
+        "read": False,
+        "created_at": now
+    })
+    
+    # Get client name
+    client = await db.users.find_one({"id": client_id}, {"_id": 0, "full_name": 1})
+    ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**ticket)
+
+@api_router.get("/tickets", response_model=List[TicketResponse])
+async def get_tickets(
+    client_id: Optional[str] = None,
+    status: Optional[str] = None,
+    user: dict = Depends(get_current_user)
+):
+    """Recupera tickets - filtrati per ruolo utente"""
+    query = {}
+    
+    if user["role"] == "cliente":
+        # Cliente vede solo i propri ticket
+        query["client_id"] = user["id"]
+    elif client_id:
+        # Admin può filtrare per cliente
+        query["client_id"] = client_id
+    
+    # Filtro per stato
+    if status and status != "tutti":
+        query["status"] = status
+    
+    tickets = await db.tickets.find(query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
+    
+    # Aggiungi nomi clienti
+    client_ids = list(set(t["client_id"] for t in tickets))
+    clients = await db.users.find({"id": {"$in": client_ids}}, {"_id": 0, "id": 1, "full_name": 1}).to_list(1000)
+    client_map = {c["id"]: c.get("full_name") for c in clients}
+    
+    for ticket in tickets:
+        ticket["client_name"] = client_map.get(ticket["client_id"])
+    
+    return [TicketResponse(**t) for t in tickets]
+
+@api_router.get("/tickets/{ticket_id}", response_model=TicketResponse)
+async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
+    """Recupera singolo ticket"""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and ticket["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Aggiungi nome cliente
+    client = await db.users.find_one({"id": ticket["client_id"]}, {"_id": 0, "full_name": 1})
+    ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**ticket)
+
+@api_router.post("/tickets/{ticket_id}/messages", response_model=TicketResponse)
+async def add_ticket_message(ticket_id: str, message_data: TicketMessageCreate, user: dict = Depends(get_current_user)):
+    """Aggiungi messaggio a un ticket - sia cliente che admin"""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and ticket["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Verifica che il ticket non sia chiuso o archiviato
+    if ticket["status"] in ["chiuso", "archiviato"]:
+        raise HTTPException(status_code=400, detail="Non è possibile rispondere a un ticket chiuso o archiviato")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    new_message = {
+        "id": str(uuid.uuid4()),
+        "content": message_data.content,
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", "Utente"),
+        "sender_role": user["role"],
+        "created_at": now
+    }
+    
+    await db.tickets.update_one(
+        {"id": ticket_id},
+        {
+            "$push": {"messages": new_message},
+            "$set": {"updated_at": now}
+        }
+    )
+    
+    # Notifica all'altra parte
+    if user["role"] == "cliente":
+        # Notifica admin
+        await db.admin_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "ticket_reply",
+            "title": "Risposta Ticket",
+            "message": f"Nuova risposta da {user.get('full_name', 'Cliente')} al ticket: {ticket['subject']}",
+            "ticket_id": ticket_id,
+            "client_id": ticket["client_id"],
+            "read": False,
+            "created_at": now
+        })
+    
+    # Recupera ticket aggiornato
+    updated_ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    client = await db.users.find_one({"id": updated_ticket["client_id"]}, {"_id": 0, "full_name": 1})
+    updated_ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**updated_ticket)
+
+@api_router.put("/tickets/{ticket_id}/status", response_model=TicketResponse)
+async def update_ticket_status(ticket_id: str, status_data: TicketUpdate, user: dict = Depends(require_commercialista)):
+    """Aggiorna stato ticket - solo admin"""
+    ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    update_data = {"updated_at": now}
+    
+    if status_data.status:
+        update_data["status"] = status_data.status
+        if status_data.status == "chiuso":
+            update_data["closed_at"] = now
+    
+    await db.tickets.update_one({"id": ticket_id}, {"$set": update_data})
+    
+    updated_ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})
+    client = await db.users.find_one({"id": updated_ticket["client_id"]}, {"_id": 0, "full_name": 1})
+    updated_ticket["client_name"] = client.get("full_name") if client else None
+    
+    return TicketResponse(**updated_ticket)
+
+@api_router.delete("/tickets/{ticket_id}")
+async def delete_ticket(ticket_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina ticket - solo admin"""
+    result = await db.tickets.delete_one({"id": ticket_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Ticket non trovato")
+    return {"message": "Ticket eliminato"}
+
+@api_router.get("/admin/ticket-notifications")
+async def get_ticket_notifications(user: dict = Depends(require_commercialista)):
+    """Recupera notifiche ticket non lette per admin"""
+    notifications = await db.admin_notifications.find(
+        {"type": {"$in": ["new_ticket", "ticket_reply"]}, "read": False},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return notifications
+
+@api_router.put("/admin/ticket-notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user: dict = Depends(require_commercialista)):
+    """Segna notifica come letta"""
+    await db.admin_notifications.update_one({"id": notification_id}, {"$set": {"read": True}})
+    return {"message": "Notifica segnata come letta"}
 
 # ==================== DEADLINES ROUTES ====================
 
