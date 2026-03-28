@@ -3419,6 +3419,98 @@ async def delete_invitation(invitation_id: str, user: dict = Depends(require_com
 
 # ==================== FEES (ONORARI) ROUTES ====================
 
+@api_router.get("/fees/all")
+async def get_all_fees(
+    search: Optional[str] = None,
+    client_type: Optional[str] = None,
+    status: Optional[str] = None,
+    year: Optional[int] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Recupera tutti gli onorari con filtri opzionali.
+    - search: ricerca per descrizione o nome cliente
+    - client_type: filtra per tipo cliente (societa, autonomo, vivienda_vacacional, persona_fisica)
+    - status: filtra per stato (pending, paid, overdue)
+    - year: filtra per anno scadenza
+    """
+    # Prima recupera tutti i clienti per join
+    clients_cursor = db.users.find({"role": "cliente"}, {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1})
+    clients_list = await clients_cursor.to_list(10000)
+    clients_map = {c["id"]: c for c in clients_list}
+    
+    # Query per gli onorari
+    query = {}
+    
+    if status:
+        query["status"] = status
+    
+    if year:
+        # Filtra per anno della data di scadenza
+        query["due_date"] = {"$regex": f"^{year}"}
+    
+    # Recupera onorari
+    fees = await db.fees.find(query, {"_id": 0}).sort("due_date", -1).to_list(10000)
+    
+    # Arricchisci con info cliente e applica filtri aggiuntivi
+    result = []
+    for fee in fees:
+        client = clients_map.get(fee.get("client_id"), {})
+        
+        # Filtro per tipo cliente
+        if client_type and client.get("tipo_cliente") != client_type:
+            continue
+        
+        # Filtro per ricerca
+        if search:
+            search_lower = search.lower()
+            match = False
+            if search_lower in fee.get("description", "").lower():
+                match = True
+            if search_lower in client.get("full_name", "").lower():
+                match = True
+            if search_lower in client.get("email", "").lower():
+                match = True
+            if not match:
+                continue
+        
+        # Aggiungi info cliente al fee
+        fee["client_name"] = client.get("full_name", "N/A")
+        fee["client_email"] = client.get("email", "")
+        fee["client_type"] = client.get("tipo_cliente", "")
+        result.append(fee)
+    
+    return result
+
+@api_router.get("/fees/summary")
+async def get_global_fees_summary(user: dict = Depends(require_commercialista)):
+    """Ottiene un riepilogo globale degli onorari"""
+    fees = await db.fees.find({}, {"_id": 0}).to_list(10000)
+    
+    total_pending = sum(f["amount"] for f in fees if f.get("status") == "pending")
+    total_paid = sum(f["amount"] for f in fees if f.get("status") == "paid")
+    total_overdue = sum(f["amount"] for f in fees if f.get("status") == "overdue")
+    
+    # Raggruppa per cliente
+    by_client = {}
+    for fee in fees:
+        cid = fee.get("client_id")
+        if cid not in by_client:
+            by_client[cid] = {"pending": 0, "paid": 0, "count": 0}
+        by_client[cid]["count"] += 1
+        if fee.get("status") == "pending":
+            by_client[cid]["pending"] += fee["amount"]
+        elif fee.get("status") == "paid":
+            by_client[cid]["paid"] += fee["amount"]
+    
+    return {
+        "total_pending": total_pending,
+        "total_paid": total_paid,
+        "total_overdue": total_overdue,
+        "total_count": len(fees),
+        "clients_count": len(by_client)
+    }
+
 @api_router.get("/clients/{client_id}/fees", response_model=List[FeeResponse])
 async def get_client_fees(client_id: str, user: dict = Depends(require_commercialista)):
     """Recupera tutti gli onorari di un cliente"""

@@ -41,7 +41,8 @@ import {
   Briefcase,
   Upload,
   FolderUp,
-  Trash2
+  Trash2,
+  Euro
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -49,6 +50,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import ConsulentiManagement from "@/components/ConsulentiManagement";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
+import GlobalFeesManagement from "@/components/GlobalFeesManagement";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
@@ -627,6 +629,14 @@ const CommercialDashboard = () => {
                   {employeeNotifCount > 9 ? '9+' : employeeNotifCount}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="fees" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-fees"
+            >
+              <Euro className="h-4 w-4 mr-2" />
+              Onorari
             </TabsTrigger>
             <TabsTrigger 
               value="activity" 
@@ -1440,6 +1450,11 @@ const CommercialDashboard = () => {
             
             {/* Gestione Dipendenti */}
             <EmployeeManagementAdmin token={token} userRole="commercialista" />
+          </TabsContent>
+
+          {/* Fees Tab */}
+          <TabsContent value="fees" className="space-y-6">
+            <GlobalFeesManagement token={token} />
           </TabsContent>
         </Tabs>
 
