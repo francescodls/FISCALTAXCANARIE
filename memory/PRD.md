@@ -5,6 +5,38 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 53 (29 Marzo 2026) - COMPLETATA ✅
+
+**Tracciamento Identità Admin nelle Comunicazioni**
+
+**Richiesta Utente:** Mostrare nome e foto profilo dell'admin nei messaggi ai clienti, storico di chi ha gestito ogni pratica, "Preso in carico da: [Nome Admin]".
+
+**Implementazione Backend (`/app/backend/routes/declarations.py`):**
+- ✅ Messaggi ora salvano: `sender_first_name`, `sender_last_name`, `sender_profile_image`
+- ✅ Richieste integrazione salvano: `created_by_name`, `created_by_first_name`, `created_by_last_name`, `created_by_profile_image`
+- ✅ Nuovo endpoint `PUT /api/declarations/tax-returns/{id}/assign` - Prende in carico pratica
+- ✅ Campi assegnazione: `assigned_to_id`, `assigned_to_name`, `assigned_to_first_name`, `assigned_to_last_name`, `assigned_to_profile_image`, `assigned_at`
+- ✅ Email notifica include nome admin es. "Nuovo messaggio da Francesco De Liso"
+
+**Implementazione Frontend Admin (`DeclarationDetailView.jsx`):**
+- ✅ Sezione "Preso in carico da:" con Avatar (iniziali o foto) + nome admin
+- ✅ Pulsante "Prendi in Carico" se pratica non assegnata
+- ✅ Pulsante "Riassegna a me" se assegnata ad altro admin
+- ✅ Messaggi con Avatar circolare e Badge "Team" viola per admin
+
+**Implementazione Frontend Cliente (`ClientIntegrationRequests.jsx`):**
+- ✅ "Richiesta da: [Nome Admin]" con Avatar
+- ✅ Messaggi admin con Avatar e Badge "Fiscal Tax"
+- ✅ Nome completo admin visibile (es. "Francesco De Liso")
+
+**Bug Fix (testing agent):**
+- ✅ `deps.py`: require_commercialista ora accetta admin/super_admin
+- ✅ `declaration_models.py`: Aggiunti campi assignment e identity
+
+**Test:** Verificato con testing_agent_v3_fork (iteration_30.json):
+- Backend: 100% (9/9 test passati)
+- Frontend: Code review passato
+
 ### Fase 52 (29 Marzo 2026) - COMPLETATA ✅
 
 **Sezione Profilo Personale per Admin/Super Admin**
