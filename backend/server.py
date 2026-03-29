@@ -92,6 +92,10 @@ class UserCreate(BaseModel):
     regime_fiscale: Optional[str] = None
     tipo_attivita: Optional[str] = None
     tipo_cliente: Optional[str] = "autonomo"  # autonomo, societa, privato
+    # Campi specifici per Società
+    tipo_amministrazione: Optional[str] = None  # unico, solidale, mancomunado
+    company_administrators: Optional[List[dict]] = None  # Lista amministratori
+    company_shareholders: Optional[List[dict]] = None  # Lista soci/quote
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -117,6 +121,10 @@ class UserResponse(BaseModel):
     role: str
     stato: str = "attivo"
     created_at: str
+    # Campi specifici per Società
+    tipo_amministrazione: Optional[str] = None
+    company_administrators: Optional[List[dict]] = None
+    company_shareholders: Optional[List[dict]] = None
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -142,6 +150,10 @@ class ClientUpdate(BaseModel):
     note_interne: Optional[str] = None
     additional_emails: Optional[List[str]] = None  # Email aggiuntive
     bank_credentials: Optional[List[dict]] = None  # Credenziali bancarie
+    # Campi specifici per Società
+    tipo_amministrazione: Optional[str] = None  # unico, solidale, mancomunado
+    company_administrators: Optional[List[dict]] = None  # Lista amministratori
+    company_shareholders: Optional[List[dict]] = None  # Lista soci/quote
 
 class ClientListCreate(BaseModel):
     name: str
@@ -277,6 +289,10 @@ class ClientInListResponse(BaseModel):
     payslips_count: int = 0
     notes_count: int = 0
     lists: List[str] = []  # IDs delle liste di appartenenza
+    # Campi specifici per Società
+    tipo_amministrazione: Optional[str] = None
+    company_administrators: Optional[List[dict]] = None
+    company_shareholders: Optional[List[dict]] = None
 
 # Modello Tributario
 class ModelloTributarioCreate(BaseModel):
@@ -692,6 +708,10 @@ class ClientSelfUpdate(BaseModel):
     cap: Optional[str] = None
     provincia: Optional[str] = None
     iban: Optional[str] = None
+    # Campi specifici per Società
+    tipo_amministrazione: Optional[str] = None
+    company_administrators: Optional[List[dict]] = None
+    company_shareholders: Optional[List[dict]] = None
 
 @api_router.put("/auth/me")
 async def update_my_profile(update_data: ClientSelfUpdate, user: dict = Depends(get_current_user)):
@@ -889,7 +909,11 @@ async def get_clients(
             documents_count=docs_counts.get(client["id"], 0),
             payslips_count=payslips_counts.get(client["id"], 0),
             notes_count=notes_counts.get(client["id"], 0),
-            lists=client.get("lists", [])
+            lists=client.get("lists", []),
+            # Campi specifici per Società
+            tipo_amministrazione=client.get("tipo_amministrazione"),
+            company_administrators=client.get("company_administrators"),
+            company_shareholders=client.get("company_shareholders")
         ))
     return result
 

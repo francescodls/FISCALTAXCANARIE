@@ -1,0 +1,79 @@
+{
+  "summary": "Completed testing of Company Structure feature (iteration 27). Backend: 9/10 tests passed (1 skipped due to invalid client credentials). Frontend: All features verified - CompanyStructureSection visible ONLY for societa clients, edit mode working with add/remove administrators and shareholders.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/auth/me",
+        "issue": "Client self-update test skipped - client credentials (c.petrazzuolo@gmail.com / TestClient123!) are invalid",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_company_structure_iteration27.py",
+    "/app/test_reports/pytest/pytest_results_iteration27.xml"
+  ],
+  "action_items": [
+    "Update test credentials for client_societa (c.petrazzuolo@gmail.com) if client self-update testing is needed"
+  ],
+  "critical_code_review_comments": [
+    "CompanyStructureSection correctly renders ONLY when tipo_cliente === 'societa'",
+    "Backend models (UserCreate, ClientUpdate, ClientInListResponse, ClientSelfUpdate) correctly include tipo_amministrazione, company_administrators, company_shareholders fields",
+    "GET /api/clients returns company structure fields for all clients",
+    "PUT /api/clients/{id} correctly updates company structure fields",
+    "Frontend edit mode shows dropdown for tipo_amministrazione with 3 options (unico, solidale, mancomunado)",
+    "Administrators form includes: Nome, Cognome, DNI/NIE, Carica/Ruolo, Data Nomina, Note",
+    "Shareholders form includes: Nome/Denominazione, CIF/NIF/NIE, Quota %, Note",
+    "Percentage indicator shows green checkmark when total is 0% or 100%, yellow warning otherwise"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_company_structure_iteration27.py"
+  ],
+  "success_rate": {
+    "backend": "90% (9/10 tests - 1 skipped)",
+    "frontend": "100% (all features verified via Playwright)"
+  },
+  "test_credentials": {
+    "admin": "info@fiscaltaxcanarie.com / Triana48+",
+    "client_societa": "c.petrazzuolo@gmail.com / TestClient123! (INVALID - login fails)"
+  },
+  "seed_data_creation": "None - used existing 'global training' client (tipo_cliente=societa)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Company Structure feature fully functional. CompanyStructureSection component renders only for tipo_cliente='societa'. Backend supports tipo_amministrazione (unico/solidale/mancomunado), company_administrators (array of objects), company_shareholders (array of objects with percentuale field). Frontend shows percentage validation indicator. Client 'global training' (c.petrazzuolo@gmail.com) is tipo_cliente='societa' and can be used for testing.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/clients": "Returns tipo_amministrazione, company_administrators, company_shareholders for all clients",
+      "GET /api/clients/{id}": "Returns company structure fields after update",
+      "PUT /api/clients/{id} - tipo_amministrazione": "Successfully updates to unico/solidale/mancomunado",
+      "PUT /api/clients/{id} - company_administrators": "Successfully adds/updates administrator list",
+      "PUT /api/clients/{id} - company_shareholders": "Successfully adds/updates shareholder list with percentages",
+      "PUT /api/clients/{id} - full update": "Successfully updates all company structure fields at once",
+      "PUT /api/auth/me": "SKIPPED - client credentials invalid",
+      "Empty lists": "Successfully clears administrators and shareholders lists",
+      "Filter by tipo_societa": "GET /api/clients?tipo_cliente=societa returns only societa clients"
+    },
+    "frontend_ui": {
+      "CompanyStructureSection visibility - societa": "✓ Visible for 'global training' (tipo_cliente=societa)",
+      "CompanyStructureSection visibility - autonomo": "✓ NOT visible for 'FRANCESCO JUNIOR DE LISO' (tipo_cliente=autonomo)",
+      "Tipo di Amministrazione card": "✓ Shows badge with current value, dropdown in edit mode",
+      "Amministratori card": "✓ Shows count badge, 'Aggiungi Amministratore' button in edit mode",
+      "Quote Sociali card": "✓ Shows count badge, percentage indicator, 'Aggiungi Socio' button in edit mode",
+      "Edit mode toggle": "✓ 'Modifica' button enables edit mode, 'Annulla' cancels",
+      "Administrator form fields": "✓ Nome, Cognome, DNI/NIE, Carica/Ruolo, Data Nomina, Note",
+      "Shareholder form fields": "✓ Nome/Denominazione, CIF/NIF/NIE, Quota %, Note",
+      "Delete buttons": "✓ Trash icon visible for each administrator/shareholder in edit mode"
+    }
+  },
+  "tipo_amministrazione_options": {
+    "unico": "Amministratore Unico - Un solo amministratore con pieni poteri",
+    "solidale": "Più Amministratori Solidali - Ogni amministratore può agire autonomamente",
+    "mancomunado": "Più Amministratori Mancomunados - Gli amministratori devono agire congiuntamente"
+  }
+}

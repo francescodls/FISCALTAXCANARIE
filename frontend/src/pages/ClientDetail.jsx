@@ -56,6 +56,7 @@ import ClientNotificationsHistory from "@/components/ClientNotificationsHistory"
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
 import TicketManagementAdmin from "@/components/TicketManagementAdmin";
+import CompanyStructureSection from "@/components/CompanyStructureSection";
 
 const ClientDetail = () => {
   const navigate = useNavigate();
@@ -218,7 +219,11 @@ const ClientDetail = () => {
         regime_fiscale: clientRes.data.regime_fiscale || "",
         tipo_attivita: clientRes.data.tipo_attivita || "",
         tipo_cliente: clientRes.data.tipo_cliente || "autonomo",
-        stato: clientRes.data.stato || "attivo"
+        stato: clientRes.data.stato || "attivo",
+        // Campi struttura societaria
+        tipo_amministrazione: clientRes.data.tipo_amministrazione || "",
+        company_administrators: clientRes.data.company_administrators || [],
+        company_shareholders: clientRes.data.company_shareholders || []
       });
       // Set additional emails
       setAdditionalEmails(clientRes.data.additional_emails || []);
@@ -2091,6 +2096,24 @@ const ClientDetail = () => {
                 </form>
               </CardContent>
             </Card>
+
+            {/* Struttura Societaria - SOLO PER SOCIETÀ */}
+            {clientForm.tipo_cliente === 'societa' && (
+              <CompanyStructureSection
+                tipoAmministrazione={clientForm.tipo_amministrazione}
+                administrators={clientForm.company_administrators}
+                shareholders={clientForm.company_shareholders}
+                editing={editingClient}
+                onUpdate={(data) => {
+                  setClientForm({
+                    ...clientForm,
+                    tipo_amministrazione: data.tipo_amministrazione,
+                    company_administrators: data.company_administrators,
+                    company_shareholders: data.company_shareholders
+                  });
+                }}
+              />
+            )}
 
             {/* Email Aggiuntive Card */}
             <Card className="bg-white border border-slate-200">

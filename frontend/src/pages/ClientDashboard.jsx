@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import ChatBot from "@/components/ChatBot";
+import CompanyStructureSection from "@/components/CompanyStructureSection";
 import { 
   Calendar as CalendarIcon, 
   FileText, 
@@ -94,7 +95,11 @@ const ClientDashboard = () => {
         citta: user.citta || "",
         cap: user.cap || "",
         provincia: user.provincia || "",
-        iban: user.iban || ""
+        iban: user.iban || "",
+        // Campi struttura societaria
+        tipo_amministrazione: user.tipo_amministrazione || "",
+        company_administrators: user.company_administrators || [],
+        company_shareholders: user.company_shareholders || []
       });
     }
   }, [user]);
@@ -1361,6 +1366,24 @@ const ClientDashboard = () => {
                 </form>
               </CardContent>
             </Card>
+
+            {/* Struttura Societaria - SOLO PER SOCIETÀ */}
+            {user?.tipo_cliente === 'societa' && (
+              <CompanyStructureSection
+                tipoAmministrazione={profileForm.tipo_amministrazione}
+                administrators={profileForm.company_administrators}
+                shareholders={profileForm.company_shareholders}
+                editing={editingProfile}
+                onUpdate={(data) => {
+                  setProfileForm({
+                    ...profileForm,
+                    tipo_amministrazione: data.tipo_amministrazione,
+                    company_administrators: data.company_administrators,
+                    company_shareholders: data.company_shareholders
+                  });
+                }}
+              />
+            )}
           </TabsContent>
 
         </Tabs>
