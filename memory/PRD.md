@@ -5,6 +5,34 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 48 (29 Marzo 2026) - COMPLETATA ✅
+
+**Gestione Stati Dichiarazioni e Eliminazione Pratica**
+
+**Richiesta Utente:** Permettere all'Admin di gestire gli stati delle dichiarazioni con colori semantici e di eliminare le pratiche.
+
+**Implementazione Backend (`/app/backend/routes/declarations.py`):**
+- ✅ `PUT /api/declarations/tax-returns/{id}/status` - Aggiornamento stato con FormData
+- ✅ Stati supportati: bozza, inviata, documentazione_incompleta, in_revisione, pronta, presentata, errata, non_presentare, archiviata
+- ✅ `DELETE /api/declarations/tax-returns/{id}?soft_delete=true` - Soft delete (imposta stato "eliminata")
+- ✅ Validazione permessi: cliente può solo inviare pratiche proprie in bozza
+- ✅ Log automatico dei cambi stato in `status_logs`
+
+**Implementazione Frontend (`/app/frontend/src/components/DeclarationDetailView.jsx`):**
+- ✅ Badge stato con colori semantici:
+  - **VERDE**: presentata (CheckCircle)
+  - **GIALLO**: bozza, inviata, doc_incompleta, in_revisione, pronta
+  - **ROSSO**: errata, non_presentare (AlertCircle)
+  - **GRIGIO**: archiviata, eliminata
+- ✅ Select dropdown per cambio stato (solo Admin) con pallini colorati
+- ✅ Pulsante "Elimina" rosso con icona Trash2
+- ✅ AlertDialog di conferma eliminazione con messaggio chiaro
+- ✅ Toast di conferma per cambio stato e eliminazione
+
+**Test:** Verificato al 100% con testing_agent_v3_fork (iteration_26.json):
+- Backend: 17/17 test passati
+- Frontend: Tutte le funzionalità verificate via Playwright
+
 ### Fase 47 (29 Marzo 2026) - COMPLETATA ✅
 
 **Correzione Contrasto Pulsanti in Hover**
