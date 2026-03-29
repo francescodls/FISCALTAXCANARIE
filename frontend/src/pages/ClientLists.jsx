@@ -50,6 +50,10 @@ const ClientLists = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categorySearchTerm, setCategorySearchTerm] = useState("");
   
+  // Stato per vista lista dettaglio
+  const [selectedList, setSelectedList] = useState(null);
+  const [listSearchTerm, setListSearchTerm] = useState("");
+  
   // Upload batch state
   const [uploading, setUploading] = useState(false);
   const [uploadResults, setUploadResults] = useState(null);
@@ -289,6 +293,19 @@ const ClientLists = () => {
     return clients.filter(c => !c.lists?.includes(listId));
   };
 
+  // Funzione per filtrare clienti in lista con ricerca
+  const getFilteredClientsInList = (listId) => {
+    const listClients = getClientsInList(listId);
+    if (!listSearchTerm.trim()) return listClients;
+    
+    const search = listSearchTerm.toLowerCase();
+    return listClients.filter(c => 
+      c.full_name?.toLowerCase().includes(search) ||
+      c.email?.toLowerCase().includes(search) ||
+      c.telefono?.includes(search)
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-stone-50">
@@ -409,98 +426,91 @@ const ClientLists = () => {
 
             {/* Lists Grid */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {lists.map((list) => (
-                <Card key={list.id} className="bg-white border border-slate-200">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded-full" 
-                          style={{ backgroundColor: list.color }}
-                        ></div>
-                        <CardTitle className="font-heading text-lg">{list.name}</CardTitle>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setEditingList(list);
-                            setListForm({ name: list.name, description: list.description || "", color: list.color });
-                          }}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-600"
-                          onClick={() => handleDeleteList(list.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {list.description && (
-                      <p className="text-sm text-slate-500">{list.description}</p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Badge className="bg-slate-100 text-slate-700">
-                        <Users className="h-3 w-3 mr-1" />
-                        {list.client_count || getClientsInList(list.id).length} clienti
-                      </Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedListForNotification(list)}
-                        className="text-teal-600 border-teal-200"
-                      >
-                        <Send className="h-4 w-4 mr-1" />
-                        Notifica
-                      </Button>
-                    </div>
-                    
-                    {/* Clients in list */}
-                    <div className="space-y-2">
-                      <p className="text-xs text-slate-500 font-medium">Clienti nella lista:</p>
-                      <div className="max-h-32 overflow-y-auto space-y-1">
-                        {getClientsInList(list.id).map((client) => (
-                          <div key={client.id} className="flex items-center justify-between p-2 bg-stone-50 rounded text-sm">
-                            <span>{client.full_name}</span>
+              {lists.map((list) => {
+                const clientCount = list.client_count || getClientsInList(list.id).length;
+                
+                return (
+                  <Card 
+                    key={list.id} 
+                    className="bg-white border border-slate-200 hover:shadow-md hover:border-teal-300 transition-all cursor-pointer group"
+                    onClick={() => {
+                      setSelectedList(list);
+                      setListSearchTerm("");
+                    }}
+                    data-testid={`list-card-${list.id}`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-4 h-4 rounded-full" 
+                            style={{ backgroundColor: list.color }}
+                          ></div>
+                          <CardTitle className="font-heading text-lg">{list.name}</CardTitle>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0 text-red-500"
-                              onClick={() => handleRemoveClientFromList(list.id, client.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingList(list);
+                                setListForm({ name: list.name, description: list.description || "", color: list.color });
+                              }}
                             >
-                              ×
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteList(list.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        ))}
-                        {getClientsInList(list.id).length === 0 && (
-                          <p className="text-xs text-slate-400 italic">Nessun cliente</p>
-                        )}
+                          <ChevronRight className="h-5 w-5 text-slate-400 opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Add client dropdown */}
-                    <Select onValueChange={(clientId) => handleAddClientToList(list.id, clientId)}>
-                      <SelectTrigger className="border-slate-200 text-sm">
-                        <SelectValue placeholder="Aggiungi cliente..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getClientsNotInList(list.id).map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.full_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </CardContent>
-                </Card>
-              ))}
+                      {list.description && (
+                        <p className="text-sm text-slate-500 mt-1">{list.description}</p>
+                      )}
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-10 h-10 rounded-lg flex items-center justify-center"
+                            style={{ backgroundColor: `${list.color}20` }}
+                          >
+                            <Users className="h-5 w-5" style={{ color: list.color }} />
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-slate-900">{clientCount}</p>
+                            <p className="text-xs text-slate-500">clienti</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedListForNotification(list);
+                          }}
+                          className="text-teal-600 border-teal-200 hover:bg-teal-50"
+                        >
+                          <Send className="h-4 w-4 mr-1" />
+                          Notifica
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
 
               {lists.length === 0 && (
                 <Card className="col-span-full bg-white border border-slate-200">
@@ -624,6 +634,157 @@ const ClientLists = () => {
                   
                   <DialogFooter className="border-t pt-4">
                     <Button variant="outline" onClick={() => setSelectedCategory(null)}>
+                      Chiudi
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {/* Vista Dettaglio Lista (Dialog) */}
+            {selectedList && (
+              <Dialog open={!!selectedList} onOpenChange={(open) => !open && setSelectedList(null)}>
+                <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-3">
+                      <div 
+                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: `${selectedList.color}20` }}
+                      >
+                        <Tag className="h-5 w-5" style={{ color: selectedList.color }} />
+                      </div>
+                      <div>
+                        <span className="text-xl">{selectedList.name}</span>
+                        {selectedList.description && (
+                          <p className="text-sm font-normal text-slate-500">{selectedList.description}</p>
+                        )}
+                      </div>
+                      <Badge 
+                        className="ml-auto"
+                        style={{ backgroundColor: `${selectedList.color}20`, color: selectedList.color }}
+                      >
+                        {getClientsInList(selectedList.id).length} clienti
+                      </Badge>
+                    </DialogTitle>
+                  </DialogHeader>
+                  
+                  {/* Azioni Lista */}
+                  <div className="flex items-center gap-3 py-2">
+                    {/* Aggiungi cliente */}
+                    <Select onValueChange={(clientId) => {
+                      handleAddClientToList(selectedList.id, clientId);
+                    }}>
+                      <SelectTrigger className="w-[250px] border-slate-200">
+                        <Plus className="h-4 w-4 mr-2 text-teal-600" />
+                        <SelectValue placeholder="Aggiungi cliente alla lista..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getClientsNotInList(selectedList.id).length === 0 ? (
+                          <div className="p-3 text-center text-slate-500 text-sm">
+                            Tutti i clienti sono già nella lista
+                          </div>
+                        ) : (
+                          getClientsNotInList(selectedList.id).map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.full_name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedList(null);
+                        setSelectedListForNotification(selectedList);
+                      }}
+                      className="text-teal-600 border-teal-200 hover:bg-teal-50"
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Invia Notifica a Tutti
+                    </Button>
+                  </div>
+                  
+                  {/* Barra di ricerca */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Cerca cliente per nome, email o telefono..."
+                      value={listSearchTerm}
+                      onChange={(e) => setListSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {/* Lista clienti */}
+                  <div className="flex-1 overflow-y-auto mt-4 space-y-2">
+                    {getFilteredClientsInList(selectedList.id).length === 0 ? (
+                      <div className="text-center py-12">
+                        <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                        <p className="text-slate-500">
+                          {listSearchTerm ? "Nessun cliente trovato con questa ricerca" : "Nessun cliente in questa lista"}
+                        </p>
+                        <p className="text-sm text-slate-400 mt-2">
+                          Usa il menu in alto per aggiungere clienti
+                        </p>
+                      </div>
+                    ) : (
+                      getFilteredClientsInList(selectedList.id).map((client) => (
+                        <div
+                          key={client.id}
+                          className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors"
+                          data-testid={`list-client-${client.id}`}
+                        >
+                          <div 
+                            className="flex items-center gap-4 flex-1 cursor-pointer"
+                            onClick={() => {
+                              setSelectedList(null);
+                              navigate(`/admin/clients/${client.id}`);
+                            }}
+                          >
+                            <div 
+                              className="w-10 h-10 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: `${selectedList.color}20` }}
+                            >
+                              <User className="h-5 w-5" style={{ color: selectedList.color }} />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900">{client.full_name}</p>
+                              <p className="text-sm text-slate-500">{client.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {client.telefono && (
+                              <span className="text-sm text-slate-500">{client.telefono}</span>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedList(null);
+                                navigate(`/admin/clients/${client.id}`);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Dettagli
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleRemoveClientFromList(selectedList.id, client.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  <DialogFooter className="border-t pt-4">
+                    <Button variant="outline" onClick={() => setSelectedList(null)}>
                       Chiudi
                     </Button>
                   </DialogFooter>

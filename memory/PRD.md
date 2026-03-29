@@ -5,6 +5,29 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 49 (29 Marzo 2026) - COMPLETATA ✅
+
+**Rimozione Lista Clienti dalla Vista Esterna Card Liste**
+
+**Richiesta Utente:** Rendere le card liste più pulite e scalabili, mostrando solo il conteggio clienti nella vista esterna e la lista completa solo nel dialog interno.
+
+**Implementazione Frontend (`/app/frontend/src/pages/ClientLists.jsx`):**
+- ✅ Card liste ora mostrano solo: nome, descrizione, icona + conteggio clienti, pulsante Notifica, pulsanti modifica/elimina
+- ✅ Rimossa la lista nomi clienti dalla vista esterna
+- ✅ Card cliccabili con effetto hover e freccia indicativa (ChevronRight)
+- ✅ Nuovo Dialog "Vista Dettaglio Lista" con:
+  - Header con nome lista, descrizione e badge conteggio
+  - Dropdown "Aggiungi cliente alla lista" per aggiungere nuovi clienti
+  - Pulsante "Invia Notifica a Tutti"
+  - Barra di ricerca clienti (nome, email, telefono)
+  - Lista completa clienti con: avatar, nome, email, pulsante Dettagli, pulsante Rimuovi
+  - Pulsante Chiudi
+- ✅ Aggiunta funzione `getFilteredClientsInList()` per filtrare clienti con ricerca
+
+**Risultato:**
+- Vista esterna card: pulita e scalabile (solo conteggio)
+- Vista interna dialog: completa con tutte le funzionalità operative
+
 ### Fase 48 (29 Marzo 2026) - COMPLETATA ✅
 
 **Gestione Stati Dichiarazioni e Eliminazione Pratica**
