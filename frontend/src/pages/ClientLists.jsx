@@ -28,7 +28,14 @@ import {
   AlertCircle,
   FolderOpen,
   Tag,
-  Palette
+  Palette,
+  ChevronRight,
+  Building2,
+  Briefcase,
+  User,
+  Home,
+  Search,
+  Eye
 } from "lucide-react";
 
 const ClientLists = () => {
@@ -38,6 +45,10 @@ const ClientLists = () => {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("lists");
+  
+  // Stato per vista categoria dettaglio
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categorySearchTerm, setCategorySearchTerm] = useState("");
   
   // Upload batch state
   const [uploading, setUploading] = useState(false);
@@ -55,6 +66,78 @@ const ClientLists = () => {
   const [selectedListForNotification, setSelectedListForNotification] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}` };
+
+  // Definizione categorie clienti
+  const clientCategories = [
+    { 
+      id: "autonomo", 
+      name: "Autonomi", 
+      description: "Lavoratori autonomi e liberi professionisti",
+      icon: Briefcase,
+      color: "blue",
+      bgColor: "bg-blue-50",
+      textColor: "text-blue-600",
+      borderColor: "border-blue-200"
+    },
+    { 
+      id: "societa", 
+      name: "Società", 
+      description: "Società di capitali e di persone",
+      icon: Building2,
+      color: "purple",
+      bgColor: "bg-purple-50",
+      textColor: "text-purple-600",
+      borderColor: "border-purple-200"
+    },
+    { 
+      id: "privato", 
+      name: "Privati", 
+      description: "Persone fisiche private",
+      icon: User,
+      color: "emerald",
+      bgColor: "bg-emerald-50",
+      textColor: "text-emerald-600",
+      borderColor: "border-emerald-200"
+    },
+    { 
+      id: "vivienda_vacacional", 
+      name: "Vivienda Vacacional", 
+      description: "Gestori di case vacanza",
+      icon: Home,
+      color: "amber",
+      bgColor: "bg-amber-50",
+      textColor: "text-amber-600",
+      borderColor: "border-amber-200"
+    },
+    { 
+      id: "persona_fisica", 
+      name: "Persona Fisica", 
+      description: "Persone fisiche con attività",
+      icon: User,
+      color: "teal",
+      bgColor: "bg-teal-50",
+      textColor: "text-teal-600",
+      borderColor: "border-teal-200"
+    }
+  ];
+
+  // Funzione per ottenere clienti per categoria
+  const getClientsInCategory = (categoryId) => {
+    return clients.filter(c => c.tipo_cliente === categoryId);
+  };
+
+  // Funzione per filtrare clienti in categoria con ricerca
+  const getFilteredClientsInCategory = (categoryId) => {
+    const categoryClients = getClientsInCategory(categoryId);
+    if (!categorySearchTerm.trim()) return categoryClients;
+    
+    const search = categorySearchTerm.toLowerCase();
+    return categoryClients.filter(c => 
+      c.full_name?.toLowerCase().includes(search) ||
+      c.email?.toLowerCase().includes(search) ||
+      c.telefono?.includes(search)
+    );
+  };
 
   useEffect(() => {
     fetchData();
@@ -430,34 +513,123 @@ const ClientLists = () => {
               )}
             </div>
 
-            {/* Default Lists by Type */}
+            {/* Default Lists by Type - NUOVA VERSIONE CLICCABILE */}
             <Card className="bg-white border border-slate-200">
               <CardHeader>
-                <CardTitle className="font-heading text-lg">Clienti per Tipologia</CardTitle>
+                <CardTitle className="font-heading text-lg">Clienti per Categoria</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <h4 className="font-semibold text-blue-800 mb-2">Autonomi</h4>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {clients.filter(c => c.tipo_cliente === "autonomo").length}
-                    </p>
-                  </div>
-                  <div className="p-4 bg-purple-50 rounded-lg">
-                    <h4 className="font-semibold text-purple-800 mb-2">Società</h4>
-                    <p className="text-2xl font-bold text-purple-600">
-                      {clients.filter(c => c.tipo_cliente === "societa").length}
-                    </p>
-                  </div>
-                  <div className="p-4 bg-emerald-50 rounded-lg">
-                    <h4 className="font-semibold text-emerald-800 mb-2">Privati</h4>
-                    <p className="text-2xl font-bold text-emerald-600">
-                      {clients.filter(c => c.tipo_cliente === "privato").length}
-                    </p>
-                  </div>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {clientCategories.map((category) => {
+                    const count = getClientsInCategory(category.id).length;
+                    const Icon = category.icon;
+                    
+                    return (
+                      <div 
+                        key={category.id}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`p-4 ${category.bgColor} rounded-lg border ${category.borderColor} cursor-pointer hover:shadow-md transition-all hover:scale-[1.02] group`}
+                        data-testid={`category-card-${category.id}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Icon className={`h-5 w-5 ${category.textColor}`} />
+                            <h4 className={`font-semibold text-${category.color}-800`}>{category.name}</h4>
+                          </div>
+                          <ChevronRight className={`h-5 w-5 ${category.textColor} opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all`} />
+                        </div>
+                        <p className="text-xs text-slate-500 mb-3">{category.description}</p>
+                        <p className={`text-2xl font-bold ${category.textColor}`}>
+                          {count} <span className="text-sm font-normal text-slate-500">clienti</span>
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
+
+            {/* Vista Dettaglio Categoria (Dialog) */}
+            {selectedCategory && (
+              <Dialog open={!!selectedCategory} onOpenChange={(open) => !open && setSelectedCategory(null)}>
+                <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-3">
+                      <div className={`w-10 h-10 ${selectedCategory.bgColor} rounded-lg flex items-center justify-center`}>
+                        <selectedCategory.icon className={`h-5 w-5 ${selectedCategory.textColor}`} />
+                      </div>
+                      <div>
+                        <span className="text-xl">{selectedCategory.name}</span>
+                        <p className="text-sm font-normal text-slate-500">{selectedCategory.description}</p>
+                      </div>
+                      <Badge className={`${selectedCategory.bgColor} ${selectedCategory.textColor} ml-auto`}>
+                        {getClientsInCategory(selectedCategory.id).length} clienti
+                      </Badge>
+                    </DialogTitle>
+                  </DialogHeader>
+                  
+                  {/* Barra di ricerca */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Cerca cliente per nome, email o telefono..."
+                      value={categorySearchTerm}
+                      onChange={(e) => setCategorySearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {/* Lista clienti */}
+                  <div className="flex-1 overflow-y-auto mt-4 space-y-2">
+                    {getFilteredClientsInCategory(selectedCategory.id).length === 0 ? (
+                      <div className="text-center py-12">
+                        <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                        <p className="text-slate-500">
+                          {categorySearchTerm ? "Nessun cliente trovato con questa ricerca" : "Nessun cliente in questa categoria"}
+                        </p>
+                      </div>
+                    ) : (
+                      getFilteredClientsInCategory(selectedCategory.id).map((client) => (
+                        <div
+                          key={client.id}
+                          className="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-lg hover:border-teal-300 hover:bg-teal-50/30 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setSelectedCategory(null);
+                            navigate(`/admin/clients/${client.id}`);
+                          }}
+                          data-testid={`category-client-${client.id}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 ${selectedCategory.bgColor} rounded-full flex items-center justify-center`}>
+                              <User className={`h-5 w-5 ${selectedCategory.textColor}`} />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900">{client.full_name}</p>
+                              <p className="text-sm text-slate-500">{client.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            {client.telefono && (
+                              <span className="text-sm text-slate-500">{client.telefono}</span>
+                            )}
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              Dettagli
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  
+                  <DialogFooter className="border-t pt-4">
+                    <Button variant="outline" onClick={() => setSelectedCategory(null)}>
+                      Chiudi
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
           </TabsContent>
 
           {/* Upload Tab */}

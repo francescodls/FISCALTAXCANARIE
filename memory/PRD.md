@@ -5,6 +5,26 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 46 (29 Marzo 2026) - COMPLETATA ✅
+
+**Riorganizzazione Sezione Categorie Clienti**
+
+**Richiesta Utente:** Le card categoria non devono mostrare la lista clienti direttamente. Devono essere cliccabili e aprire una vista dettaglio dedicata.
+
+**Implementato:**
+- ✅ Card categoria pulite con: icona, nome, descrizione, conteggio clienti
+- ✅ Freccia che indica cliccabilità
+- ✅ Hover effect con animazione
+- ✅ Dialog modale per vista dettaglio categoria
+- ✅ Header con icona, nome, descrizione e badge conteggio
+- ✅ Barra di ricerca per filtrare clienti nella categoria
+- ✅ Lista completa clienti con: avatar, nome, email, pulsante "Dettagli"
+- ✅ Click su cliente naviga alla scheda cliente
+- ✅ 5 categorie: Autonomi, Società, Privati, Vivienda Vacacional, Persona Fisica
+
+**File Modificato:**
+- `/app/frontend/src/pages/ClientLists.jsx`
+
 ### Fase 45 (28 Marzo 2026) - COMPLETATA ✅
 
 **App Desktop Electron per Amministratore**
