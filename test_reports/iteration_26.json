@@ -1,0 +1,76 @@
+{
+  "summary": "Completed testing of Declaration Status Management and Soft Delete features (iteration 26). All backend tests passed (17/17). Frontend UI verified: status badges show correct colors, status dropdown has all options with colored dots, delete button opens confirmation dialog.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_status_delete_iteration26.py",
+    "/app/test_reports/pytest/pytest_results_iteration26.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Status update endpoint correctly uses PUT with FormData (nuovo_stato, motivo optional)",
+    "Soft delete endpoint correctly sets stato='eliminata' and returns recoverable=True",
+    "Frontend status badge colors correctly implemented: GREEN (presentata), YELLOW (bozza, inviata, doc_incompleta, in_revisione, pronta), RED (errata, non_presentare), GREY (archiviata, eliminata)",
+    "Status dropdown shows all 9 status options with correct colored dots",
+    "Delete confirmation dialog shows clear warning and allows cancellation"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_status_delete_iteration26.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% (all features verified via Playwright)"
+  },
+  "test_credentials": {
+    "admin": "info@fiscaltaxcanarie.com / Triana48+",
+    "client": "francesco@fiscaltaxcanarie.com / TestClient123!"
+  },
+  "seed_data_creation": "None - used existing declaration for testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Declaration status management and soft delete features fully functional. Status update uses PUT /api/declarations/tax-returns/{id}/status with FormData (nuovo_stato required, motivo optional). Soft delete uses DELETE /api/declarations/tax-returns/{id}?soft_delete=true. Frontend DeclarationDetailView shows status badge with correct colors and status dropdown with all options.",
+  "features_tested": {
+    "backend_api": {
+      "update_status_bozza": "PUT /api/declarations/tax-returns/{id}/status - Working (yellow)",
+      "update_status_inviata": "PUT /api/declarations/tax-returns/{id}/status - Working (yellow)",
+      "update_status_documentazione_incompleta": "PUT /api/declarations/tax-returns/{id}/status - Working (yellow)",
+      "update_status_in_revisione": "PUT /api/declarations/tax-returns/{id}/status - Working (yellow)",
+      "update_status_pronta": "PUT /api/declarations/tax-returns/{id}/status - Working (yellow)",
+      "update_status_presentata": "PUT /api/declarations/tax-returns/{id}/status - Working (green)",
+      "update_status_errata": "PUT /api/declarations/tax-returns/{id}/status - Working (red)",
+      "update_status_non_presentare": "PUT /api/declarations/tax-returns/{id}/status - Working (red)",
+      "update_status_archiviata": "PUT /api/declarations/tax-returns/{id}/status - Working (grey)",
+      "update_status_with_motivo": "PUT /api/declarations/tax-returns/{id}/status - Working with optional reason",
+      "update_status_invalid": "Returns 400 for invalid state",
+      "update_status_nonexistent": "Returns 404 for non-existent declaration",
+      "soft_delete": "DELETE /api/declarations/tax-returns/{id}?soft_delete=true - Working (sets stato=eliminata)",
+      "soft_delete_nonexistent": "Returns 404 for non-existent declaration",
+      "client_status_restriction": "Client cannot change status arbitrarily (403)",
+      "client_delete_restriction": "Client cannot delete non-bozza declaration (400)"
+    },
+    "frontend_ui": {
+      "status_badge_green": "Working - 'presentata' shows green badge",
+      "status_badge_yellow": "Working - pending states show yellow badge",
+      "status_badge_red": "Working - 'errata' and 'non_presentare' show red badge",
+      "status_badge_grey": "Working - 'archiviata' shows grey badge",
+      "status_dropdown": "Working - shows all 9 options with colored dots",
+      "status_change": "Working - updates badge and shows toast notification",
+      "delete_button": "Working - shows red 'Elimina' button for admin",
+      "delete_dialog": "Working - shows confirmation with warning message",
+      "delete_cancel": "Working - 'Annulla' button closes dialog without deleting"
+    }
+  },
+  "status_color_mapping": {
+    "GREEN": ["presentata"],
+    "YELLOW": ["bozza", "inviata", "documentazione_incompleta", "in_revisione", "pronta"],
+    "RED": ["errata", "non_presentare"],
+    "GREY": ["archiviata", "eliminata"]
+  }
+}
