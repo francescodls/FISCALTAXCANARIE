@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -12,7 +13,7 @@ import {
   ArrowLeft, User, Calendar, FileText, MessageCircle, Send, 
   AlertCircle, CheckCircle, Clock, Download, Paperclip, Eye,
   Plus, X, Upload, FileCheck, Building2, Briefcase, Home,
-  TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw, Trash2
+  TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw, Trash2, UserCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   const [messages, setMessages] = useState(declaration.conversazione || []);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [assigningPratica, setAssigningPratica] = useState(false);
   const [showIntegrationDialog, setShowIntegrationDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -34,7 +36,7 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   const [newDocRequest, setNewDocRequest] = useState('');
   const messagesEndRef = useRef(null);
   
-  const isAdmin = user?.role === 'commercialista';
+  const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(user?.role);
 
   useEffect(() => {
     // Segna messaggi come letti
@@ -165,6 +167,46 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
     } finally {
       setDeleting(false);
     }
+  };
+
+  // Funzione per prendere in carico la pratica
+  const assignToMe = async () => {
+    setAssigningPratica(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}/assign`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Errore assegnazione');
+      
+      const data = await res.json();
+      toast.success(data.message);
+      
+      // Aggiorna la dichiarazione locale
+      if (onUpdate) {
+        onUpdate({
+          ...declaration,
+          ...data.assigned_to
+        });
+      }
+    } catch (error) {
+      toast.error('Errore nell\'assegnazione della pratica');
+    } finally {
+      setAssigningPratica(false);
+    }
+  };
+
+  // Helper per ottenere iniziali da nome
+  const getInitials = (firstName, lastName, fullName) => {
+    if (firstName && lastName) {
+      return `${firstName[0]}${lastName[0]}`.toUpperCase();
+    }
+    if (fullName) {
+      const parts = fullName.split(' ');
+      return parts.length > 1 ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() : fullName[0].toUpperCase();
+    }
+    return '?';
   };
 
   const downloadAuthPdf = async () => {
@@ -426,6 +468,54 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
                   <span className="text-slate-500">Ultima modifica:</span>
                   <span>{new Date(declaration.updated_at).toLocaleString('it-IT')}</span>
                 </div>
+                
+                {/* Preso in carico da */}
+                <div className="pt-3 border-t mt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Preso in carico da:</span>
+                    {declaration.assigned_to_id ? (
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          {declaration.assigned_to_profile_image ? (
+                            <AvatarImage src={declaration.assigned_to_profile_image} />
+                          ) : null}
+                          <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
+                            {getInitials(declaration.assigned_to_first_name, declaration.assigned_to_last_name, declaration.assigned_to_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium text-purple-700">
+                          {declaration.assigned_to_name}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 italic">Non assegnata</span>
+                    )}
+                  </div>
+                  {isAdmin && !declaration.assigned_to_id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-2 text-purple-600 border-purple-200 hover:bg-purple-50"
+                      onClick={assignToMe}
+                      disabled={assigningPratica}
+                    >
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      {assigningPratica ? 'Assegnazione...' : 'Prendi in Carico'}
+                    </Button>
+                  )}
+                  {isAdmin && declaration.assigned_to_id && declaration.assigned_to_id !== user?.id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2 text-purple-600"
+                      onClick={assignToMe}
+                      disabled={assigningPratica}
+                    >
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      {assigningPratica ? 'Riassegnazione...' : 'Riassegna a me'}
+                    </Button>
+                  )}
+                </div>
                 {declaration.submitted_at && (
                   <div className="flex justify-between">
                     <span className="text-slate-500">Inviata il:</span>
@@ -633,28 +723,55 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {messages.map(msg => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.sender_role === 'commercialista' ? 'justify-end' : 'justify-start'}`}
-                    >
+                  {messages.map(msg => {
+                    const isAdminMessage = ['commercialista', 'admin', 'super_admin'].includes(msg.sender_role);
+                    return (
                       <div
-                        className={`max-w-[70%] p-3 rounded-lg ${
-                          msg.sender_role === 'commercialista'
-                            ? 'bg-teal-100 text-teal-900'
-                            : 'bg-slate-100 text-slate-900'
-                        }`}
+                        key={msg.id}
+                        className={`flex ${isAdminMessage ? 'justify-end' : 'justify-start'}`}
                       >
-                        <p className="text-xs font-medium mb-1">
-                          {msg.sender_name}
-                        </p>
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                        <p className="text-xs mt-1 opacity-60">
-                          {new Date(msg.created_at).toLocaleString('it-IT')}
-                        </p>
+                        <div className={`flex items-start gap-2 max-w-[75%] ${isAdminMessage ? 'flex-row-reverse' : ''}`}>
+                          {/* Avatar */}
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            {msg.sender_profile_image ? (
+                              <AvatarImage src={msg.sender_profile_image} alt={msg.sender_name} />
+                            ) : null}
+                            <AvatarFallback className={`text-xs font-semibold ${
+                              isAdminMessage 
+                                ? 'bg-purple-100 text-purple-700' 
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {getInitials(msg.sender_first_name, msg.sender_last_name, msg.sender_name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          
+                          {/* Messaggio */}
+                          <div
+                            className={`p-3 rounded-lg ${
+                              isAdminMessage
+                                ? 'bg-purple-100 text-purple-900'
+                                : 'bg-slate-100 text-slate-900'
+                            }`}
+                          >
+                            <p className="text-xs font-semibold mb-1">
+                              {msg.sender_first_name && msg.sender_last_name 
+                                ? `${msg.sender_first_name} ${msg.sender_last_name}`
+                                : msg.sender_name}
+                              {isAdminMessage && (
+                                <Badge className="ml-2 bg-purple-200 text-purple-700 text-[10px] px-1.5 py-0">
+                                  Team
+                                </Badge>
+                              )}
+                            </p>
+                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                            <p className="text-xs mt-1 opacity-60">
+                              {new Date(msg.created_at).toLocaleString('it-IT')}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div ref={messagesEndRef} />
                 </div>
               )}

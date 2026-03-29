@@ -36,7 +36,7 @@ const DeclarationsPage = () => {
     search: ''
   });
 
-  const isAdmin = user?.role === 'commercialista';
+  const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(user?.role);
 
   const handleLogout = () => {
     logout();

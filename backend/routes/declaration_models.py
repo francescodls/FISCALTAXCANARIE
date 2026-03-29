@@ -299,6 +299,10 @@ class TaxReturnIntegrationRequest(BaseModel):
     mensaje: str
     documentos_richiesti: List[str] = []
     created_by: str
+    created_by_name: Optional[str] = None
+    created_by_first_name: Optional[str] = None
+    created_by_last_name: Optional[str] = None
+    created_by_profile_image: Optional[str] = None
     created_at: str
     risposta_cliente: Optional[str] = None
     risposta_at: Optional[str] = None
@@ -360,6 +364,14 @@ class TaxReturnResponse(BaseModel):
     tipo_dichiarazione: str
     stato: str  # bozza, inviata, documentazione_incompleta, in_revisione, pronta, presentata, archiviata
     secciones_habilitadas: TaxReturnSectionsEnabled
+    
+    # Assignment info (admin che ha preso in carico)
+    assigned_to_id: Optional[str] = None
+    assigned_to_name: Optional[str] = None
+    assigned_to_first_name: Optional[str] = None
+    assigned_to_last_name: Optional[str] = None
+    assigned_to_profile_image: Optional[str] = None
+    assigned_at: Optional[str] = None
     
     # Sezioni dati
     datos_personales: Optional[TaxReturnPersonalData] = None

@@ -4,10 +4,11 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { 
   AlertCircle, CheckCircle, Clock, Send, Upload, FileText,
-  MessageCircle, Paperclip, X, Eye, Download, Plus, ArrowRight
+  MessageCircle, Paperclip, X, Eye, Download, Plus, ArrowRight, UserCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -218,6 +219,27 @@ const ClientIntegrationRequests = ({ taxReturn, token, user, onUpdate }) => {
                         {new Date(req.created_at).toLocaleDateString('it-IT')}
                       </span>
                     </div>
+                    
+                    {/* Chi ha creato la richiesta */}
+                    {req.created_by_name && (
+                      <div className="flex items-center gap-2 mb-3">
+                        <Avatar className="h-6 w-6">
+                          {req.created_by_profile_image ? (
+                            <AvatarImage src={req.created_by_profile_image} />
+                          ) : null}
+                          <AvatarFallback className="bg-purple-100 text-purple-700 text-xs">
+                            {req.created_by_first_name && req.created_by_last_name 
+                              ? `${req.created_by_first_name[0]}${req.created_by_last_name[0]}`.toUpperCase()
+                              : req.created_by_name?.[0]?.toUpperCase() || '?'
+                            }
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm text-purple-700 font-medium">
+                          Richiesta da: {req.created_by_name}
+                        </span>
+                      </div>
+                    )}
+                    
                     <p className="text-slate-700 font-medium mb-2">{req.mensaje}</p>
                     
                     {/* Documenti richiesti */}
@@ -321,28 +343,69 @@ const ClientIntegrationRequests = ({ taxReturn, token, user, onUpdate }) => {
               </div>
             ) : (
               <div className="space-y-4">
-                {messages.map(msg => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender_role === 'cliente' ? 'justify-end' : 'justify-start'}`}
-                  >
+                {messages.map(msg => {
+                  const isClient = msg.sender_role === 'cliente';
+                  const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(msg.sender_role);
+                  
+                  // Helper per iniziali
+                  const getInitials = () => {
+                    if (msg.sender_first_name && msg.sender_last_name) {
+                      return `${msg.sender_first_name[0]}${msg.sender_last_name[0]}`.toUpperCase();
+                    }
+                    if (msg.sender_name) {
+                      const parts = msg.sender_name.split(' ');
+                      return parts.length > 1 ? `${parts[0][0]}${parts[1][0]}`.toUpperCase() : msg.sender_name[0].toUpperCase();
+                    }
+                    return '?';
+                  };
+                  
+                  return (
                     <div
-                      className={`max-w-[80%] p-3 rounded-lg ${
-                        msg.sender_role === 'cliente'
-                          ? 'bg-teal-100 text-teal-900'
-                          : 'bg-white border text-slate-900'
-                      }`}
+                      key={msg.id}
+                      className={`flex ${isClient ? 'justify-end' : 'justify-start'}`}
                     >
-                      <p className="text-xs font-medium mb-1 opacity-70">
-                        {msg.sender_role === 'cliente' ? 'Tu' : msg.sender_name}
-                      </p>
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      <p className="text-xs mt-1 opacity-50">
-                        {new Date(msg.created_at).toLocaleString('it-IT')}
-                      </p>
+                      <div className={`flex items-start gap-2 max-w-[80%] ${isClient ? 'flex-row-reverse' : ''}`}>
+                        {/* Avatar (solo per admin) */}
+                        {isAdmin && (
+                          <Avatar className="h-8 w-8 flex-shrink-0">
+                            {msg.sender_profile_image ? (
+                              <AvatarImage src={msg.sender_profile_image} alt={msg.sender_name} />
+                            ) : null}
+                            <AvatarFallback className="bg-purple-100 text-purple-700 text-xs font-semibold">
+                              {getInitials()}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                        
+                        {/* Messaggio */}
+                        <div
+                          className={`p-3 rounded-lg ${
+                            isClient
+                              ? 'bg-teal-100 text-teal-900'
+                              : 'bg-white border border-purple-200 text-slate-900'
+                          }`}
+                        >
+                          <p className="text-xs font-semibold mb-1">
+                            {isClient ? 'Tu' : (
+                              msg.sender_first_name && msg.sender_last_name 
+                                ? `${msg.sender_first_name} ${msg.sender_last_name}`
+                                : msg.sender_name
+                            )}
+                            {isAdmin && (
+                              <Badge className="ml-2 bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0">
+                                Fiscal Tax
+                              </Badge>
+                            )}
+                          </p>
+                          <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          <p className="text-xs mt-1 opacity-50">
+                            {new Date(msg.created_at).toLocaleString('it-IT')}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
             )}

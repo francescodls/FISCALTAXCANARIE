@@ -440,6 +440,67 @@ async def update_tax_return_status(
     return {"message": "Stato aggiornato", "nuovo_stato": nuovo_stato}
 
 
+@router.put("/tax-returns/{tax_return_id}/assign")
+async def assign_tax_return(
+    tax_return_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """Prende in carico una pratica - assegna l'admin corrente come responsabile"""
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Nome admin per visualizzazione
+    admin_display_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('full_name', 'Admin')
+    
+    assignment_data = {
+        "assigned_to_id": user["id"],
+        "assigned_to_name": admin_display_name,
+        "assigned_to_first_name": user.get("first_name", ""),
+        "assigned_to_last_name": user.get("last_name", ""),
+        "assigned_to_profile_image": user.get("profile_image"),
+        "assigned_at": now
+    }
+    
+    await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {"$set": {
+            **assignment_data,
+            "updated_at": now
+        }}
+    )
+    
+    # Notifica al cliente che la pratica è stata presa in carico
+    try:
+        from email_service import send_generic_email
+        client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
+        if client and client.get("email"):
+            await send_generic_email(
+                client["email"],
+                f"[Fiscal Tax] La tua pratica è stata presa in carico - Dichiarazione {tax_return['anno_fiscale']}",
+                f"""
+                <h2>Pratica Presa in Carico</h2>
+                <p>Gentile {client.get('full_name', 'Cliente')},</p>
+                <p>La tua dichiarazione dei redditi {tax_return['anno_fiscale']} è stata presa in carico da <strong>{admin_display_name}</strong>.</p>
+                <p>Sarà il tuo riferimento per questa pratica. Puoi contattarlo direttamente tramite la chat nella piattaforma.</p>
+                <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
+                """
+            )
+    except Exception as e:
+        pass
+    
+    await log_activity("assegnazione_pratica", f"Pratica {tax_return_id} assegnata a {admin_display_name}", user["id"])
+    
+    return {
+        "message": f"Pratica assegnata a {admin_display_name}",
+        "assigned_to": assignment_data
+    }
+
+
 @router.delete("/tax-returns/{tax_return_id}")
 async def delete_tax_return(
     tax_return_id: str, 
@@ -891,12 +952,19 @@ async def create_integration_request(
     now = datetime.now(timezone.utc).isoformat()
     request_id = str(uuid.uuid4())
     
+    # Nome admin per visualizzazione
+    admin_display_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('full_name', 'Fiscal Tax Canarie')
+    
     integration_request = {
         "id": request_id,
         "seccion": data.seccion,
         "mensaje": data.mensaje,
         "documentos_richiesti": data.documentos_richiesti,
         "created_by": user["id"],
+        "created_by_name": admin_display_name,
+        "created_by_first_name": user.get("first_name", ""),
+        "created_by_last_name": user.get("last_name", ""),
+        "created_by_profile_image": user.get("profile_image"),
         "created_at": now,
         "risposta_cliente": None,
         "risposta_at": None,
@@ -922,11 +990,11 @@ async def create_integration_request(
         if client and client.get("email"):
             await send_generic_email(
                 client["email"],
-                f"[Fiscal Tax] Richiesta documentazione - Dichiarazione Redditi {tax_return['anno_fiscale']}",
+                f"[Fiscal Tax] Richiesta documentazione da {admin_display_name} - Dichiarazione Redditi {tax_return['anno_fiscale']}",
                 f"""
                 <h2>Richiesta Integrazione Documentale</h2>
                 <p>Gentile {client.get('full_name', 'Cliente')},</p>
-                <p>Abbiamo bisogno di ulteriore documentazione per la tua dichiarazione dei redditi {tax_return['anno_fiscale']}.</p>
+                <p><strong>{admin_display_name}</strong> ha bisogno di ulteriore documentazione per la tua dichiarazione dei redditi {tax_return['anno_fiscale']}.</p>
                 <p><strong>Sezione:</strong> {data.seccion}</p>
                 <p><strong>Messaggio:</strong> {data.mensaje}</p>
                 {'<p><strong>Documenti richiesti:</strong> ' + ', '.join(data.documentos_richiesti) + '</p>' if data.documentos_richiesti else ''}
@@ -1102,14 +1170,20 @@ async def add_declaration_message(
     
     now = datetime.now(timezone.utc).isoformat()
     
+    # Determina se è admin (commercialista, admin, super_admin)
+    is_admin = user["role"] in ["commercialista", "admin", "super_admin"]
+    
     message = {
         "id": str(uuid.uuid4()),
         "content": data.content,
         "sender_id": user["id"],
         "sender_name": user.get("full_name", "Utente"),
+        "sender_first_name": user.get("first_name", ""),
+        "sender_last_name": user.get("last_name", ""),
         "sender_role": user["role"],
+        "sender_profile_image": user.get("profile_image"),
         "created_at": now,
-        "read_by_admin": user["role"] == "commercialista",
+        "read_by_admin": is_admin,
         "read_by_client": user["role"] == "cliente"
     }
     
@@ -1125,17 +1199,18 @@ async def add_declaration_message(
     try:
         from email_service import send_generic_email
         
-        if user["role"] == "commercialista":
-            # Notifica al cliente
+        if is_admin:
+            # Notifica al cliente - mostra nome dell'admin
             client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
+            admin_display_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('full_name', 'Fiscal Tax Canarie')
             if client and client.get("email"):
                 await send_generic_email(
                     client["email"],
-                    f"[Fiscal Tax] Nuovo messaggio - Dichiarazione {tax_return['anno_fiscale']}",
+                    f"[Fiscal Tax] Nuovo messaggio da {admin_display_name} - Dichiarazione {tax_return['anno_fiscale']}",
                     f"""
                     <h2>Nuovo Messaggio sulla tua Dichiarazione</h2>
                     <p>Gentile {client.get('full_name', 'Cliente')},</p>
-                    <p>Hai ricevuto un nuovo messaggio riguardo la tua dichiarazione dei redditi {tax_return['anno_fiscale']}:</p>
+                    <p>Hai ricevuto un nuovo messaggio da <strong>{admin_display_name}</strong> riguardo la tua dichiarazione dei redditi {tax_return['anno_fiscale']}:</p>
                     <blockquote style="border-left: 3px solid #0d9488; padding-left: 15px; color: #555;">
                         {data.content}
                     </blockquote>

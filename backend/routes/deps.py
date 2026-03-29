@@ -64,7 +64,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail="Token non valido")
 
 async def require_commercialista(user: dict = Depends(get_current_user)):
-    if user["role"] != "commercialista":
+    # Allow commercialista, admin, and super_admin roles
+    if user["role"] not in ["commercialista", "admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Accesso riservato al commercialista")
     return user
 
