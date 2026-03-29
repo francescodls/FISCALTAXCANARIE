@@ -5,6 +5,47 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 56 (29 Marzo 2026) - COMPLETATA ✅
+
+**Visualizzazione Dichiarazioni Admin con Identificazione Cliente**
+
+**Richiesta Utente:** Nel pannello amministratore, nella sezione dichiarazioni, rendere visibile il nome del cliente per ogni pratica, permettere la gestione stato con colori e l'eliminazione con conferma.
+
+**Implementazione Frontend (`/app/frontend/src/components/AdminDeclarationsView.jsx`):**
+- ✅ Nuova vista tabellare "Tutte le Dichiarazioni" con colonne:
+  - **Cliente**: Avatar + Nome/Ragione Sociale + Email
+  - **Anno**: Badge con anno fiscale
+  - **Stato**: Dropdown modificabile con pallini colorati
+  - **Ultima Modifica**: Data e ora
+  - **Documenti**: Conteggio allegati
+  - **Azioni**: Dettaglio + Elimina
+- ✅ **Toggle vista**: "Tutte" (lista flat) / "Per Cliente" (raggruppata)
+- ✅ **4 Stats Cards cliccabili** con filtro rapido:
+  - Teal: Totale Dichiarazioni
+  - Verde: Presentate
+  - Giallo: Pendenti
+  - Rosso: Errate / Non Presentare
+- ✅ **Dropdown Stato** con pallini colorati:
+  - 🟡 Giallo: Bozza, Inviata, Doc. Incompleta, In Revisione, Pronta
+  - 🟢 Verde: Presentata
+  - 🔴 Rosso: Errata, Non Presentare
+  - ⚫ Grigio: Archiviata
+- ✅ **Dialog Eliminazione** con conferma:
+  - Titolo "Conferma Eliminazione"
+  - Mostra anno e nome cliente
+  - Pulsanti Annulla/Elimina (rosso)
+- ✅ **Bordo laterale colorato** per ogni riga (verde/giallo/rosso)
+- ✅ **Filtri**: Ricerca cliente, stato, refresh
+
+**Bug Fix Backend (`/app/backend/routes/declarations.py`):**
+- ✅ DELETE endpoint ora accetta `admin` e `super_admin` oltre a `commercialista` per soft delete
+
+**Test:** Verificato con testing_agent_v3_fork (iteration_31.json):
+- Backend: 100% (4 passed, 3 skipped - no test data)
+- Frontend: 100% - Tutte le funzionalità verificate
+
+---
+
 ### Fase 55 (29 Marzo 2026) - COMPLETATA ✅
 
 **Ottimizzazione Prestazioni Avvio App Desktop Mac**
