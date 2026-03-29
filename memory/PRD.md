@@ -5,6 +5,32 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 55 (29 Marzo 2026) - COMPLETATA ✅
+
+**Ottimizzazione Prestazioni Avvio App Desktop Mac**
+
+**Richiesta Utente:** L'app Mac era lenta all'avvio, richiesta ottimizzazione performance.
+
+**Ottimizzazioni Implementate (`/app/desktop-app/main.js` v1.2.0 Ultra Fast Edition):**
+- ✅ **Splash screen HTML inline** - Zero I/O, caricamento istantaneo
+- ✅ **Lazy loading aggressivo** - Moduli pesanti (Menu, Tray, IPC) caricati DOPO che la UI è visibile
+- ✅ **Chromium flags ottimizzati** - 13 flag per startup veloce:
+  - `--disable-gpu-sandbox`, `--no-zygote`, `--disable-background-networking`
+  - `--disable-extensions`, `--disable-sync`, `--no-first-run`
+  - `--js-flags=--max-old-space-size=256 --optimize-for-size`
+- ✅ **Cache sessione persistente** - `partition: 'persist:fiscaltax'`
+- ✅ **Preconnect DNS** - DNS lookup anticipato per fiscaltaxcanarie.com
+- ✅ **Main window in background** - Creata con `setImmediate()` senza bloccare splash
+- ✅ **Splash minimalista** - Dimensioni ridotte (360x260), design essenziale
+
+**File aggiornati:**
+- `/app/desktop-app/main.js` - Riscritto con ottimizzazioni ultra-veloci
+- `/app/desktop-app/package.json` - Versione 1.2.0
+
+**Download:** `/app/FiscalTaxCanarie-Mac-v1.2.zip` (284 MB) pronto per distribuzione
+
+---
+
 ### Fase 54 (29 Marzo 2026) - COMPLETATA ✅
 
 **Nuovo Logo e Splash Screen Desktop App**
@@ -17,21 +43,10 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 - ✅ Generato `icon.png` per Mac (pronto per conversione ICNS)
 - ✅ Aggiornato `tray-icon.png` per system tray
 
-**Nuova Splash Screen (`/app/desktop-app/main.js`):**
-- ✅ Design moderno con sfondo gradient dark (#1a1a2e → #16213e → #0f3460)
-- ✅ Logo con effetto float e glow animato
-- ✅ Particelle animate in background
-- ✅ Barra di caricamento con gradient cyan/teal
-- ✅ Testo "Connessione in corso..." animato
-- ✅ Versione v1.2.0 in basso
-- ✅ Finestra più grande (480x380) per migliore impatto visivo
-
 **File aggiornati:**
 - `/app/desktop-app/main.js` - Nuova splash screen
 - `/app/desktop-app/package.json` - Versione 1.2.0
 - `/app/desktop-app/build/*` - Tutte le icone
-
-**Download:** `/app/desktop-app.zip` pronto per distribuzione
 
 ### Fase 53 (29 Marzo 2026) - COMPLETATA ✅
 
