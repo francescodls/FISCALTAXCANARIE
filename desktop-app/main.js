@@ -60,8 +60,8 @@ let splashWindow = null;
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
-    width: 400,
-    height: 300,
+    width: 480,
+    height: 380,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -73,7 +73,18 @@ function createSplashWindow() {
     }
   });
 
-  // Contenuto splash inline (nessun file esterno = più veloce)
+  // Leggi l'immagine del logo come base64
+  const fs = require('fs');
+  let logoBase64 = '';
+  try {
+    const logoPath = path.join(__dirname, 'build', 'icon_256x256.png');
+    const logoBuffer = fs.readFileSync(logoPath);
+    logoBase64 = logoBuffer.toString('base64');
+  } catch (e) {
+    console.error('Errore caricamento logo:', e);
+  }
+
+  // Contenuto splash con design moderno
   const splashHTML = `
     <!DOCTYPE html>
     <html>
@@ -81,62 +92,214 @@ function createSplashWindow() {
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
           height: 100vh;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          color: white;
-          border-radius: 16px;
           -webkit-app-region: drag;
-        }
-        .logo {
-          width: 80px;
-          height: 80px;
-          margin-bottom: 20px;
-          animation: pulse 1.5s ease-in-out infinite;
-        }
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.05); opacity: 0.8; }
-        }
-        h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; }
-        p { font-size: 14px; opacity: 0.8; }
-        .loader {
-          margin-top: 30px;
-          width: 40px;
-          height: 4px;
-          background: rgba(255,255,255,0.3);
-          border-radius: 2px;
           overflow: hidden;
         }
+        
+        .splash-container {
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(165deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+          border-radius: 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          box-shadow: 0 25px 80px rgba(0,0,0,0.4);
+        }
+        
+        /* Effetto particelle sfondo */
+        .particles {
+          position: absolute;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          border-radius: 20px;
+        }
+        
+        .particle {
+          position: absolute;
+          width: 4px;
+          height: 4px;
+          background: rgba(255,255,255,0.1);
+          border-radius: 50%;
+          animation: float 15s infinite;
+        }
+        
+        .particle:nth-child(1) { left: 10%; top: 20%; animation-delay: 0s; }
+        .particle:nth-child(2) { left: 20%; top: 80%; animation-delay: 2s; }
+        .particle:nth-child(3) { left: 80%; top: 10%; animation-delay: 4s; }
+        .particle:nth-child(4) { left: 70%; top: 60%; animation-delay: 1s; }
+        .particle:nth-child(5) { left: 50%; top: 90%; animation-delay: 3s; }
+        .particle:nth-child(6) { left: 90%; top: 40%; animation-delay: 5s; }
+        
+        @keyframes float {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 0.3; }
+          50% { transform: translateY(-30px) scale(1.5); opacity: 0.8; }
+        }
+        
+        .content {
+          position: relative;
+          z-index: 10;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+        }
+        
+        .logo-container {
+          width: 120px;
+          height: 120px;
+          margin-bottom: 24px;
+          position: relative;
+        }
+        
+        .logo {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          filter: drop-shadow(0 10px 30px rgba(14, 165, 233, 0.3));
+          animation: logoFloat 3s ease-in-out infinite;
+        }
+        
+        @keyframes logoFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        
+        /* Anello luminoso intorno al logo */
+        .logo-glow {
+          position: absolute;
+          top: -10px;
+          left: -10px;
+          right: -10px;
+          bottom: -10px;
+          border: 2px solid transparent;
+          border-radius: 50%;
+          background: linear-gradient(135deg, rgba(14, 165, 233, 0.3), rgba(20, 184, 166, 0.3)) border-box;
+          -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+          mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          animation: glowPulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes glowPulse {
+          0%, 100% { opacity: 0.5; transform: scale(1); }
+          50% { opacity: 1; transform: scale(1.05); }
+        }
+        
+        h1 {
+          font-size: 28px;
+          font-weight: 700;
+          color: white;
+          margin-bottom: 8px;
+          letter-spacing: -0.5px;
+        }
+        
+        .subtitle {
+          font-size: 14px;
+          color: rgba(255,255,255,0.6);
+          font-weight: 400;
+          margin-bottom: 32px;
+        }
+        
+        .loader-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+        }
+        
+        .loader {
+          width: 180px;
+          height: 4px;
+          background: rgba(255,255,255,0.1);
+          border-radius: 4px;
+          overflow: hidden;
+          position: relative;
+        }
+        
         .loader::after {
           content: '';
-          display: block;
-          width: 50%;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 40%;
           height: 100%;
-          background: white;
-          border-radius: 2px;
-          animation: loading 1s ease-in-out infinite;
+          background: linear-gradient(90deg, #0ea5e9, #14b8a6, #0ea5e9);
+          border-radius: 4px;
+          animation: loading 1.5s ease-in-out infinite;
         }
+        
         @keyframes loading {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
+          0% { left: -40%; }
+          100% { left: 100%; }
+        }
+        
+        .status {
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
+          letter-spacing: 1px;
+          text-transform: uppercase;
+        }
+        
+        .version {
+          position: absolute;
+          bottom: 20px;
+          font-size: 11px;
+          color: rgba(255,255,255,0.3);
         }
       </style>
     </head>
     <body>
-      <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M50 5L95 50L50 95L5 50L50 5Z" stroke="white" stroke-width="3" fill="none"/>
-        <rect x="25" y="55" width="12" height="25" fill="white"/>
-        <rect x="44" y="40" width="12" height="40" fill="white"/>
-        <rect x="63" y="25" width="12" height="55" fill="white"/>
-      </svg>
-      <h1>Fiscal Tax Canarie</h1>
-      <p>Caricamento in corso...</p>
-      <div class="loader"></div>
+      <div class="splash-container">
+        <div class="particles">
+          <div class="particle"></div>
+          <div class="particle"></div>
+          <div class="particle"></div>
+          <div class="particle"></div>
+          <div class="particle"></div>
+          <div class="particle"></div>
+        </div>
+        
+        <div class="content">
+          <div class="logo-container">
+            <div class="logo-glow"></div>
+            ${logoBase64 ? `<img class="logo" src="data:image/png;base64,${logoBase64}" alt="Logo">` : `
+              <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="45" stroke="url(#grad)" stroke-width="3" fill="none"/>
+                <rect x="25" y="55" width="12" height="25" fill="url(#grad)"/>
+                <rect x="44" y="40" width="12" height="40" fill="url(#grad)"/>
+                <rect x="63" y="25" width="12" height="55" fill="url(#grad)"/>
+                <defs>
+                  <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#0ea5e9"/>
+                    <stop offset="100%" style="stop-color:#14b8a6"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            `}
+          </div>
+          
+          <h1>Fiscal Tax Canarie</h1>
+          <p class="subtitle">Gestione Fiscale Professionale</p>
+          
+          <div class="loader-container">
+            <div class="loader"></div>
+            <span class="status">Connessione in corso...</span>
+          </div>
+        </div>
+        
+        <span class="version">v1.2.0</span>
+      </div>
     </body>
     </html>
   `;
