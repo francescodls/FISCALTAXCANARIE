@@ -529,7 +529,7 @@ async def delete_tax_return(
             raise HTTPException(status_code=400, detail="Solo le pratiche in bozza possono essere eliminate")
     
     # Admin può eliminare qualsiasi pratica
-    if user["role"] == "commercialista":
+    if user["role"] in ["commercialista", "admin", "super_admin"]:
         if soft_delete:
             # Soft delete - imposta stato "eliminata"
             now = datetime.now(timezone.utc).isoformat()

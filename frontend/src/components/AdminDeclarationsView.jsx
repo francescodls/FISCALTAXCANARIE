@@ -4,10 +4,21 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { 
   Users, Search, FileText, ChevronRight, MessageCircle, 
   AlertCircle, Clock, CheckCircle, FileCheck, RefreshCw,
-  ArrowLeft, User, Calendar, Send, Paperclip, Eye
+  ArrowLeft, User, Calendar, Send, Paperclip, Eye, Trash2,
+  Building2, LayoutList, FolderOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -15,18 +26,35 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
   const [clients, setClients] = useState([]);
+  const [allDeclarations, setAllDeclarations] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientDeclarations, setClientDeclarations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('all'); // 'all' = tutte le dichiarazioni, 'clients' = per cliente
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, declaration: null });
   const [filters, setFilters] = useState({
     search: '',
     tipoCliente: '',
-    hasPendingRequests: ''
+    hasPendingRequests: '',
+    stato: ''
   });
 
   useEffect(() => {
     fetchClientsWithDeclarations();
+    fetchAllDeclarations();
   }, []);
+
+  const fetchAllDeclarations = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setAllDeclarations(data);
+    } catch (error) {
+      console.error('Errore caricamento dichiarazioni:', error);
+    }
+  };
 
   const fetchClientsWithDeclarations = async () => {
     setLoading(true);
@@ -73,6 +101,74 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
     setClientDeclarations([]);
   };
 
+  const handleStatusChange = async (declarationId, newStatus) => {
+    try {
+      const formData = new FormData();
+      formData.append('nuovo_stato', newStatus);
+      
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declarationId}/status`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData
+      });
+      
+      if (res.ok) {
+        toast.success(`Stato aggiornato: ${getStatusLabel(newStatus)}`);
+        fetchAllDeclarations();
+        if (selectedClient) {
+          fetchClientDeclarations(selectedClient.client_id);
+        }
+      } else {
+        toast.error('Errore aggiornamento stato');
+      }
+    } catch (error) {
+      console.error('Errore:', error);
+      toast.error('Errore aggiornamento stato');
+    }
+  };
+
+  const handleDeleteDeclaration = async () => {
+    if (!deleteDialog.declaration) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${deleteDialog.declaration.id}?soft_delete=true`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        toast.success('Dichiarazione eliminata');
+        setDeleteDialog({ open: false, declaration: null });
+        fetchAllDeclarations();
+        fetchClientsWithDeclarations();
+        if (selectedClient) {
+          fetchClientDeclarations(selectedClient.client_id);
+        }
+      } else {
+        toast.error('Errore eliminazione');
+      }
+    } catch (error) {
+      console.error('Errore:', error);
+      toast.error('Errore eliminazione');
+    }
+  };
+
+  const getStatusLabel = (stato) => {
+    const labels = {
+      bozza: 'Bozza',
+      inviata: 'Inviata',
+      documentazione_incompleta: 'Doc. Incompleta',
+      in_revisione: 'In Revisione',
+      pronta: 'Pronta',
+      presentata: 'Presentata',
+      errata: 'Errata',
+      non_presentare: 'Non Presentare',
+      archiviata: 'Archiviata',
+      eliminata: 'Eliminata'
+    };
+    return labels[stato] || stato;
+  };
+
   const getStatusBadge = (stato) => {
     // Codifica colore:
     // VERDE = presentata
@@ -114,13 +210,364 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
   // Stats totali
   const totalStats = {
     totalClients: clients.length,
-    totalDeclarations: clients.reduce((acc, c) => acc + c.total_declarations, 0),
+    totalDeclarations: allDeclarations.filter(d => d.stato !== 'eliminata').length,
     totalPending: clients.reduce((acc, c) => acc + c.total_richieste_pendenti, 0),
-    totalUnread: clients.reduce((acc, c) => acc + c.unread_messages, 0)
+    totalUnread: clients.reduce((acc, c) => acc + c.unread_messages, 0),
+    presentate: allDeclarations.filter(d => d.stato === 'presentata').length,
+    pendenti: allDeclarations.filter(d => ['bozza', 'inviata', 'documentazione_incompleta', 'in_revisione', 'pronta'].includes(d.stato)).length,
+    errate: allDeclarations.filter(d => ['errata', 'non_presentare'].includes(d.stato)).length
   };
 
-  // Vista Lista Clienti
-  if (!selectedClient) {
+  // Filtra dichiarazioni per la vista "Tutte"
+  const filteredDeclarations = allDeclarations.filter(decl => {
+    if (decl.stato === 'eliminata') return false;
+    
+    // Filtro ricerca (nome cliente o email)
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchName = decl.client_name?.toLowerCase().includes(searchLower);
+      const matchEmail = decl.client_email?.toLowerCase().includes(searchLower);
+      if (!matchName && !matchEmail) return false;
+    }
+    
+    // Filtro stato
+    if (filters.stato) {
+      if (filters.stato === 'pendente' && !['bozza', 'inviata', 'documentazione_incompleta', 'in_revisione', 'pronta'].includes(decl.stato)) return false;
+      if (filters.stato === 'presentata' && decl.stato !== 'presentata') return false;
+      if (filters.stato === 'errata' && !['errata', 'non_presentare'].includes(decl.stato)) return false;
+    }
+    
+    return true;
+  });
+
+  // Componente per il selettore di stato
+  const StatusSelector = ({ declaration }) => (
+    <Select 
+      value={declaration.stato} 
+      onValueChange={(newStatus) => handleStatusChange(declaration.id, newStatus)}
+    >
+      <SelectTrigger className="w-[160px] h-8 text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="bozza">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            Bozza
+          </div>
+        </SelectItem>
+        <SelectItem value="inviata">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            Inviata
+          </div>
+        </SelectItem>
+        <SelectItem value="documentazione_incompleta">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            Doc. Incompleta
+          </div>
+        </SelectItem>
+        <SelectItem value="in_revisione">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            In Revisione
+          </div>
+        </SelectItem>
+        <SelectItem value="pronta">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-500" />
+            Pronta
+          </div>
+        </SelectItem>
+        <SelectItem value="presentata">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            Presentata
+          </div>
+        </SelectItem>
+        <SelectItem value="errata">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            Errata
+          </div>
+        </SelectItem>
+        <SelectItem value="non_presentare">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500" />
+            Non Presentare
+          </div>
+        </SelectItem>
+        <SelectItem value="archiviata">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-slate-400" />
+            Archiviata
+          </div>
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
+  // Vista Tutte le Dichiarazioni
+  if (viewMode === 'all' && !selectedClient) {
+    return (
+      <div className="space-y-6" data-testid="admin-declarations-all-view">
+        {/* Dialog Conferma Eliminazione */}
+        <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+              <AlertDialogDescription>
+                Sei sicuro di voler eliminare la dichiarazione {deleteDialog.declaration?.anno_fiscale} di <strong>{deleteDialog.declaration?.client_name}</strong>?
+                <br /><br />
+                La pratica verrà contrassegnata come eliminata e non sarà più visibile nella lista.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteDeclaration} className="bg-red-600 hover:bg-red-700">
+                Elimina
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-teal-50 cursor-pointer hover:bg-teal-100 transition-colors" onClick={() => setFilters({...filters, stato: ''})}>
+            <CardContent className="p-4 text-center">
+              <FileText className="w-6 h-6 mx-auto mb-2 text-teal-600" />
+              <p className="text-2xl font-bold text-teal-700">{totalStats.totalDeclarations}</p>
+              <p className="text-sm text-slate-500">Totale Dichiarazioni</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-green-50 cursor-pointer hover:bg-green-100 transition-colors border-green-200" onClick={() => setFilters({...filters, stato: 'presentata'})}>
+            <CardContent className="p-4 text-center">
+              <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-600" />
+              <p className="text-2xl font-bold text-green-700">{totalStats.presentate}</p>
+              <p className="text-sm text-slate-500">Presentate</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-yellow-50 cursor-pointer hover:bg-yellow-100 transition-colors border-yellow-200" onClick={() => setFilters({...filters, stato: 'pendente'})}>
+            <CardContent className="p-4 text-center">
+              <Clock className="w-6 h-6 mx-auto mb-2 text-yellow-600" />
+              <p className="text-2xl font-bold text-yellow-700">{totalStats.pendenti}</p>
+              <p className="text-sm text-slate-500">Pendenti</p>
+            </CardContent>
+          </Card>
+          <Card className="bg-red-50 cursor-pointer hover:bg-red-100 transition-colors border-red-200" onClick={() => setFilters({...filters, stato: 'errata'})}>
+            <CardContent className="p-4 text-center">
+              <AlertCircle className="w-6 h-6 mx-auto mb-2 text-red-600" />
+              <p className="text-2xl font-bold text-red-700">{totalStats.errate}</p>
+              <p className="text-sm text-slate-500">Errate / Non Presentare</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Toggle Vista + Filtri */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap gap-4 items-center">
+              {/* Toggle Vista */}
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <Button 
+                  variant={viewMode === 'all' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setViewMode('all')}
+                  className={viewMode === 'all' ? 'bg-teal-600' : ''}
+                >
+                  <LayoutList className="w-4 h-4 mr-1" />
+                  Tutte
+                </Button>
+                <Button 
+                  variant={viewMode === 'clients' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setViewMode('clients')}
+                  className={viewMode === 'clients' ? 'bg-teal-600' : ''}
+                >
+                  <FolderOpen className="w-4 h-4 mr-1" />
+                  Per Cliente
+                </Button>
+              </div>
+              
+              <div className="h-6 w-px bg-slate-200" />
+              
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input 
+                    placeholder="Cerca cliente (nome o email)..."
+                    className="pl-10"
+                    value={filters.search}
+                    onChange={(e) => setFilters({...filters, search: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              <Select 
+                value={filters.stato || "all"} 
+                onValueChange={(v) => setFilters({...filters, stato: v === "all" ? "" : v})}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Stato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="presentata">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      Presentate
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="pendente">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                      Pendenti
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="errata">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                      Errate
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Button variant="outline" onClick={() => { fetchAllDeclarations(); fetchClientsWithDeclarations(); }}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Aggiorna
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Lista Dichiarazioni */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-teal-600" />
+              Tutte le Dichiarazioni
+              <Badge variant="outline" className="ml-2">{filteredDeclarations.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-8 text-slate-500">Caricamento...</div>
+            ) : filteredDeclarations.length === 0 ? (
+              <div className="text-center py-8 text-slate-500">
+                Nessuna dichiarazione trovata
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-slate-50">
+                      <th className="text-left p-3 font-semibold text-slate-700">Cliente</th>
+                      <th className="text-left p-3 font-semibold text-slate-700">Anno</th>
+                      <th className="text-left p-3 font-semibold text-slate-700">Stato</th>
+                      <th className="text-left p-3 font-semibold text-slate-700">Ultima Modifica</th>
+                      <th className="text-center p-3 font-semibold text-slate-700">Documenti</th>
+                      <th className="text-center p-3 font-semibold text-slate-700">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDeclarations.map(decl => (
+                      <tr 
+                        key={decl.id} 
+                        className={`border-b hover:bg-slate-50 transition-colors ${
+                          decl.stato === 'presentata' ? 'border-l-4 border-l-green-500' :
+                          ['errata', 'non_presentare'].includes(decl.stato) ? 'border-l-4 border-l-red-500' :
+                          'border-l-4 border-l-yellow-400'
+                        }`}
+                        data-testid={`declaration-row-${decl.id}`}
+                      >
+                        {/* Cliente */}
+                        <td className="p-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
+                              {decl.client_name?.includes(' ') ? (
+                                <User className="w-5 h-5 text-teal-600" />
+                              ) : (
+                                <Building2 className="w-5 h-5 text-teal-600" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-slate-900">{decl.client_name || 'N/A'}</p>
+                              <p className="text-xs text-slate-500">{decl.client_email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        
+                        {/* Anno */}
+                        <td className="p-3">
+                          <Badge variant="outline" className="font-mono">
+                            {decl.anno_fiscale}
+                          </Badge>
+                        </td>
+                        
+                        {/* Stato (modificabile) */}
+                        <td className="p-3">
+                          <StatusSelector declaration={decl} />
+                        </td>
+                        
+                        {/* Ultima Modifica */}
+                        <td className="p-3 text-sm text-slate-500">
+                          {new Date(decl.updated_at).toLocaleDateString('it-IT', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                        
+                        {/* Documenti */}
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1 text-slate-500">
+                            <Paperclip className="w-4 h-4" />
+                            <span>{decl.documentos_count}</span>
+                          </div>
+                        </td>
+                        
+                        {/* Azioni */}
+                        <td className="p-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => onSelectDeclaration(decl)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              Dettaglio
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteDialog({ open: true, declaration: decl });
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Vista Lista Clienti (viewMode === 'clients')
+  if (viewMode === 'clients' && !selectedClient) {
     return (
       <div className="space-y-6" data-testid="admin-declarations-clients-view">
         {/* Stats Cards */}
@@ -129,14 +576,14 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
             <CardContent className="p-4 text-center">
               <Users className="w-6 h-6 mx-auto mb-2 text-slate-600" />
               <p className="text-2xl font-bold text-slate-900">{totalStats.totalClients}</p>
-              <p className="text-sm text-slate-500">Clienti con Dichiarazioni</p>
+              <p className="text-sm text-slate-500">Clienti</p>
             </CardContent>
           </Card>
           <Card className="bg-teal-50">
             <CardContent className="p-4 text-center">
               <FileText className="w-6 h-6 mx-auto mb-2 text-teal-600" />
               <p className="text-2xl font-bold text-teal-700">{totalStats.totalDeclarations}</p>
-              <p className="text-sm text-slate-500">Totale Dichiarazioni</p>
+              <p className="text-sm text-slate-500">Dichiarazioni</p>
             </CardContent>
           </Card>
           <Card className={`${totalStats.totalPending > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-gray-50'}`}>
@@ -150,15 +597,39 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
             <CardContent className="p-4 text-center">
               <MessageCircle className={`w-6 h-6 mx-auto mb-2 ${totalStats.totalUnread > 0 ? 'text-blue-600' : 'text-gray-400'}`} />
               <p className={`text-2xl font-bold ${totalStats.totalUnread > 0 ? 'text-blue-700' : 'text-gray-500'}`}>{totalStats.totalUnread}</p>
-              <p className="text-sm text-slate-500">Messaggi Non Letti</p>
+              <p className="text-sm text-slate-500">Messaggi</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Filtri */}
+        {/* Toggle Vista + Filtri */}
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-wrap gap-4 items-center">
+              {/* Toggle Vista */}
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                <Button 
+                  variant={viewMode === 'all' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setViewMode('all')}
+                  className={viewMode === 'all' ? 'bg-teal-600' : ''}
+                >
+                  <LayoutList className="w-4 h-4 mr-1" />
+                  Tutte
+                </Button>
+                <Button 
+                  variant={viewMode === 'clients' ? 'default' : 'ghost'} 
+                  size="sm"
+                  onClick={() => setViewMode('clients')}
+                  className={viewMode === 'clients' ? 'bg-teal-600' : ''}
+                >
+                  <FolderOpen className="w-4 h-4 mr-1" />
+                  Per Cliente
+                </Button>
+              </div>
+              
+              <div className="h-6 w-px bg-slate-200" />
+              
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -184,18 +655,6 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                   <SelectItem value="societa">Società</SelectItem>
                   <SelectItem value="vivienda_vacacional">Vivienda Vacacional</SelectItem>
                   <SelectItem value="persona_fisica">Persona Fisica</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select 
-                value={filters.hasPendingRequests || "all"} 
-                onValueChange={(v) => setFilters({...filters, hasPendingRequests: v === "all" ? "" : v})}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Stato Richieste" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tutte</SelectItem>
-                  <SelectItem value="true">Con richieste pendenti</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={fetchClientsWithDeclarations}>
@@ -246,13 +705,11 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                       </div>
                       
                       <div className="flex items-center gap-6">
-                        {/* Conteggio Dichiarazioni */}
                         <div className="text-center">
                           <p className="text-xl font-bold text-slate-700">{client.total_declarations}</p>
                           <p className="text-xs text-slate-500">Dichiarazioni</p>
                         </div>
                         
-                        {/* Indicatori Stato */}
                         <div className="flex gap-2">
                           {client.declarations_inviate > 0 && (
                             <Badge className="bg-blue-100 text-blue-700">
@@ -264,14 +721,8 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                               {client.declarations_in_revisione} In Rev.
                             </Badge>
                           )}
-                          {client.declarations_doc_incompleta > 0 && (
-                            <Badge className="bg-yellow-100 text-yellow-700">
-                              {client.declarations_doc_incompleta} Doc. Inc.
-                            </Badge>
-                          )}
                         </div>
                         
-                        {/* Indicatori Alert */}
                         <div className="flex items-center gap-2">
                           {client.total_richieste_pendenti > 0 && (
                             <div className="flex items-center gap-1 text-yellow-600">
