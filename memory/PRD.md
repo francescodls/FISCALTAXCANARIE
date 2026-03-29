@@ -5,6 +5,39 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 47 (29 Marzo 2026) - COMPLETATA ✅
+
+**Correzione Contrasto Pulsanti in Hover**
+
+**Problema:** I pulsanti in stato hover avevano sfondo scuro con testo scuro, risultando illeggibili.
+
+**Correzione Applicata:**
+- ✅ Modificato `button.jsx`: varianti `outline` e `ghost` ora usano `hover:bg-slate-100 hover:text-slate-900`
+- ✅ Modificato `toggle.jsx`: stesso fix per i toggle
+- ✅ Modificato `navigation-menu.jsx`: fix per menu navigazione
+- ✅ Modificato `select.jsx`: fix per SelectItem focus
+- ✅ Modificato `dropdown-menu.jsx`: fix per tutti gli item del dropdown
+- ✅ Modificato `command.jsx`: fix per CommandItem selected
+- ✅ Modificato `context-menu.jsx`: fix per tutti gli item
+- ✅ Modificato `menubar.jsx`: fix per tutti gli item
+- ✅ Aggiornato `index.css`: variabile `--accent` ora è un colore chiaro (210 40% 96%)
+
+**Regola UI applicata:**
+- Sfondo chiaro (hover) → Testo scuro
+- Sfondo scuro (default) → Testo bianco
+- Icone seguono lo stesso contrasto
+
+**File Modificati:**
+- `/app/frontend/src/components/ui/button.jsx`
+- `/app/frontend/src/components/ui/toggle.jsx`
+- `/app/frontend/src/components/ui/navigation-menu.jsx`
+- `/app/frontend/src/components/ui/select.jsx`
+- `/app/frontend/src/components/ui/dropdown-menu.jsx`
+- `/app/frontend/src/components/ui/command.jsx`
+- `/app/frontend/src/components/ui/context-menu.jsx`
+- `/app/frontend/src/components/ui/menubar.jsx`
+- `/app/frontend/src/index.css`
+
 ### Fase 46 (29 Marzo 2026) - COMPLETATA ✅
 
 **Riorganizzazione Sezione Categorie Clienti**
