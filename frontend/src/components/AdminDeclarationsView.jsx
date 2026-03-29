@@ -74,16 +74,24 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
   };
 
   const getStatusBadge = (stato) => {
+    // Codifica colore:
+    // VERDE = presentata
+    // GIALLO = pendente (bozza, inviata, doc_incompleta, in_revisione, pronta)
+    // ROSSO = errata, non_presentare
+    // GRIGIO = archiviata, eliminata
     const config = {
-      bozza: { label: 'Bozza', color: 'bg-gray-100 text-gray-700', icon: Clock },
-      inviata: { label: 'Inviata', color: 'bg-blue-100 text-blue-700', icon: Send },
-      documentazione_incompleta: { label: 'Doc. Incompleta', color: 'bg-yellow-100 text-yellow-700', icon: AlertCircle },
-      in_revisione: { label: 'In Revisione', color: 'bg-purple-100 text-purple-700', icon: Eye },
-      pronta: { label: 'Pronta', color: 'bg-teal-100 text-teal-700', icon: FileCheck },
-      presentata: { label: 'Presentata', color: 'bg-green-100 text-green-700', icon: CheckCircle },
-      archiviata: { label: 'Archiviata', color: 'bg-slate-100 text-slate-700', icon: FileText }
+      bozza: { label: 'Bozza', color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: Clock },
+      inviata: { label: 'Inviata', color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: Send },
+      documentazione_incompleta: { label: 'Doc. Incompleta', color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: AlertCircle },
+      in_revisione: { label: 'In Revisione', color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: Eye },
+      pronta: { label: 'Pronta', color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: FileCheck },
+      presentata: { label: 'Presentata', color: 'bg-green-100 text-green-700 border border-green-300', icon: CheckCircle },
+      errata: { label: 'Errata', color: 'bg-red-100 text-red-700 border border-red-300', icon: AlertCircle },
+      non_presentare: { label: 'Non Presentare', color: 'bg-red-100 text-red-700 border border-red-300', icon: AlertCircle },
+      archiviata: { label: 'Archiviata', color: 'bg-slate-100 text-slate-600 border border-slate-300', icon: FileText },
+      eliminata: { label: 'Eliminata', color: 'bg-slate-200 text-slate-500 border border-slate-300', icon: FileText }
     };
-    const cfg = config[stato] || { label: stato, color: 'bg-gray-100', icon: FileText };
+    const cfg = config[stato] || { label: stato, color: 'bg-gray-100 text-gray-600', icon: FileText };
     const Icon = cfg.icon;
     return (
       <Badge className={`${cfg.color} flex items-center gap-1`}>

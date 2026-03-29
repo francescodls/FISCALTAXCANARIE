@@ -7,11 +7,12 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from './ui/alert-dialog';
 import { 
   ArrowLeft, User, Calendar, FileText, MessageCircle, Send, 
   AlertCircle, CheckCircle, Clock, Download, Paperclip, Eye,
   Plus, X, Upload, FileCheck, Building2, Briefcase, Home,
-  TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw
+  TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,8 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [showIntegrationDialog, setShowIntegrationDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [integrationRequest, setIntegrationRequest] = useState({
     seccion: '',
     mensaje: '',
@@ -144,6 +147,26 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
     }
   };
 
+  const deleteDeclaration = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}?soft_delete=true`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Errore eliminazione');
+      
+      toast.success('Pratica eliminata');
+      setShowDeleteDialog(false);
+      onBack(); // Torna alla lista
+    } catch (error) {
+      toast.error('Errore eliminazione pratica');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const downloadAuthPdf = async () => {
     try {
       const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}/authorization-pdf`, {
@@ -171,22 +194,33 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
       in_revisione: 'In Revisione',
       pronta: 'Pronta',
       presentata: 'Presentata',
-      archiviata: 'Archiviata'
+      errata: 'Errata',
+      non_presentare: 'Non Presentare',
+      archiviata: 'Archiviata',
+      eliminata: 'Eliminata'
     };
     return labels[stato] || stato;
   };
 
   const getStatusBadge = (stato) => {
+    // Codifica colore:
+    // VERDE = presentata
+    // GIALLO = pendente (bozza, inviata, doc_incompleta, in_revisione, pronta)
+    // ROSSO = errata, non_presentare
+    // GRIGIO = archiviata, eliminata
     const config = {
-      bozza: { color: 'bg-gray-100 text-gray-700', icon: Clock },
-      inviata: { color: 'bg-blue-100 text-blue-700', icon: Send },
-      documentazione_incompleta: { color: 'bg-yellow-100 text-yellow-700', icon: AlertCircle },
-      in_revisione: { color: 'bg-purple-100 text-purple-700', icon: Eye },
-      pronta: { color: 'bg-teal-100 text-teal-700', icon: FileCheck },
-      presentata: { color: 'bg-green-100 text-green-700', icon: CheckCircle },
-      archiviata: { color: 'bg-slate-100 text-slate-700', icon: FileText }
+      bozza: { color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: Clock },
+      inviata: { color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: Send },
+      documentazione_incompleta: { color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: AlertCircle },
+      in_revisione: { color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: Eye },
+      pronta: { color: 'bg-yellow-100 text-yellow-700 border border-yellow-300', icon: FileCheck },
+      presentata: { color: 'bg-green-100 text-green-700 border border-green-300', icon: CheckCircle },
+      errata: { color: 'bg-red-100 text-red-700 border border-red-300', icon: AlertCircle },
+      non_presentare: { color: 'bg-red-100 text-red-700 border border-red-300', icon: AlertCircle },
+      archiviata: { color: 'bg-slate-100 text-slate-600 border border-slate-300', icon: FileText },
+      eliminata: { color: 'bg-slate-200 text-slate-500 border border-slate-300', icon: Trash2 }
     };
-    const cfg = config[stato] || { color: 'bg-gray-100', icon: FileText };
+    const cfg = config[stato] || { color: 'bg-gray-100 text-gray-600', icon: FileText };
     const Icon = cfg.icon;
     return (
       <Badge className={`${cfg.color} flex items-center gap-1 text-sm px-3 py-1`}>
@@ -264,19 +298,79 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
               {/* Cambio stato (solo admin) */}
               {isAdmin && (
                 <Select value={declaration.stato} onValueChange={updateStatus}>
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="Cambia stato" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bozza">Bozza</SelectItem>
-                    <SelectItem value="inviata">Inviata</SelectItem>
-                    <SelectItem value="documentazione_incompleta">Doc. Incompleta</SelectItem>
-                    <SelectItem value="in_revisione">In Revisione</SelectItem>
-                    <SelectItem value="pronta">Pronta</SelectItem>
-                    <SelectItem value="presentata">Presentata</SelectItem>
-                    <SelectItem value="archiviata">Archiviata</SelectItem>
+                    <SelectItem value="bozza">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                        Bozza
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="inviata">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                        Inviata
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="documentazione_incompleta">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                        Doc. Incompleta
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="in_revisione">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                        In Revisione
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="pronta">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                        Pronta
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="presentata">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                        Presentata
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="errata">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                        Errata
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="non_presentare">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                        Non Presentare
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="archiviata">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-slate-500"></span>
+                        Archiviata
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+              )}
+              
+              {/* Pulsante Elimina (solo admin) */}
+              {isAdmin && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Elimina
+                </Button>
               )}
             </div>
           </div>
@@ -694,6 +788,35 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Conferma Eliminazione */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="w-5 h-5" />
+              Conferma Eliminazione
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare la dichiarazione dei redditi <strong>{declaration.anno_fiscale}</strong> di <strong>{declaration.client_name}</strong>.
+              <br /><br />
+              La pratica verrà spostata nello stato "Eliminata" e non sarà più visibile nella lista principale.
+              <br /><br />
+              <span className="text-amber-600">Questa azione può essere annullata contattando il supporto tecnico.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Annulla</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={deleteDeclaration}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {deleting ? 'Eliminazione...' : 'Elimina Pratica'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

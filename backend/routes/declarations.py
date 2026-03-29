@@ -358,7 +358,15 @@ async def update_tax_return_status(
     """Aggiorna lo stato della pratica"""
     db = get_db()
     
-    valid_states = ["bozza", "inviata", "documentazione_incompleta", "in_revisione", "pronta", "presentata", "archiviata"]
+    # Stati validi con codifica colore:
+    # VERDE: presentata
+    # GIALLO: bozza, inviata, documentazione_incompleta, in_revisione, pronta
+    # ROSSO: errata, non_presentare
+    # GRIGIO: archiviata
+    valid_states = [
+        "bozza", "inviata", "documentazione_incompleta", "in_revisione", 
+        "pronta", "presentata", "archiviata", "errata", "non_presentare"
+    ]
     if nuovo_stato not in valid_states:
         raise HTTPException(status_code=400, detail="Stato non valido")
     
@@ -433,24 +441,65 @@ async def update_tax_return_status(
 
 
 @router.delete("/tax-returns/{tax_return_id}")
-async def delete_tax_return(tax_return_id: str, user: dict = Depends(get_current_user)):
-    """Elimina una pratica (solo se in bozza)"""
+async def delete_tax_return(
+    tax_return_id: str, 
+    soft_delete: bool = True,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Elimina una pratica.
+    - Cliente: può eliminare solo le proprie pratiche in bozza
+    - Admin: può eliminare qualsiasi pratica (soft delete di default)
+    
+    soft_delete=True: imposta stato "eliminata" (recuperabile)
+    soft_delete=False: eliminazione definitiva
+    """
     db = get_db()
     
     tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
     if not tax_return:
         raise HTTPException(status_code=404, detail="Pratica non trovata")
     
-    # Solo il proprietario o admin può eliminare
-    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
-        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    # Verifica permessi
+    if user["role"] == "cliente":
+        if tax_return["client_id"] != user["id"]:
+            raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+        if tax_return["stato"] != "bozza":
+            raise HTTPException(status_code=400, detail="Solo le pratiche in bozza possono essere eliminate")
     
-    # Solo bozze eliminabili
-    if tax_return["stato"] != "bozza":
-        raise HTTPException(status_code=400, detail="Solo le pratiche in bozza possono essere eliminate")
+    # Admin può eliminare qualsiasi pratica
+    if user["role"] == "commercialista":
+        if soft_delete:
+            # Soft delete - imposta stato "eliminata"
+            now = datetime.now(timezone.utc).isoformat()
+            await db.tax_returns.update_one(
+                {"id": tax_return_id},
+                {
+                    "$set": {
+                        "stato": "eliminata",
+                        "deleted_at": now,
+                        "deleted_by": user["id"],
+                        "updated_at": now
+                    },
+                    "$push": {
+                        "status_logs": {
+                            "stato_precedente": tax_return["stato"],
+                            "stato_nuovo": "eliminata",
+                            "changed_by": user["id"],
+                            "changed_at": now,
+                            "motivo": "Eliminata dall'amministratore"
+                        }
+                    }
+                }
+            )
+            return {"message": "Pratica eliminata (soft delete)", "recoverable": True}
+        else:
+            # Hard delete
+            await db.tax_returns.delete_one({"id": tax_return_id})
+            return {"message": "Pratica eliminata definitivamente", "recoverable": False}
     
+    # Cliente - hard delete (solo bozze)
     await db.tax_returns.delete_one({"id": tax_return_id})
-    
     return {"message": "Pratica eliminata"}
 
 
