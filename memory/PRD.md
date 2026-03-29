@@ -5,6 +5,43 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 57 (29 Marzo 2026) - COMPLETATA ✅
+
+**Ordinamento e Ricerca Avanzata Dichiarazioni**
+
+**Richiesta Utente:** 
+1. Aggiungere possibilità di ordinare la lista dichiarazioni
+2. Aggiungere barra di ricerca con icona lente per trovare pratiche rapidamente
+
+**Implementazione Frontend (`/app/frontend/src/components/AdminDeclarationsView.jsx`):**
+
+**Ordinamento:**
+- ✅ Dropdown "Ordina per..." con 10 opzioni:
+  - Ultima modifica (recenti/meno recenti)
+  - Data richiesta (recenti/meno recenti)
+  - Stato (presentate prima / errate prima)
+  - Cliente (A-Z / Z-A)
+  - Anno fiscale (recenti/meno recenti)
+- ✅ Header colonne cliccabili per ordinamento rapido
+- ✅ Icone freccia (↑↓) indicano direzione ordinamento
+- ✅ Ordinamento con useMemo per performance
+
+**Ricerca Avanzata:**
+- ✅ Barra di ricerca con icona lente 🔍
+- ✅ Placeholder descrittivo: "Cerca per nome, cognome, ragione sociale, anno o stato..."
+- ✅ Ricerca in tempo reale (no invio richiesto)
+- ✅ Campi ricercabili:
+  - Nome cliente
+  - Cognome cliente
+  - Ragione sociale
+  - Email
+  - Anno fiscale
+  - Stato pratica
+
+**Test:** Screenshot verifica UI completata
+
+---
+
 ### Fase 56 (29 Marzo 2026) - COMPLETATA ✅
 
 **Visualizzazione Dichiarazioni Admin con Identificazione Cliente**

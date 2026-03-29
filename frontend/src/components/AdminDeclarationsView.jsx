@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -18,7 +18,7 @@ import {
   Users, Search, FileText, ChevronRight, MessageCircle, 
   AlertCircle, Clock, CheckCircle, FileCheck, RefreshCw,
   ArrowLeft, User, Calendar, Send, Paperclip, Eye, Trash2,
-  Building2, LayoutList, FolderOpen
+  Building2, LayoutList, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,6 +37,10 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
     tipoCliente: '',
     hasPendingRequests: '',
     stato: ''
+  });
+  const [sortConfig, setSortConfig] = useState({
+    field: 'updated_at', // campo di ordinamento
+    direction: 'desc'    // 'asc' o 'desc'
   });
 
   useEffect(() => {
@@ -219,26 +223,88 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
   };
 
   // Filtra dichiarazioni per la vista "Tutte"
-  const filteredDeclarations = allDeclarations.filter(decl => {
-    if (decl.stato === 'eliminata') return false;
-    
-    // Filtro ricerca (nome cliente o email)
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      const matchName = decl.client_name?.toLowerCase().includes(searchLower);
-      const matchEmail = decl.client_email?.toLowerCase().includes(searchLower);
-      if (!matchName && !matchEmail) return false;
+  const filteredDeclarations = useMemo(() => {
+    let result = allDeclarations.filter(decl => {
+      if (decl.stato === 'eliminata') return false;
+      
+      // Filtro ricerca avanzata (nome, email, anno, stato)
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase().trim();
+        const matchName = decl.client_name?.toLowerCase().includes(searchLower);
+        const matchEmail = decl.client_email?.toLowerCase().includes(searchLower);
+        const matchAnno = decl.anno_fiscale?.toString().includes(searchLower);
+        const matchStato = getStatusLabel(decl.stato).toLowerCase().includes(searchLower);
+        if (!matchName && !matchEmail && !matchAnno && !matchStato) return false;
+      }
+      
+      // Filtro stato
+      if (filters.stato) {
+        if (filters.stato === 'pendente' && !['bozza', 'inviata', 'documentazione_incompleta', 'in_revisione', 'pronta'].includes(decl.stato)) return false;
+        if (filters.stato === 'presentata' && decl.stato !== 'presentata') return false;
+        if (filters.stato === 'errata' && !['errata', 'non_presentare'].includes(decl.stato)) return false;
+      }
+      
+      return true;
+    });
+
+    // Ordinamento
+    result.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortConfig.field) {
+        case 'client_name':
+          comparison = (a.client_name || '').localeCompare(b.client_name || '');
+          break;
+        case 'anno_fiscale':
+          comparison = (a.anno_fiscale || 0) - (b.anno_fiscale || 0);
+          break;
+        case 'stato':
+          // Ordine: presentata, pendenti, errata
+          const statoOrder = {
+            presentata: 1,
+            pronta: 2,
+            in_revisione: 3,
+            documentazione_incompleta: 4,
+            inviata: 5,
+            bozza: 6,
+            errata: 7,
+            non_presentare: 8,
+            archiviata: 9
+          };
+          comparison = (statoOrder[a.stato] || 10) - (statoOrder[b.stato] || 10);
+          break;
+        case 'created_at':
+          comparison = new Date(a.created_at) - new Date(b.created_at);
+          break;
+        case 'updated_at':
+        default:
+          comparison = new Date(a.updated_at) - new Date(b.updated_at);
+          break;
+      }
+      
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [allDeclarations, filters.search, filters.stato, sortConfig]);
+
+  // Gestione click header tabella per ordinamento
+  const handleSort = (field) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  // Icona ordinamento per header
+  const SortIcon = ({ field }) => {
+    if (sortConfig.field !== field) {
+      return <ArrowUpDown className="w-4 h-4 ml-1 text-slate-400" />;
     }
-    
-    // Filtro stato
-    if (filters.stato) {
-      if (filters.stato === 'pendente' && !['bozza', 'inviata', 'documentazione_incompleta', 'in_revisione', 'pronta'].includes(decl.stato)) return false;
-      if (filters.stato === 'presentata' && decl.stato !== 'presentata') return false;
-      if (filters.stato === 'errata' && !['errata', 'non_presentare'].includes(decl.stato)) return false;
-    }
-    
-    return true;
-  });
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="w-4 h-4 ml-1 text-teal-600" />
+      : <ArrowDown className="w-4 h-4 ml-1 text-teal-600" />;
+  };
 
   // Componente per il selettore di stato
   const StatusSelector = ({ declaration }) => (
@@ -364,7 +430,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
           </Card>
         </div>
 
-        {/* Toggle Vista + Filtri */}
+        {/* Toggle Vista + Filtri + Ordinamento */}
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-wrap gap-4 items-center">
@@ -392,23 +458,26 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
               
               <div className="h-6 w-px bg-slate-200" />
               
-              <div className="flex-1 min-w-[200px]">
+              {/* Barra di ricerca migliorata */}
+              <div className="flex-1 min-w-[280px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input 
-                    placeholder="Cerca cliente (nome o email)..."
-                    className="pl-10"
+                    placeholder="Cerca per nome, cognome, ragione sociale, anno o stato..."
+                    className="pl-10 pr-4"
                     value={filters.search}
                     onChange={(e) => setFilters({...filters, search: e.target.value})}
+                    data-testid="declarations-search-input"
                   />
                 </div>
               </div>
               
+              {/* Filtro Stato */}
               <Select 
                 value={filters.stato || "all"} 
                 onValueChange={(v) => setFilters({...filters, stato: v === "all" ? "" : v})}
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Stato" />
                 </SelectTrigger>
                 <SelectContent>
@@ -429,6 +498,82 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-red-500" />
                       Errate
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Dropdown Ordinamento */}
+              <Select 
+                value={`${sortConfig.field}_${sortConfig.direction}`}
+                onValueChange={(v) => {
+                  const [field, direction] = v.split('_');
+                  setSortConfig({ field, direction });
+                }}
+              >
+                <SelectTrigger className="w-[200px]" data-testid="sort-dropdown">
+                  <ArrowUpDown className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Ordina per..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="updated_at_desc">
+                    <div className="flex items-center gap-2">
+                      <ArrowDown className="w-3 h-3" />
+                      Ultima modifica (recenti)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="updated_at_asc">
+                    <div className="flex items-center gap-2">
+                      <ArrowUp className="w-3 h-3" />
+                      Ultima modifica (meno recenti)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="created_at_desc">
+                    <div className="flex items-center gap-2">
+                      <ArrowDown className="w-3 h-3" />
+                      Data richiesta (recenti)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="created_at_asc">
+                    <div className="flex items-center gap-2">
+                      <ArrowUp className="w-3 h-3" />
+                      Data richiesta (meno recenti)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="stato_asc">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-3 h-3 text-green-500" />
+                      Stato (presentate prima)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="stato_desc">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-3 h-3 text-red-500" />
+                      Stato (errate prima)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="client_name_asc">
+                    <div className="flex items-center gap-2">
+                      <User className="w-3 h-3" />
+                      Cliente (A-Z)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="client_name_desc">
+                    <div className="flex items-center gap-2">
+                      <User className="w-3 h-3" />
+                      Cliente (Z-A)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="anno_fiscale_desc">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3" />
+                      Anno fiscale (recenti)
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="anno_fiscale_asc">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3" />
+                      Anno fiscale (meno recenti)
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -456,17 +601,49 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
               <div className="text-center py-8 text-slate-500">Caricamento...</div>
             ) : filteredDeclarations.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
-                Nessuna dichiarazione trovata
+                {filters.search ? `Nessun risultato per "${filters.search}"` : 'Nessuna dichiarazione trovata'}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-slate-50">
-                      <th className="text-left p-3 font-semibold text-slate-700">Cliente</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Anno</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Stato</th>
-                      <th className="text-left p-3 font-semibold text-slate-700">Ultima Modifica</th>
+                      <th 
+                        className="text-left p-3 font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 select-none"
+                        onClick={() => handleSort('client_name')}
+                      >
+                        <div className="flex items-center">
+                          Cliente
+                          <SortIcon field="client_name" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left p-3 font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 select-none"
+                        onClick={() => handleSort('anno_fiscale')}
+                      >
+                        <div className="flex items-center">
+                          Anno
+                          <SortIcon field="anno_fiscale" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left p-3 font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 select-none"
+                        onClick={() => handleSort('stato')}
+                      >
+                        <div className="flex items-center">
+                          Stato
+                          <SortIcon field="stato" />
+                        </div>
+                      </th>
+                      <th 
+                        className="text-left p-3 font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 select-none"
+                        onClick={() => handleSort('updated_at')}
+                      >
+                        <div className="flex items-center">
+                          Ultima Modifica
+                          <SortIcon field="updated_at" />
+                        </div>
+                      </th>
                       <th className="text-center p-3 font-semibold text-slate-700">Documenti</th>
                       <th className="text-center p-3 font-semibold text-slate-700">Azioni</th>
                     </tr>
