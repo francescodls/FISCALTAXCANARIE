@@ -5,6 +5,40 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 51 (29 Marzo 2026) - COMPLETATA ✅
+
+**Gestione Multi-Amministratore con Ruoli Super Admin e Amministratore**
+
+**Richiesta Utente:** Sistema multi-utente per il pannello admin con:
+- 2 Super Admin (Francesco e Bruno) con pieni poteri
+- Ruolo Amministratore con stesse funzioni ma senza elimina/invita admin
+- Validazione dominio @fiscaltaxcanarie.com obbligatoria
+- Identificazione personale (nome/cognome) in tutte le comunicazioni
+- Immagine profilo per tutti gli utenti
+
+**Implementazione Backend (`/app/backend/server.py`):**
+- ✅ Nuovi ruoli: `super_admin`, `admin` (oltre a `cliente`)
+- ✅ 2 Super Admin creati automaticamente:
+  - `francesco@fiscaltaxcanarie.com` / `Lanzarote1`
+  - `bruno@fiscaltaxcanarie.com` / `Lanzarote1`
+- ✅ Validazione dominio @fiscaltaxcanarie.com per ruoli admin
+- ✅ Endpoint gestione team: `GET /api/admin/team`, `POST /api/admin/invite`, `DELETE /api/admin/team/{id}`
+- ✅ Sistema invito con token: `POST /api/admin/invite` → `GET /api/admin/invite/verify/{token}` → `POST /api/admin/activate`
+- ✅ Cambio password: `PUT /api/admin/change-password`
+- ✅ Upload immagine profilo: `POST /api/auth/upload-profile-image`, `POST /api/admin/upload-profile-image`
+
+**Implementazione Frontend:**
+- ✅ `AdminTeamManagement.jsx`: Gestione team con lista membri, badge ruoli, dialog invito
+- ✅ `AdminActivate.jsx`: Pagina attivazione account da invito
+- ✅ Tab "Team" visibile SOLO per `super_admin` in `CommercialDashboard.jsx`
+- ✅ Route `/admin/activate` per attivazione account
+- ✅ Helper `isAdminRole()` per gestione ruoli in `App.js`
+- ✅ Validazione frontend dominio email
+
+**Test:** Verificato al 100% con testing_agent_v3_fork (iteration_28.json):
+- Backend: 15/15 test passati
+- Frontend: Tutte le funzionalità verificate
+
 ### Fase 50 (29 Marzo 2026) - COMPLETATA ✅
 
 **Estensione Anagrafica Società con Amministratori e Quote Sociali**
