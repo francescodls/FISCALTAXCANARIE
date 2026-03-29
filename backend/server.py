@@ -48,11 +48,23 @@ if not JWT_SECRET:
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
-# Commercialista predefinito (da env)
+# Commercialista predefinito (da env) - DEPRECATO, ora usiamo super_admin
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 if not ADMIN_PASSWORD:
     raise ValueError("ADMIN_PASSWORD must be set in environment variables")
+
+# Super Admin predefiniti
+SUPER_ADMINS = [
+    {"email": "francesco@fiscaltaxcanarie.com", "first_name": "Francesco", "last_name": "De Liso", "password": "Lanzarote1"},
+    {"email": "bruno@fiscaltaxcanarie.com", "first_name": "Bruno", "last_name": "Ferraiuolo", "password": "Lanzarote1"}
+]
+
+# Dominio ammesso per ruoli amministrativi
+ADMIN_ALLOWED_DOMAIN = "fiscaltaxcanarie.com"
+
+# Ruoli amministrativi
+ADMIN_ROLES = ["super_admin", "admin"]
 
 # Categorie cartelle predefinite per l'organizzazione documenti
 DEFAULT_FOLDER_CATEGORIES = [
@@ -105,6 +117,8 @@ class UserResponse(BaseModel):
     id: str
     email: str
     full_name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
     nie: Optional[str] = None
@@ -121,6 +135,7 @@ class UserResponse(BaseModel):
     role: str
     stato: str = "attivo"
     created_at: str
+    profile_image: Optional[str] = None
     # Campi specifici per Società
     tipo_amministrazione: Optional[str] = None
     company_administrators: Optional[List[dict]] = None
@@ -133,6 +148,8 @@ class TokenResponse(BaseModel):
 
 class ClientUpdate(BaseModel):
     full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
     nie: Optional[str] = None
@@ -150,10 +167,45 @@ class ClientUpdate(BaseModel):
     note_interne: Optional[str] = None
     additional_emails: Optional[List[str]] = None  # Email aggiuntive
     bank_credentials: Optional[List[dict]] = None  # Credenziali bancarie
+    profile_image: Optional[str] = None  # URL immagine profilo
     # Campi specifici per Società
     tipo_amministrazione: Optional[str] = None  # unico, solidale, mancomunado
     company_administrators: Optional[List[dict]] = None  # Lista amministratori
     company_shareholders: Optional[List[dict]] = None  # Lista soci/quote
+
+# ==================== ADMIN MANAGEMENT MODELS ====================
+
+class AdminInvite(BaseModel):
+    """Modello per invito nuovo amministratore"""
+    email: EmailStr
+    first_name: str
+    last_name: str
+    role: str = "admin"  # admin o super_admin (solo super_admin può creare super_admin)
+
+class AdminResponse(BaseModel):
+    """Risposta per dati amministratore"""
+    id: str
+    email: str
+    first_name: str
+    last_name: str
+    full_name: str
+    role: str
+    stato: str
+    profile_image: Optional[str] = None
+    created_at: str
+    last_login: Optional[str] = None
+
+class AdminUpdate(BaseModel):
+    """Aggiornamento profilo amministratore"""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    profile_image: Optional[str] = None
+
+class PasswordChange(BaseModel):
+    """Cambio password"""
+    current_password: str
+    new_password: str
 
 class ClientListCreate(BaseModel):
     name: str
@@ -479,20 +531,38 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token non valido")
 
+# Helper per verificare dominio email admin
+def is_valid_admin_email(email: str) -> bool:
+    """Verifica che l'email appartenga al dominio amministrativo consentito"""
+    return email.lower().endswith(f"@{ADMIN_ALLOWED_DOMAIN}")
+
+async def require_admin(user: dict = Depends(get_current_user)):
+    """Richiede ruolo admin o super_admin"""
+    if user["role"] not in ADMIN_ROLES:
+        raise HTTPException(status_code=403, detail="Accesso riservato agli amministratori")
+    return user
+
+async def require_super_admin(user: dict = Depends(get_current_user)):
+    """Richiede ruolo super_admin"""
+    if user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Accesso riservato ai Super Admin")
+    return user
+
 async def require_commercialista(user: dict = Depends(get_current_user)):
-    if user["role"] != "commercialista":
-        raise HTTPException(status_code=403, detail="Accesso riservato ai commercialisti")
+    """Compatibilità - accetta admin, super_admin o commercialista legacy"""
+    if user["role"] not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Accesso riservato agli amministratori")
     return user
 
 async def require_commercialista_or_consulente(user: dict = Depends(get_current_user)):
-    """Permette accesso a commercialista o consulente del lavoro"""
-    if user["role"] not in ["commercialista", "consulente_lavoro"]:
+    """Permette accesso a admin, super_admin, commercialista o consulente del lavoro"""
+    if user["role"] not in ["commercialista", "consulente_lavoro", "super_admin", "admin"]:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
     return user
 
 async def require_any_role(user: dict = Depends(get_current_user)):
-    """Permette accesso a commercialista, consulente o cliente"""
-    if user["role"] not in ["commercialista", "consulente_lavoro", "cliente"]:
+    """Permette accesso a qualsiasi ruolo autenticato"""
+    if user["role"] not in ["commercialista", "consulente_lavoro", "cliente", "super_admin", "admin"]:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
     return user
 
@@ -504,8 +574,8 @@ async def require_consulente_lavoro(user: dict = Depends(get_current_user)):
 
 async def get_accessible_clients(user: dict) -> List[str]:
     """Restituisce la lista di ID clienti accessibili per l'utente"""
-    if user["role"] == "commercialista":
-        # Commercialista vede tutti i clienti
+    if user["role"] in ["commercialista", "super_admin", "admin"]:
+        # Admin vede tutti i clienti
         clients = await db.users.find({"role": "cliente"}, {"id": 1, "_id": 0}).to_list(10000)
         return [c["id"] for c in clients]
     elif user["role"] == "consulente_lavoro":
@@ -515,27 +585,46 @@ async def get_accessible_clients(user: dict) -> List[str]:
 
 # ==================== INIT ADMIN ====================
 
+async def init_super_admins():
+    """Crea gli account Super Admin predefiniti se non esistono"""
+    for admin_data in SUPER_ADMINS:
+        existing = await db.users.find_one({"email": admin_data["email"]})
+        if not existing:
+            admin_id = str(uuid.uuid4())
+            full_name = f"{admin_data['first_name']} {admin_data['last_name']}"
+            admin_doc = {
+                "id": admin_id,
+                "email": admin_data["email"],
+                "password": hash_password(admin_data["password"]),
+                "full_name": full_name,
+                "first_name": admin_data["first_name"],
+                "last_name": admin_data["last_name"],
+                "phone": None,
+                "role": "super_admin",
+                "stato": "attivo",
+                "profile_image": None,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "last_login": None
+            }
+            await db.users.insert_one(admin_doc)
+            logger.info(f"Super Admin creato: {admin_data['email']}")
+    
+    # Converti account legacy commercialista a super_admin se esiste
+    legacy_admin = await db.users.find_one({"email": ADMIN_EMAIL, "role": "commercialista"})
+    if legacy_admin:
+        await db.users.update_one(
+            {"email": ADMIN_EMAIL},
+            {"$set": {
+                "role": "super_admin",
+                "first_name": "Fiscal Tax",
+                "last_name": "Canarie"
+            }}
+        )
+        logger.info(f"Account legacy {ADMIN_EMAIL} convertito a super_admin")
+
 async def init_admin_user():
-    """Crea l'account commercialista predefinito se non esiste"""
-    existing = await db.users.find_one({"email": ADMIN_EMAIL})
-    if not existing:
-        admin_id = str(uuid.uuid4())
-        admin_doc = {
-            "id": admin_id,
-            "email": ADMIN_EMAIL,
-            "password": hash_password(ADMIN_PASSWORD),
-            "full_name": "Fiscal Tax Canarie",
-            "phone": None,
-            "codice_fiscale": None,
-            "indirizzo": None,
-            "regime_fiscale": None,
-            "tipo_attivita": None,
-            "role": "commercialista",
-            "stato": "attivo",
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.users.insert_one(admin_doc)
-        logger.info(f"Account commercialista creato: {ADMIN_EMAIL}")
+    """Wrapper per compatibilità - ora chiama init_super_admins"""
+    await init_super_admins()
 
 async def init_default_bank_entities():
     """Crea le entità bancarie predefinite se non esistono"""
@@ -698,6 +787,8 @@ async def get_me(user: dict = Depends(get_current_user)):
 
 class ClientSelfUpdate(BaseModel):
     full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     phone: Optional[str] = None
     codice_fiscale: Optional[str] = None
     nie: Optional[str] = None
@@ -708,6 +799,7 @@ class ClientSelfUpdate(BaseModel):
     cap: Optional[str] = None
     provincia: Optional[str] = None
     iban: Optional[str] = None
+    profile_image: Optional[str] = None
     # Campi specifici per Società
     tipo_amministrazione: Optional[str] = None
     company_administrators: Optional[List[dict]] = None
@@ -728,6 +820,31 @@ async def update_my_profile(update_data: ClientSelfUpdate, user: dict = Depends(
     # Restituisci i dati aggiornati
     updated_user = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
     return {"message": "Profilo aggiornato", "user": updated_user}
+
+@api_router.post("/auth/upload-profile-image")
+async def upload_profile_image(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Carica immagine profilo per qualsiasi utente autenticato"""
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Il file deve essere un'immagine")
+    
+    # Limita dimensione a 5MB
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="L'immagine non può superare 5MB")
+    
+    # Salva l'immagine in base64
+    import base64
+    image_data = base64.b64encode(content).decode('utf-8')
+    profile_image_url = f"data:{file.content_type};base64,{image_data}"
+    
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"profile_image": profile_image_url}}
+    )
+    
+    await log_activity("upload_profilo_immagine", f"Immagine profilo aggiornata da {user.get('full_name', user['email'])}", user["id"])
+    
+    return {"message": "Immagine profilo aggiornata", "profile_image": profile_image_url}
 
 # ==================== PASSWORD RESET ====================
 
@@ -843,6 +960,298 @@ async def verify_reset_token(token: str):
         raise HTTPException(status_code=400, detail="Il link è scaduto")
     
     return {"valid": True, "email": reset_record["email"]}
+
+# ==================== ADMIN MANAGEMENT ROUTES ====================
+
+@api_router.get("/admin/team")
+async def get_admin_team(user: dict = Depends(require_admin)):
+    """Ottieni lista di tutti gli amministratori (admin e super_admin)"""
+    admins = await db.users.find(
+        {"role": {"$in": ADMIN_ROLES}},
+        {"_id": 0, "password": 0}
+    ).to_list(100)
+    
+    result = []
+    for admin in admins:
+        result.append({
+            "id": admin["id"],
+            "email": admin["email"],
+            "first_name": admin.get("first_name", ""),
+            "last_name": admin.get("last_name", ""),
+            "full_name": admin.get("full_name", f"{admin.get('first_name', '')} {admin.get('last_name', '')}"),
+            "role": admin["role"],
+            "stato": admin.get("stato", "attivo"),
+            "profile_image": admin.get("profile_image"),
+            "created_at": admin.get("created_at", ""),
+            "last_login": admin.get("last_login")
+        })
+    return result
+
+@api_router.post("/admin/invite")
+async def invite_admin(invite_data: AdminInvite, user: dict = Depends(require_super_admin)):
+    """Invita un nuovo amministratore (solo Super Admin)"""
+    
+    # Verifica dominio email
+    if not is_valid_admin_email(invite_data.email):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"L'email deve appartenere al dominio @{ADMIN_ALLOWED_DOMAIN}"
+        )
+    
+    # Verifica che non esista già
+    existing = await db.users.find_one({"email": invite_data.email.lower()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Questa email è già registrata nel sistema")
+    
+    # Solo super_admin può creare altri super_admin
+    if invite_data.role == "super_admin" and user["role"] != "super_admin":
+        raise HTTPException(status_code=403, detail="Solo i Super Admin possono creare altri Super Admin")
+    
+    # Genera token di invito
+    invite_token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    # Salva invito
+    invite_id = str(uuid.uuid4())
+    await db.admin_invites.insert_one({
+        "id": invite_id,
+        "email": invite_data.email.lower(),
+        "first_name": invite_data.first_name,
+        "last_name": invite_data.last_name,
+        "role": invite_data.role,
+        "token": invite_token,
+        "invited_by": user["id"],
+        "invited_by_name": user.get("full_name", user["email"]),
+        "expires_at": expires_at.isoformat(),
+        "used": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Log attività
+    await log_activity(
+        "admin_invito", 
+        f"Invito inviato a {invite_data.email} come {invite_data.role} da {user.get('full_name', user['email'])}", 
+        user["id"]
+    )
+    
+    return {
+        "message": f"Invito inviato a {invite_data.email}",
+        "invite_id": invite_id,
+        "token": invite_token,  # Da usare per il link di attivazione
+        "expires_at": expires_at.isoformat()
+    }
+
+@api_router.get("/admin/invite/verify/{token}")
+async def verify_admin_invite(token: str):
+    """Verifica validità di un token di invito admin"""
+    invite = await db.admin_invites.find_one({"token": token, "used": False}, {"_id": 0})
+    
+    if not invite:
+        raise HTTPException(status_code=400, detail="Invito non valido o già utilizzato")
+    
+    expires_at = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="L'invito è scaduto")
+    
+    return {
+        "valid": True,
+        "email": invite["email"],
+        "first_name": invite["first_name"],
+        "last_name": invite["last_name"],
+        "role": invite["role"]
+    }
+
+class AdminActivation(BaseModel):
+    token: str
+    password: str
+
+@api_router.post("/admin/activate")
+async def activate_admin_account(activation: AdminActivation):
+    """Attiva un account amministratore con il token di invito"""
+    invite = await db.admin_invites.find_one({"token": activation.token, "used": False}, {"_id": 0})
+    
+    if not invite:
+        raise HTTPException(status_code=400, detail="Invito non valido o già utilizzato")
+    
+    expires_at = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="L'invito è scaduto")
+    
+    # Verifica password minima
+    if len(activation.password) < 8:
+        raise HTTPException(status_code=400, detail="La password deve essere di almeno 8 caratteri")
+    
+    # Crea account admin
+    admin_id = str(uuid.uuid4())
+    full_name = f"{invite['first_name']} {invite['last_name']}"
+    
+    admin_doc = {
+        "id": admin_id,
+        "email": invite["email"],
+        "password": hash_password(activation.password),
+        "full_name": full_name,
+        "first_name": invite["first_name"],
+        "last_name": invite["last_name"],
+        "phone": None,
+        "role": invite["role"],
+        "stato": "attivo",
+        "profile_image": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_login": None,
+        "invited_by": invite.get("invited_by")
+    }
+    
+    await db.users.insert_one(admin_doc)
+    
+    # Segna invito come usato
+    await db.admin_invites.update_one(
+        {"token": activation.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Log attività
+    await log_activity("admin_attivazione", f"Account admin attivato: {invite['email']}", admin_id)
+    
+    # Genera token per login automatico
+    token = create_token(admin_id, invite["email"], invite["role"])
+    
+    return {
+        "message": "Account attivato con successo",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": admin_id,
+            "email": invite["email"],
+            "full_name": full_name,
+            "first_name": invite["first_name"],
+            "last_name": invite["last_name"],
+            "role": invite["role"],
+            "stato": "attivo"
+        }
+    }
+
+@api_router.put("/admin/profile")
+async def update_admin_profile(update_data: AdminUpdate, user: dict = Depends(require_admin)):
+    """Aggiorna il proprio profilo amministratore"""
+    update_dict = {}
+    
+    if update_data.first_name:
+        update_dict["first_name"] = update_data.first_name
+    if update_data.last_name:
+        update_dict["last_name"] = update_data.last_name
+    if update_data.phone is not None:
+        update_dict["phone"] = update_data.phone
+    if update_data.profile_image is not None:
+        update_dict["profile_image"] = update_data.profile_image
+    
+    # Aggiorna full_name se cambiano first/last name
+    if update_data.first_name or update_data.last_name:
+        first = update_data.first_name or user.get("first_name", "")
+        last = update_data.last_name or user.get("last_name", "")
+        update_dict["full_name"] = f"{first} {last}".strip()
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="Nessun dato da aggiornare")
+    
+    await db.users.update_one({"id": user["id"]}, {"$set": update_dict})
+    
+    updated_user = await db.users.find_one({"id": user["id"]}, {"_id": 0, "password": 0})
+    return {"message": "Profilo aggiornato", "user": updated_user}
+
+@api_router.post("/admin/upload-profile-image")
+async def upload_admin_profile_image(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    """Carica immagine profilo per admin"""
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="Il file deve essere un'immagine")
+    
+    # Limita dimensione a 5MB
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="L'immagine non può superare 5MB")
+    
+    # Salva l'immagine (in base64 o su storage esterno)
+    import base64
+    image_data = base64.b64encode(content).decode('utf-8')
+    profile_image_url = f"data:{file.content_type};base64,{image_data}"
+    
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"profile_image": profile_image_url}}
+    )
+    
+    return {"message": "Immagine profilo aggiornata", "profile_image": profile_image_url}
+
+@api_router.put("/admin/change-password")
+async def change_admin_password(password_data: PasswordChange, user: dict = Depends(require_admin)):
+    """Cambia la propria password"""
+    # Verifica password attuale
+    user_full = await db.users.find_one({"id": user["id"]})
+    if not verify_password(password_data.current_password, user_full["password"]):
+        raise HTTPException(status_code=400, detail="Password attuale non corretta")
+    
+    # Verifica nuova password
+    if len(password_data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="La nuova password deve essere di almeno 8 caratteri")
+    
+    # Aggiorna password
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"password": hash_password(password_data.new_password)}}
+    )
+    
+    await log_activity("cambio_password", f"Password modificata da {user.get('full_name', user['email'])}", user["id"])
+    
+    return {"message": "Password aggiornata con successo"}
+
+@api_router.delete("/admin/team/{admin_id}")
+async def delete_admin(admin_id: str, user: dict = Depends(require_super_admin)):
+    """Elimina un amministratore (solo Super Admin)"""
+    
+    # Non puoi eliminare te stesso
+    if admin_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Non puoi eliminare il tuo stesso account")
+    
+    # Verifica che l'admin esista
+    admin = await db.users.find_one({"id": admin_id, "role": {"$in": ADMIN_ROLES}})
+    if not admin:
+        raise HTTPException(status_code=404, detail="Amministratore non trovato")
+    
+    # Elimina l'admin
+    await db.users.delete_one({"id": admin_id})
+    
+    await log_activity(
+        "admin_eliminazione", 
+        f"Admin {admin.get('full_name', admin['email'])} eliminato da {user.get('full_name', user['email'])}", 
+        user["id"]
+    )
+    
+    return {"message": f"Amministratore {admin.get('full_name', admin['email'])} eliminato"}
+
+@api_router.get("/admin/pending-invites")
+async def get_pending_invites(user: dict = Depends(require_super_admin)):
+    """Ottieni lista inviti in attesa (solo Super Admin)"""
+    invites = await db.admin_invites.find(
+        {"used": False},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Filtra quelli scaduti
+    now = datetime.now(timezone.utc)
+    active_invites = []
+    for invite in invites:
+        expires_at = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
+        if now < expires_at:
+            active_invites.append(invite)
+    
+    return active_invites
+
+@api_router.delete("/admin/invite/{invite_id}")
+async def cancel_invite(invite_id: str, user: dict = Depends(require_super_admin)):
+    """Annulla un invito in attesa (solo Super Admin)"""
+    result = await db.admin_invites.delete_one({"id": invite_id, "used": False})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Invito non trovato o già utilizzato")
+    return {"message": "Invito annullato"}
 
 # ==================== CLIENTS ROUTES (COMMERCIALISTA) ====================
 

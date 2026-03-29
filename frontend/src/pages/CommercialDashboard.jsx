@@ -43,7 +43,8 @@ import {
   FolderUp,
   Trash2,
   Euro,
-  MessageSquare
+  MessageSquare,
+  ShieldCheck
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -53,6 +54,7 @@ import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import GlobalFeesManagement from "@/components/GlobalFeesManagement";
 import GlobalTicketManagement from "@/components/GlobalTicketManagement";
+import AdminTeamManagement from "@/components/AdminTeamManagement";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
@@ -648,6 +650,16 @@ const CommercialDashboard = () => {
               <MessageSquare className="h-4 w-4 mr-2" />
               Ticket
             </TabsTrigger>
+            {user?.role === 'super_admin' && (
+              <TabsTrigger 
+                value="team" 
+                className="text-slate-600 data-[state=active]:bg-purple-500 data-[state=active]:text-white px-4"
+                data-testid="tab-team"
+              >
+                <ShieldCheck className="h-4 w-4 mr-2" />
+                Team
+              </TabsTrigger>
+            )}
             <TabsTrigger 
               value="activity" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
@@ -1471,6 +1483,13 @@ const CommercialDashboard = () => {
           <TabsContent value="tickets" className="space-y-6">
             <GlobalTicketManagement token={token} />
           </TabsContent>
+
+          {/* Team Tab - Solo per Super Admin */}
+          {user?.role === 'super_admin' && (
+            <TabsContent value="team" className="space-y-6">
+              <AdminTeamManagement token={token} />
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* Global Upload Dialog */}

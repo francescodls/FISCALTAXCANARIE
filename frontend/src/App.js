@@ -22,6 +22,10 @@ import ModelsManagement from "@/pages/ModelsManagement";
 import DeadlinesManagement from "@/pages/DeadlinesManagement";
 import BackupPage from "@/pages/BackupPage";
 import DeclarationsPage from "@/pages/DeclarationsPage";
+import AdminActivate from "@/pages/AdminActivate";
+
+// Helper per verificare ruoli admin
+const isAdminRole = (role) => ['commercialista', 'super_admin', 'admin'].includes(role);
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -134,9 +138,18 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && user?.role !== requiredRole) {
+  // Gestione ruoli admin (commercialista, super_admin, admin)
+  if (requiredRole === "commercialista" && !isAdminRole(user?.role)) {
+    if (user?.role === "consulente_lavoro") {
+      return <Navigate to="/consulente" replace />;
+    } else {
+      return <Navigate to="/dashboard" replace />;
+    }
+  }
+
+  if (requiredRole && user?.role !== requiredRole && requiredRole !== "commercialista") {
     // Redirect based on role
-    if (user?.role === "commercialista") {
+    if (isAdminRole(user?.role)) {
       return <Navigate to="/admin" replace />;
     } else if (user?.role === "consulente_lavoro") {
       return <Navigate to="/consulente" replace />;
@@ -162,7 +175,7 @@ const PublicRoute = ({ children }) => {
 
   if (isAuthenticated) {
     // Redirect based on role
-    if (user?.role === "commercialista") {
+    if (isAdminRole(user?.role)) {
       return <Navigate to="/admin" replace />;
     } else if (user?.role === "consulente_lavoro") {
       return <Navigate to="/consulente" replace />;
@@ -191,6 +204,7 @@ function AppRoutes() {
       <Route path="/complete-registration" element={<CompleteRegistration />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/admin/activate" element={<AdminActivate />} />
       <Route path="/client" element={
         <ProtectedRoute requiredRole="cliente">
           <ClientDashboard />
