@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { 
   Users, 
@@ -55,6 +56,7 @@ import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import GlobalFeesManagement from "@/components/GlobalFeesManagement";
 import GlobalTicketManagement from "@/components/GlobalTicketManagement";
 import AdminTeamManagement from "@/components/AdminTeamManagement";
+import AdminProfileDialog from "@/components/AdminProfileDialog";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
@@ -92,6 +94,7 @@ const CommercialDashboard = () => {
   const [showGlobalUpload, setShowGlobalUpload] = useState(false); // Dialog caricamento globale
   const [employeeNotifications, setEmployeeNotifications] = useState([]); // Notifiche dipendenti
   const [employeeNotifCount, setEmployeeNotifCount] = useState(0); // Conteggio notifiche non lette
+  const [showProfileDialog, setShowProfileDialog] = useState(false); // Dialog profilo personale
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -465,10 +468,23 @@ const CommercialDashboard = () => {
               <HardDrive className="h-4 w-4 mr-2" />
               Backup
             </Button>
-            <div className="flex items-center gap-2 text-slate-600">
-              <User className="h-5 w-5" />
-              <span className="font-medium">{user?.full_name}</span>
-              <Badge className="bg-teal-500 text-white ml-2">Commercialista</Badge>
+            <div 
+              className="flex items-center gap-2 text-slate-600 cursor-pointer hover:bg-slate-100 px-3 py-2 rounded-lg transition-colors"
+              onClick={() => setShowProfileDialog(true)}
+              data-testid="profile-button"
+            >
+              <Avatar className="h-8 w-8 border border-slate-200">
+                {user?.profile_image ? (
+                  <AvatarImage src={user.profile_image} alt={user.full_name} />
+                ) : null}
+                <AvatarFallback className="bg-purple-100 text-purple-700 text-sm font-semibold">
+                  {user?.first_name?.[0] || user?.full_name?.[0] || ''}{user?.last_name?.[0] || ''}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-medium">{user?.first_name || user?.full_name?.split(' ')[0]} {user?.last_name || ''}</span>
+              <Badge className={user?.role === 'super_admin' ? 'bg-purple-500 text-white ml-1' : 'bg-teal-500 text-white ml-1'}>
+                {user?.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+              </Badge>
             </div>
             <LanguageSelector variant="flags-only" />
             <Button 
@@ -1508,6 +1524,13 @@ const CommercialDashboard = () => {
             />
           </DialogContent>
         </Dialog>
+
+        {/* Admin Profile Dialog */}
+        <AdminProfileDialog 
+          open={showProfileDialog} 
+          onOpenChange={setShowProfileDialog} 
+          token={token} 
+        />
       </main>
     </div>
   );

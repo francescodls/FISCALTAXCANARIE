@@ -742,6 +742,12 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     
+    # Aggiorna last_login
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
+    )
+    
     # Log attività
     await log_activity("login", f"Accesso utente: {credentials.email}", user["id"])
     
@@ -750,14 +756,18 @@ async def login(credentials: UserLogin):
         id=user["id"],
         email=user["email"],
         full_name=user["full_name"],
+        first_name=user.get("first_name"),
+        last_name=user.get("last_name"),
         phone=user.get("phone"),
         codice_fiscale=user.get("codice_fiscale"),
         indirizzo=user.get("indirizzo"),
         regime_fiscale=user.get("regime_fiscale"),
         tipo_attivita=user.get("tipo_attivita"),
+        tipo_cliente=user.get("tipo_cliente", "autonomo"),
         role=user["role"],
         stato=user.get("stato", "attivo"),
-        created_at=user["created_at"]
+        created_at=user["created_at"],
+        profile_image=user.get("profile_image")
     )
     return TokenResponse(access_token=token, user=user_response)
 
@@ -767,6 +777,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         id=user["id"],
         email=user["email"],
         full_name=user["full_name"],
+        first_name=user.get("first_name"),
+        last_name=user.get("last_name"),
         phone=user.get("phone"),
         codice_fiscale=user.get("codice_fiscale"),
         nie=user.get("nie"),
@@ -782,7 +794,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         tipo_cliente=user.get("tipo_cliente", "autonomo"),
         role=user["role"],
         stato=user.get("stato", "attivo"),
-        created_at=user["created_at"]
+        created_at=user["created_at"],
+        profile_image=user.get("profile_image")
     )
 
 class ClientSelfUpdate(BaseModel):
