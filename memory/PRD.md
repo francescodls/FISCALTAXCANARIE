@@ -5,6 +5,46 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 52 (29 Marzo 2026) - COMPLETATA ✅
+
+**Sezione Profilo Personale per Admin/Super Admin**
+
+**Richiesta Utente:** Permettere agli amministratori di accedere a una sezione profilo personale cliccando sul proprio nome nella topbar.
+
+**Implementazione Frontend (`/app/frontend/src/components/AdminProfileDialog.jsx`):**
+- ✅ Dialog "Il Mio Profilo" accessibile cliccando sul nome nella topbar
+- ✅ Header con avatar (iniziali), nome completo, email, badge ruolo
+- ✅ Pulsanti "Cambia Foto" e "Rimuovi" per gestione immagine profilo
+- ✅ **Tab "Dati Profilo":**
+  - Campi Nome e Cognome editabili
+  - Telefono editabile
+  - Email visualizzata (non modificabile per sicurezza)
+  - Riquadro "Nome visualizzato ai clienti" che mostra il nome combinato
+  - Pulsante "Salva Modifiche"
+- ✅ **Tab "Sicurezza":**
+  - Campo Password Attuale
+  - Campo Nuova Password (min 8 caratteri)
+  - Campo Conferma Password
+  - Validazione in tempo reale (password non coincidono)
+  - Pulsante "Cambia Password"
+
+**Implementazione Frontend (Topbar in `CommercialDashboard.jsx`):**
+- ✅ Avatar circolare con iniziali visibile nella topbar
+- ✅ Nome e cognome dell'admin visibili
+- ✅ Badge ruolo (Super Admin viola / Admin blu)
+- ✅ Area cliccabile che apre il dialog profilo
+
+**Implementazione Backend (`/app/backend/server.py`):**
+- ✅ `POST /api/auth/login` ora restituisce `first_name`, `last_name`, `profile_image`
+- ✅ `GET /api/auth/me` restituisce tutti i campi profilo inclusi first_name, last_name, profile_image
+- ✅ `PUT /api/admin/profile` aggiorna nome, cognome, telefono, immagine profilo
+- ✅ `PUT /api/admin/change-password` cambia password con validazione
+- ✅ `POST /api/admin/upload-profile-image` upload immagine in base64
+
+**Test:** Verificato al 100% con testing_agent_v3_fork (iteration_29.json):
+- Backend: 15/15 test passati
+- Frontend: Tutte le funzionalità verificate
+
 ### Fase 51 (29 Marzo 2026) - COMPLETATA ✅
 
 **Gestione Multi-Amministratore con Ruoli Super Admin e Amministratore**
