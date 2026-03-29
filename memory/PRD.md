@@ -5,6 +5,40 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 50 (29 Marzo 2026) - COMPLETATA ✅
+
+**Estensione Anagrafica Società con Amministratori e Quote Sociali**
+
+**Richiesta Utente:** Aggiungere all'anagrafica delle società una sezione dedicata per la gestione della struttura societaria (amministratori e quote), visibile SOLO per clienti di tipo "societa".
+
+**Implementazione Backend (`/app/backend/server.py`):**
+- ✅ Aggiornati modelli Pydantic: `UserCreate`, `ClientUpdate`, `ClientInListResponse`, `ClientSelfUpdate`
+- ✅ Nuovi campi: `tipo_amministrazione` (unico/solidale/mancomunado), `company_administrators` (List[dict]), `company_shareholders` (List[dict])
+- ✅ Endpoint PUT `/api/clients/{id}` supporta aggiornamento struttura societaria
+- ✅ Endpoint PUT `/api/auth/me` supporta auto-aggiornamento cliente
+
+**Implementazione Frontend (`/app/frontend/src/components/CompanyStructureSection.jsx`):**
+- ✅ Nuovo componente riutilizzabile per struttura societaria
+- ✅ Card "Tipo di Amministrazione" con dropdown (unico/solidali/mancomunados)
+- ✅ Card "Amministratori" con:
+  - Lista dinamica amministratori
+  - Form: Nome, Cognome, DNI/NIE, Carica/Ruolo, Data Nomina, Note
+  - Pulsante "Aggiungi Amministratore"
+  - Pulsante elimina per ogni amministratore
+- ✅ Card "Quote Sociali" con:
+  - Lista dinamica soci
+  - Form: Denominazione, CIF/NIF/NIE, Percentuale, Note
+  - Pulsante "Aggiungi Socio"
+  - Indicatore totale percentuali (verde se 100%, giallo altrimenti)
+
+**Integrazione:**
+- ✅ `ClientDetail.jsx` (Admin): sezione visibile solo per tipo_cliente='societa'
+- ✅ `ClientDashboard.jsx` (Cliente): sezione visibile solo per tipo_cliente='societa'
+
+**Test:** Verificato al 100% con testing_agent_v3_fork (iteration_27.json):
+- Backend: 90% (9/10 test - 1 skipped per credenziali)
+- Frontend: 100% - Tutte le funzionalità verificate
+
 ### Fase 49 (29 Marzo 2026) - COMPLETATA ✅
 
 **Rimozione Lista Clienti dalla Vista Esterna Card Liste**
