@@ -5,6 +5,40 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 58 (31 Marzo 2026) - COMPLETATA ✅
+
+**Correzione Traduzioni Spagnolo e Inglese**
+
+**Richiesta Utente:** Molte sezioni dell'applicazione non vengono tradotte quando si seleziona spagnolo o inglese. Correggere per avere traduzione completa.
+
+**File Aggiornati:**
+
+**1. `/app/frontend/src/i18n/translations.js`:**
+Aggiunte ~400 righe di traduzioni nuove per IT/EN/ES:
+- ✅ `taxReturns.*` - Tutte le voci dichiarazioni (titoli, stati, form, messaggi)
+- ✅ `tickets.*` - Ticket (titoli, stati, categorie)
+- ✅ `admin.*` - Area admin (team, inviti, categorie, modelli, backup)
+- ✅ `profileDialog.*` - Dialog profilo personale
+
+**2. `/app/frontend/src/components/AdminDeclarationsView.jsx`:**
+- ✅ Importato `useLanguage()` hook
+- ✅ Tradotti: stats cards, toggle vista, filtri, dropdown ordinamento, tabella, dialog eliminazione
+- ✅ `getStatusLabel()` ora usa `t('taxReturns.status.*')`
+
+**3. `/app/frontend/src/pages/CommercialDashboard.jsx`:**
+- ✅ Tradotti pulsanti header: Categorie, Scadenze, Modelli, Backup
+- ✅ Tradotti tab: Onorari, Ticket, Team
+- ✅ Tradotti badge stati: Attivo, Autonomo, Società, Privato
+- ✅ Tradotto pulsante "Nuovo Cliente"
+- ✅ Tradotti label form: Telefono, Città, Email
+
+**Risultato Verificato con Screenshot:**
+- 🇪🇸 **Spagnolo:** Dashboard admin e dichiarazioni completamente tradotti
+- 🇬🇧 **Inglese:** Dashboard admin e dichiarazioni completamente tradotti
+- 🇮🇹 **Italiano:** Funziona come prima (lingua default)
+
+---
+
 ### Fase 57 (29 Marzo 2026) - COMPLETATA ✅
 
 **Ordinamento e Ricerca Avanzata Dichiarazioni**

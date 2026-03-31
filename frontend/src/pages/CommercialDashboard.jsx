@@ -210,15 +210,15 @@ const CommercialDashboard = () => {
   const getStatusBadge = (stato) => {
     switch (stato) {
       case "attivo":
-        return <Badge className="bg-green-50 text-green-700 border border-green-100">Attivo</Badge>;
+        return <Badge className="bg-green-50 text-green-700 border border-green-100">{t('profile.active')}</Badge>;
       case "invitato":
-        return <Badge className="bg-blue-50 text-blue-700 border border-blue-100">Invitato</Badge>;
+        return <Badge className="bg-blue-50 text-blue-700 border border-blue-100">{t('clients.inviteSent')}</Badge>;
       case "sospeso":
-        return <Badge className="bg-amber-50 text-amber-700 border border-amber-100">Sospeso</Badge>;
+        return <Badge className="bg-amber-50 text-amber-700 border border-amber-100">{t('profile.suspended')}</Badge>;
       case "cessato":
-        return <Badge className="bg-red-50 text-red-700 border border-red-100">Cessato</Badge>;
+        return <Badge className="bg-red-50 text-red-700 border border-red-100">{t('profile.ceased')}</Badge>;
       case "pending":
-        return <Badge className="bg-purple-50 text-purple-700 border border-purple-100">In attesa</Badge>;
+        return <Badge className="bg-purple-50 text-purple-700 border border-purple-100">{t('deadlines.pending')}</Badge>;
       default:
         return <Badge className="bg-slate-100 text-slate-600 border border-slate-200">{stato}</Badge>;
     }
@@ -227,11 +227,11 @@ const CommercialDashboard = () => {
   const getTipoClienteBadge = (tipo) => {
     switch (tipo) {
       case "autonomo":
-        return <Badge className="bg-blue-50 text-blue-700 border border-blue-100">Autonomo</Badge>;
+        return <Badge className="bg-blue-50 text-blue-700 border border-blue-100">{t('clients.autonomous')}</Badge>;
       case "societa":
-        return <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100">Società</Badge>;
+        return <Badge className="bg-indigo-50 text-indigo-700 border border-indigo-100">{t('clients.company')}</Badge>;
       case "privato":
-        return <Badge className="bg-slate-50 text-slate-700 border border-slate-100">Privato</Badge>;
+        return <Badge className="bg-slate-50 text-slate-700 border border-slate-100">{t('clients.private')}</Badge>;
       default:
         return <Badge className="bg-slate-100 text-slate-600 border border-slate-200">{tipo || "N/D"}</Badge>;
     }
@@ -430,7 +430,7 @@ const CommercialDashboard = () => {
               data-testid="manage-lists-btn"
             >
               <Users className="h-4 w-4 mr-2" />
-              Categorie
+              {t('admin.categories')}
             </Button>
             <Button 
               variant="outline"
@@ -439,7 +439,7 @@ const CommercialDashboard = () => {
               data-testid="manage-deadlines-btn"
             >
               <Clock className="h-4 w-4 mr-2" />
-              Scadenze
+              {t('deadlines.title')}
             </Button>
             <Button 
               variant="outline"
@@ -448,7 +448,7 @@ const CommercialDashboard = () => {
               data-testid="global-upload-btn"
             >
               <FolderUp className="h-4 w-4 mr-2" />
-              Carica Documenti
+              {t('documents.uploadDocument')}
             </Button>
             <Button 
               variant="outline"
@@ -457,7 +457,7 @@ const CommercialDashboard = () => {
               data-testid="manage-models-btn"
             >
               <BarChart3 className="h-4 w-4 mr-2" />
-              Modelli
+              {t('admin.models')}
             </Button>
             <Button 
               variant="outline"
@@ -466,7 +466,7 @@ const CommercialDashboard = () => {
               data-testid="manage-backup-btn"
             >
               <HardDrive className="h-4 w-4 mr-2" />
-              Backup
+              {t('admin.backup')}
             </Button>
             <div 
               className="flex items-center gap-2 text-slate-600 cursor-pointer hover:bg-slate-100 px-3 py-2 rounded-lg transition-colors"
@@ -586,7 +586,7 @@ const CommercialDashboard = () => {
                 <FileText className="h-5 w-5 text-white" />
               </div>
               <p className="text-2xl font-bold text-slate-900">0</p>
-              <p className="text-xs text-slate-500">Dichiarazioni</p>
+              <p className="text-xs text-slate-500">{t('taxReturns.title')}</p>
             </CardContent>
           </Card>
         </div>
@@ -656,7 +656,7 @@ const CommercialDashboard = () => {
               data-testid="tab-fees"
             >
               <Euro className="h-4 w-4 mr-2" />
-              Onorari
+              {t('fees.title')}
             </TabsTrigger>
             <TabsTrigger 
               value="tickets" 
@@ -664,7 +664,7 @@ const CommercialDashboard = () => {
               data-testid="tab-tickets"
             >
               <MessageSquare className="h-4 w-4 mr-2" />
-              Ticket
+              {t('tickets.title')}
             </TabsTrigger>
             {user?.role === 'super_admin' && (
               <TabsTrigger 
@@ -673,7 +673,7 @@ const CommercialDashboard = () => {
                 data-testid="tab-team"
               >
                 <ShieldCheck className="h-4 w-4 mr-2" />
-                Team
+                {t('admin.team')}
               </TabsTrigger>
             )}
             <TabsTrigger 
@@ -723,14 +723,14 @@ const CommercialDashboard = () => {
                     <DialogTrigger asChild>
                       <Button className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all" data-testid="create-client-btn">
                         <Plus className="h-4 w-4 mr-2" />
-                        Nuovo Cliente
+                        {t('clients.newClient')}
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-lg">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                           <User className="h-5 w-5 text-teal-500" />
-                          {createResult ? "Cliente Creato!" : "Crea Nuovo Cliente"}
+                          {createResult ? t('messages.saveSuccess') : t('clients.newClient')}
                         </DialogTitle>
                       </DialogHeader>
                       
@@ -820,9 +820,9 @@ const CommercialDashboard = () => {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="autonomo">Autonomo</SelectItem>
-                                <SelectItem value="societa">Società</SelectItem>
-                                <SelectItem value="privato">Privato</SelectItem>
+                                <SelectItem value="autonomo">{t('clients.autonomous')}</SelectItem>
+                                <SelectItem value="societa">{t('clients.company')}</SelectItem>
+                                <SelectItem value="privato">{t('clients.private')}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -830,7 +830,7 @@ const CommercialDashboard = () => {
                           {/* Campi opzionali in grid */}
                           <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
-                              <Label>Telefono</Label>
+                              <Label>{t('profile.phone')}</Label>
                               <Input
                                 type="tel"
                                 value={createForm.phone}
@@ -852,7 +852,7 @@ const CommercialDashboard = () => {
                           </div>
                           
                           <div className="space-y-2">
-                            <Label>Città</Label>
+                            <Label>{t('profile.city')}</Label>
                             <Input
                               type="text"
                               value={createForm.citta}
@@ -865,7 +865,7 @@ const CommercialDashboard = () => {
                           {/* Sezione Email e Invito */}
                           <div className="border-t pt-4 mt-4">
                             <div className="space-y-2">
-                              <Label>Email (opzionale)</Label>
+                              <Label>Email ({t('common.optional')})</Label>
                               <Input
                                 type="email"
                                 value={createForm.email}

@@ -21,10 +21,12 @@ import {
   Building2, LayoutList, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
 const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
+  const { t } = useLanguage();
   const [clients, setClients] = useState([]);
   const [allDeclarations, setAllDeclarations] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -117,17 +119,17 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
       });
       
       if (res.ok) {
-        toast.success(`Stato aggiornato: ${getStatusLabel(newStatus)}`);
+        toast.success(`${t('taxReturns.statusUpdated')}: ${getStatusLabel(newStatus)}`);
         fetchAllDeclarations();
         if (selectedClient) {
           fetchClientDeclarations(selectedClient.client_id);
         }
       } else {
-        toast.error('Errore aggiornamento stato');
+        toast.error(t('messages.saveError'));
       }
     } catch (error) {
       console.error('Errore:', error);
-      toast.error('Errore aggiornamento stato');
+      toast.error(t('messages.saveError'));
     }
   };
 
@@ -141,7 +143,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
       });
       
       if (res.ok) {
-        toast.success('Dichiarazione eliminata');
+        toast.success(t('taxReturns.declarationDeleted'));
         setDeleteDialog({ open: false, declaration: null });
         fetchAllDeclarations();
         fetchClientsWithDeclarations();
@@ -149,28 +151,28 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
           fetchClientDeclarations(selectedClient.client_id);
         }
       } else {
-        toast.error('Errore eliminazione');
+        toast.error(t('messages.deleteError'));
       }
     } catch (error) {
       console.error('Errore:', error);
-      toast.error('Errore eliminazione');
+      toast.error(t('messages.deleteError'));
     }
   };
 
   const getStatusLabel = (stato) => {
-    const labels = {
-      bozza: 'Bozza',
-      inviata: 'Inviata',
-      documentazione_incompleta: 'Doc. Incompleta',
-      in_revisione: 'In Revisione',
-      pronta: 'Pronta',
-      presentata: 'Presentata',
-      errata: 'Errata',
-      non_presentare: 'Non Presentare',
-      archiviata: 'Archiviata',
-      eliminata: 'Eliminata'
+    const statusMap = {
+      bozza: t('taxReturns.status.draft'),
+      inviata: t('taxReturns.status.sent'),
+      documentazione_incompleta: t('taxReturns.status.incompleteDoc'),
+      in_revisione: t('taxReturns.status.inReview'),
+      pronta: t('taxReturns.status.ready'),
+      presentata: t('taxReturns.status.presented'),
+      errata: t('taxReturns.status.error'),
+      non_presentare: t('taxReturns.status.notPresent'),
+      archiviata: t('taxReturns.status.archived'),
+      eliminata: t('taxReturns.status.deleted')
     };
-    return labels[stato] || stato;
+    return statusMap[stato] || stato;
   };
 
   const getStatusBadge = (stato) => {
@@ -382,17 +384,17 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
         <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Conferma Eliminazione</AlertDialogTitle>
+              <AlertDialogTitle>{t('taxReturns.confirmDelete')}</AlertDialogTitle>
               <AlertDialogDescription>
-                Sei sicuro di voler eliminare la dichiarazione {deleteDialog.declaration?.anno_fiscale} di <strong>{deleteDialog.declaration?.client_name}</strong>?
+                {t('taxReturns.confirmDeleteDesc')} {deleteDialog.declaration?.anno_fiscale} {t('taxReturns.of')} <strong>{deleteDialog.declaration?.client_name}</strong>?
                 <br /><br />
-                La pratica verrà contrassegnata come eliminata e non sarà più visibile nella lista.
+                {t('taxReturns.deleteWarning')}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Annulla</AlertDialogCancel>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteDeclaration} className="bg-red-600 hover:bg-red-700">
-                Elimina
+                {t('common.delete')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -404,28 +406,28 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
             <CardContent className="p-4 text-center">
               <FileText className="w-6 h-6 mx-auto mb-2 text-teal-600" />
               <p className="text-2xl font-bold text-teal-700">{totalStats.totalDeclarations}</p>
-              <p className="text-sm text-slate-500">Totale Dichiarazioni</p>
+              <p className="text-sm text-slate-500">{t('taxReturns.totalDeclarations')}</p>
             </CardContent>
           </Card>
           <Card className="bg-green-50 cursor-pointer hover:bg-green-100 transition-colors border-green-200" onClick={() => setFilters({...filters, stato: 'presentata'})}>
             <CardContent className="p-4 text-center">
               <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-600" />
               <p className="text-2xl font-bold text-green-700">{totalStats.presentate}</p>
-              <p className="text-sm text-slate-500">Presentate</p>
+              <p className="text-sm text-slate-500">{t('taxReturns.presented')}</p>
             </CardContent>
           </Card>
           <Card className="bg-yellow-50 cursor-pointer hover:bg-yellow-100 transition-colors border-yellow-200" onClick={() => setFilters({...filters, stato: 'pendente'})}>
             <CardContent className="p-4 text-center">
               <Clock className="w-6 h-6 mx-auto mb-2 text-yellow-600" />
               <p className="text-2xl font-bold text-yellow-700">{totalStats.pendenti}</p>
-              <p className="text-sm text-slate-500">Pendenti</p>
+              <p className="text-sm text-slate-500">{t('taxReturns.pending')}</p>
             </CardContent>
           </Card>
           <Card className="bg-red-50 cursor-pointer hover:bg-red-100 transition-colors border-red-200" onClick={() => setFilters({...filters, stato: 'errata'})}>
             <CardContent className="p-4 text-center">
               <AlertCircle className="w-6 h-6 mx-auto mb-2 text-red-600" />
               <p className="text-2xl font-bold text-red-700">{totalStats.errate}</p>
-              <p className="text-sm text-slate-500">Errate / Non Presentare</p>
+              <p className="text-sm text-slate-500">{t('taxReturns.errorNotPresent')}</p>
             </CardContent>
           </Card>
         </div>
@@ -443,7 +445,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                   className={viewMode === 'all' ? 'bg-teal-600' : ''}
                 >
                   <LayoutList className="w-4 h-4 mr-1" />
-                  Tutte
+                  {t('taxReturns.allDeclarations')}
                 </Button>
                 <Button 
                   variant={viewMode === 'clients' ? 'default' : 'ghost'} 
@@ -452,7 +454,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                   className={viewMode === 'clients' ? 'bg-teal-600' : ''}
                 >
                   <FolderOpen className="w-4 h-4 mr-1" />
-                  Per Cliente
+                  {t('taxReturns.byClient')}
                 </Button>
               </div>
               
@@ -463,7 +465,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input 
-                    placeholder="Cerca per nome, cognome, ragione sociale, anno o stato..."
+                    placeholder={t('taxReturns.search')}
                     className="pl-10 pr-4"
                     value={filters.search}
                     onChange={(e) => setFilters({...filters, search: e.target.value})}
@@ -478,26 +480,26 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                 onValueChange={(v) => setFilters({...filters, stato: v === "all" ? "" : v})}
               >
                 <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Stato" />
+                  <SelectValue placeholder={t('common.status')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tutti gli stati</SelectItem>
+                  <SelectItem value="all">{t('taxReturns.filterByStatus')}</SelectItem>
                   <SelectItem value="presentata">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-green-500" />
-                      Presentate
+                      {t('taxReturns.presented')}
                     </div>
                   </SelectItem>
                   <SelectItem value="pendente">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                      Pendenti
+                      {t('taxReturns.pending')}
                     </div>
                   </SelectItem>
                   <SelectItem value="errata">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-red-500" />
-                      Errate
+                      {t('taxReturns.status.error')}
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -511,69 +513,69 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                   setSortConfig({ field, direction });
                 }}
               >
-                <SelectTrigger className="w-[200px]" data-testid="sort-dropdown">
+                <SelectTrigger className="w-[220px]" data-testid="sort-dropdown">
                   <ArrowUpDown className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="Ordina per..." />
+                  <SelectValue placeholder={t('taxReturns.sortBy')} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="updated_at_desc">
                     <div className="flex items-center gap-2">
                       <ArrowDown className="w-3 h-3" />
-                      Ultima modifica (recenti)
+                      {t('taxReturns.sortLastModifiedRecent')}
                     </div>
                   </SelectItem>
                   <SelectItem value="updated_at_asc">
                     <div className="flex items-center gap-2">
                       <ArrowUp className="w-3 h-3" />
-                      Ultima modifica (meno recenti)
+                      {t('taxReturns.sortLastModifiedOld')}
                     </div>
                   </SelectItem>
                   <SelectItem value="created_at_desc">
                     <div className="flex items-center gap-2">
                       <ArrowDown className="w-3 h-3" />
-                      Data richiesta (recenti)
+                      {t('taxReturns.sortRequestDateRecent')}
                     </div>
                   </SelectItem>
                   <SelectItem value="created_at_asc">
                     <div className="flex items-center gap-2">
                       <ArrowUp className="w-3 h-3" />
-                      Data richiesta (meno recenti)
+                      {t('taxReturns.sortRequestDateOld')}
                     </div>
                   </SelectItem>
                   <SelectItem value="stato_asc">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="w-3 h-3 text-green-500" />
-                      Stato (presentate prima)
+                      {t('taxReturns.sortStatusPresented')}
                     </div>
                   </SelectItem>
                   <SelectItem value="stato_desc">
                     <div className="flex items-center gap-2">
                       <AlertCircle className="w-3 h-3 text-red-500" />
-                      Stato (errate prima)
+                      {t('taxReturns.sortStatusError')}
                     </div>
                   </SelectItem>
                   <SelectItem value="client_name_asc">
                     <div className="flex items-center gap-2">
                       <User className="w-3 h-3" />
-                      Cliente (A-Z)
+                      {t('taxReturns.sortClientAZ')}
                     </div>
                   </SelectItem>
                   <SelectItem value="client_name_desc">
                     <div className="flex items-center gap-2">
                       <User className="w-3 h-3" />
-                      Cliente (Z-A)
+                      {t('taxReturns.sortClientZA')}
                     </div>
                   </SelectItem>
                   <SelectItem value="anno_fiscale_desc">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3 h-3" />
-                      Anno fiscale (recenti)
+                      {t('taxReturns.sortYearRecent')}
                     </div>
                   </SelectItem>
                   <SelectItem value="anno_fiscale_asc">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-3 h-3" />
-                      Anno fiscale (meno recenti)
+                      {t('taxReturns.sortYearOld')}
                     </div>
                   </SelectItem>
                 </SelectContent>
@@ -581,7 +583,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
               
               <Button variant="outline" onClick={() => { fetchAllDeclarations(); fetchClientsWithDeclarations(); }}>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Aggiorna
+                {t('taxReturns.refresh')}
               </Button>
             </div>
           </CardContent>
@@ -592,16 +594,16 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-teal-600" />
-              Tutte le Dichiarazioni
+              {t('taxReturns.allDeclarations')}
               <Badge variant="outline" className="ml-2">{filteredDeclarations.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-8 text-slate-500">Caricamento...</div>
+              <div className="text-center py-8 text-slate-500">{t('common.loading')}</div>
             ) : filteredDeclarations.length === 0 ? (
               <div className="text-center py-8 text-slate-500">
-                {filters.search ? `Nessun risultato per "${filters.search}"` : 'Nessuna dichiarazione trovata'}
+                {filters.search ? `${t('taxReturns.noResultsFor')} "${filters.search}"` : t('taxReturns.noDeclarations')}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -613,7 +615,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                         onClick={() => handleSort('client_name')}
                       >
                         <div className="flex items-center">
-                          Cliente
+                          {t('taxReturns.client')}
                           <SortIcon field="client_name" />
                         </div>
                       </th>
@@ -622,7 +624,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                         onClick={() => handleSort('anno_fiscale')}
                       >
                         <div className="flex items-center">
-                          Anno
+                          {t('taxReturns.fiscalYear')}
                           <SortIcon field="anno_fiscale" />
                         </div>
                       </th>
@@ -631,7 +633,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                         onClick={() => handleSort('stato')}
                       >
                         <div className="flex items-center">
-                          Stato
+                          {t('common.status')}
                           <SortIcon field="stato" />
                         </div>
                       </th>
@@ -640,12 +642,12 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                         onClick={() => handleSort('updated_at')}
                       >
                         <div className="flex items-center">
-                          Ultima Modifica
+                          {t('taxReturns.lastModified')}
                           <SortIcon field="updated_at" />
                         </div>
                       </th>
-                      <th className="text-center p-3 font-semibold text-slate-700">Documenti</th>
-                      <th className="text-center p-3 font-semibold text-slate-700">Azioni</th>
+                      <th className="text-center p-3 font-semibold text-slate-700">{t('taxReturns.documentsCount')}</th>
+                      <th className="text-center p-3 font-semibold text-slate-700">{t('common.actions')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -716,7 +718,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                               onClick={() => onSelectDeclaration(decl)}
                             >
                               <Eye className="w-4 h-4 mr-1" />
-                              Dettaglio
+                              {t('taxReturns.detail')}
                             </Button>
                             <Button 
                               variant="outline" 
@@ -753,7 +755,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
             <CardContent className="p-4 text-center">
               <Users className="w-6 h-6 mx-auto mb-2 text-slate-600" />
               <p className="text-2xl font-bold text-slate-900">{totalStats.totalClients}</p>
-              <p className="text-sm text-slate-500">Clienti</p>
+              <p className="text-sm text-slate-500">{t('clients.title')}</p>
             </CardContent>
           </Card>
           <Card className="bg-teal-50">
