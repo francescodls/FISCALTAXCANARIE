@@ -124,7 +124,7 @@ const ClientDashboard = () => {
       setModelliTributari(modelliRes.data);
       setNotificationsHistory(notificationsRes.data);
     } catch (error) {
-      toast.error("Errore nel caricamento dei dati");
+      toast.error(t('messages.loadError'));
     } finally {
       setLoading(false);
     }
@@ -136,14 +136,14 @@ const ClientDashboard = () => {
     
     try {
       const response = await axios.put(`${API}/auth/me`, profileForm, { headers });
-      toast.success("Profilo aggiornato con successo!");
+      toast.success(t('messages.profileUpdated'));
       setEditingProfile(false);
       // Aggiorna l'utente nel context se necessario
       if (response.data.user && setUser) {
         setUser(response.data.user);
       }
     } catch (error) {
-      toast.error("Errore nell'aggiornamento del profilo");
+      toast.error(t('messages.profileUpdateError'));
     } finally {
       setSavingProfile(false);
     }
@@ -171,9 +171,9 @@ const ClientDashboard = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success("Download completato");
+      toast.success(t('messages.downloadComplete'));
     } catch (error) {
-      toast.error("Errore durante il download");
+      toast.error(t('messages.downloadError'));
     }
   };
 
@@ -189,7 +189,7 @@ const ClientDashboard = () => {
 
   const handleRenameDocument = async () => {
     if (!newFileName.trim()) {
-      toast.error("Inserisci un nome valido");
+      toast.error(t('messages.invalidName'));
       return;
     }
     setRenamingDoc(true);
@@ -198,13 +198,13 @@ const ClientDashboard = () => {
       formData.append("new_filename", newFileName.trim());
       
       await axios.put(`${API}/documents/${renameDoc.id}/rename`, formData, { headers });
-      toast.success("Documento rinominato con successo");
+      toast.success(t('messages.documentRenamed'));
       setRenameDialogOpen(false);
       setRenameDoc(null);
       setNewFileName("");
       fetchData(); // Ricarica i documenti
     } catch (error) {
-      toast.error(error.response?.data?.detail || "Errore nella rinomina del documento");
+      toast.error(error.response?.data?.detail || t('messages.documentRenameError'));
     } finally {
       setRenamingDoc(false);
     }
@@ -238,13 +238,25 @@ const ClientDashboard = () => {
   };
 
   const getStatusLabel = (status) => {
-    const labels = {
-      "da_fare": "Da fare",
-      "in_lavorazione": "In lavorazione",
-      "completata": "Completata",
-      "scaduta": "Scaduta"
+    const statusMap = {
+      "da_fare": t('deadlines.status.toDo'),
+      "in_lavorazione": t('deadlines.status.inProgress'),
+      "completata": t('deadlines.status.completed'),
+      "scaduta": t('deadlines.status.overdue')
     };
-    return labels[status] || status;
+    return statusMap[status] || status;
+  };
+
+  const getNotificationTypeLabel = (type) => {
+    const typeMap = {
+      "document": t('notifications.document'),
+      "deadline": t('notifications.deadline'),
+      "welcome": t('notifications.welcome'),
+      "invite": t('notifications.invite'),
+      "employee": t('notifications.employee'),
+      "manual": t('notifications.communication')
+    };
+    return typeMap[type] || type;
   };
 
   const upcomingDeadlines = deadlines
@@ -844,30 +856,27 @@ const ClientDashboard = () => {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Edit2 className="h-5 w-5 text-blue-500" />
-                    Rinomina Documento
+                    {t('common.rename')} {t('notifications.document')}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label>Nome attuale</Label>
+                    <Label>{t('common.name')}</Label>
                     <p className="text-sm text-slate-500">{renameDoc?.file_name}</p>
                   </div>
                   <div className="space-y-2">
-                    <Label>Nuovo nome</Label>
+                    <Label>{t('common.enterNewName')}</Label>
                     <Input
                       value={newFileName}
                       onChange={(e) => setNewFileName(e.target.value)}
-                      placeholder="Inserisci nuovo nome"
+                      placeholder={t('common.enterNewName')}
                       data-testid="rename-input"
                     />
-                    <p className="text-xs text-slate-400">
-                      L'estensione del file verrà mantenuta automaticamente
-                    </p>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
-                    Annulla
+                    {t('common.cancel')}
                   </Button>
                   <Button
                     onClick={handleRenameDocument}
@@ -875,7 +884,7 @@ const ClientDashboard = () => {
                     className="bg-blue-500 hover:bg-blue-600 text-white"
                     data-testid="rename-submit"
                   >
-                    {renamingDoc ? "Rinomino..." : "Rinomina"}
+                    {renamingDoc ? t('common.renaming') : t('common.rename')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -982,13 +991,7 @@ const ClientDashboard = () => {
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="font-semibold text-slate-900">{notif.title}</span>
                               <Badge className="bg-slate-100 text-slate-600 text-xs">
-                                {notif.type === "document" ? "Documento" :
-                                 notif.type === "deadline" ? "Scadenza" :
-                                 notif.type === "welcome" ? "Benvenuto" :
-                                 notif.type === "invite" ? "Invito" :
-                                 notif.type === "employee" ? "Dipendente" :
-                                 notif.type === "manual" ? "Comunicazione" :
-                                 notif.type}
+                                {getNotificationTypeLabel(notif.type)}
                               </Badge>
                               {notif.email_sent && (
                                 <Badge className="bg-emerald-100 text-emerald-700 text-xs">
@@ -1010,9 +1013,9 @@ const ClientDashboard = () => {
                 ) : (
                   <div className="text-center py-12">
                     <Bell className="h-16 w-16 text-slate-200 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-slate-700 mb-2">Nessuna comunicazione</h3>
+                    <h3 className="text-lg font-semibold text-slate-700 mb-2">{t('notifications.noNotifications')}</h3>
                     <p className="text-slate-500">
-                      Le notifiche e comunicazioni dallo studio appariranno qui
+                      {t('notifications.noNotifications')}
                     </p>
                   </div>
                 )}
@@ -1359,7 +1362,7 @@ const ClientDashboard = () => {
                         className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
                       >
                         <Save className="h-4 w-4 mr-2" />
-                        {savingProfile ? "Salvataggio..." : "Salva Modifiche"}
+                        {savingProfile ? t('common.saving') : t('common.saveChanges')}
                       </Button>
                     </div>
                   )}

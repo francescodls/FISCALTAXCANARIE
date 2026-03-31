@@ -7,34 +7,39 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Fase 58 (31 Marzo 2026) - COMPLETATA ✅
 
-**Correzione Traduzioni Spagnolo e Inglese**
+**Correzione Traduzioni Spagnolo e Inglese - Completamento Integrale**
 
-**Richiesta Utente:** Molte sezioni dell'applicazione non vengono tradotte quando si seleziona spagnolo o inglese. Correggere per avere traduzione completa.
+**Richiesta Utente:** Molte sezioni dell'applicazione non vengono tradotte. Correggere per traduzione completa.
 
 **File Aggiornati:**
 
 **1. `/app/frontend/src/i18n/translations.js`:**
-Aggiunte ~400 righe di traduzioni nuove per IT/EN/ES:
-- ✅ `taxReturns.*` - Tutte le voci dichiarazioni (titoli, stati, form, messaggi)
-- ✅ `tickets.*` - Ticket (titoli, stati, categorie)
-- ✅ `admin.*` - Area admin (team, inviti, categorie, modelli, backup)
-- ✅ `profileDialog.*` - Dialog profilo personale
+Aggiunte ~600 righe di traduzioni nuove per IT/EN/ES:
+- ✅ `taxReturns.*` - Tutte le voci dichiarazioni
+- ✅ `tickets.*` - Ticket
+- ✅ `admin.*` - Area admin
+- ✅ `profileDialog.*` - Dialog profilo
+- ✅ `common.*` - Voci comuni (saving, renaming, preview, enterNewName, saveChanges, optional)
+- ✅ `messages.*` - Messaggi toast (loadError, profileUpdated, downloadComplete, documentRenamed, ecc.)
+- ✅ `deadlines.status.*` - Stati scadenze (toDo, inProgress, completed, overdue)
+- ✅ `notifications.*` - Tipi notifiche (document, deadline, welcome, invite, employee, communication)
 
 **2. `/app/frontend/src/components/AdminDeclarationsView.jsx`:**
-- ✅ Importato `useLanguage()` hook
-- ✅ Tradotti: stats cards, toggle vista, filtri, dropdown ordinamento, tabella, dialog eliminazione
-- ✅ `getStatusLabel()` ora usa `t('taxReturns.status.*')`
+- ✅ Tradotti: stats, toggle, filtri, dropdown ordinamento, tabella, dialog eliminazione
 
 **3. `/app/frontend/src/pages/CommercialDashboard.jsx`:**
-- ✅ Tradotti pulsanti header: Categorie, Scadenze, Modelli, Backup
-- ✅ Tradotti tab: Onorari, Ticket, Team
-- ✅ Tradotti badge stati: Attivo, Autonomo, Società, Privato
-- ✅ Tradotto pulsante "Nuovo Cliente"
-- ✅ Tradotti label form: Telefono, Città, Email
+- ✅ Tradotti: pulsanti header, tab, badge stati, form nuovo cliente
+
+**4. `/app/frontend/src/pages/ClientDashboard.jsx`:**
+- ✅ Tradotti: messaggi toast (loadError, profileUpdated, downloadComplete, documentRenamed)
+- ✅ Tradotti: stati scadenze (getStatusLabel usa t())
+- ✅ Tradotti: tipi notifiche (getNotificationTypeLabel usa t())
+- ✅ Tradotto: dialog rinomina documento
+- ✅ Tradotto: pulsante "Salva Modifiche" profilo
 
 **Risultato Verificato con Screenshot:**
-- 🇪🇸 **Spagnolo:** Dashboard admin e dichiarazioni completamente tradotti
-- 🇬🇧 **Inglese:** Dashboard admin e dichiarazioni completamente tradotti
+- 🇪🇸 **Spagnolo:** Dashboard admin, dichiarazioni, homepage cliente - COMPLETO
+- 🇬🇧 **Inglese:** Dashboard admin, dichiarazioni - COMPLETO
 - 🇮🇹 **Italiano:** Funziona come prima (lingua default)
 
 ---

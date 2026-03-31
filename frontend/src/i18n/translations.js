@@ -39,6 +39,35 @@ export const translations = {
       total: "Totale",
       details: "Dettagli",
       logout: "Esci",
+      optional: "opzionale",
+      saving: "Salvataggio...",
+      renaming: "Rinomino...",
+      rename: "Rinomina",
+      preview: "Anteprima",
+      enterNewName: "Inserisci nuovo nome",
+      saveChanges: "Salva Modifiche",
+    },
+    
+    // Messages
+    messages: {
+      saveSuccess: "Salvato con successo",
+      saveError: "Errore nel salvataggio",
+      deleteSuccess: "Eliminato con successo",
+      deleteError: "Errore nell'eliminazione",
+      loadError: "Errore nel caricamento dei dati",
+      profileUpdated: "Profilo aggiornato con successo",
+      profileUpdateError: "Errore nell'aggiornamento del profilo",
+      downloadComplete: "Download completato",
+      downloadError: "Errore durante il download",
+      invalidName: "Inserisci un nome valido",
+      documentRenamed: "Documento rinominato con successo",
+      documentRenameError: "Errore nella rinomina del documento",
+      fillAllFields: "Compila tutti i campi",
+      credentialAdded: "Credenziale aggiunta",
+      credentialAddError: "Errore nell'aggiunta della credenziale",
+      confirmDelete: "Sei sicuro di voler eliminare?",
+      operationSuccess: "Operazione completata",
+      operationError: "Errore nell'operazione",
     },
     
     // Auth
@@ -151,6 +180,25 @@ export const translations = {
       noDeadlines: "Nessuna scadenza",
       recurring: "Ricorrente",
       reminder: "Promemoria",
+      inProgress: "In lavorazione",
+      status: {
+        toDo: "Da fare",
+        inProgress: "In lavorazione",
+        completed: "Completata",
+        overdue: "Scaduta",
+      },
+    },
+    
+    // Notifications
+    notifications: {
+      title: "Notifiche",
+      document: "Documento",
+      deadline: "Scadenza",
+      welcome: "Benvenuto",
+      invite: "Invito",
+      employee: "Dipendente",
+      communication: "Comunicazione",
+      noNotifications: "Nessuna notifica",
     },
     
     // Fees
@@ -569,6 +617,35 @@ export const translations = {
       total: "Total",
       details: "Details",
       logout: "Logout",
+      optional: "optional",
+      saving: "Saving...",
+      renaming: "Renaming...",
+      rename: "Rename",
+      preview: "Preview",
+      enterNewName: "Enter new name",
+      saveChanges: "Save Changes",
+    },
+    
+    // Messages
+    messages: {
+      saveSuccess: "Saved successfully",
+      saveError: "Error saving",
+      deleteSuccess: "Deleted successfully",
+      deleteError: "Error deleting",
+      loadError: "Error loading data",
+      profileUpdated: "Profile updated successfully",
+      profileUpdateError: "Error updating profile",
+      downloadComplete: "Download complete",
+      downloadError: "Download error",
+      invalidName: "Enter a valid name",
+      documentRenamed: "Document renamed successfully",
+      documentRenameError: "Error renaming document",
+      fillAllFields: "Fill in all fields",
+      credentialAdded: "Credential added",
+      credentialAddError: "Error adding credential",
+      confirmDelete: "Are you sure you want to delete?",
+      operationSuccess: "Operation completed",
+      operationError: "Operation error",
     },
     
     // Auth
@@ -681,6 +758,25 @@ export const translations = {
       noDeadlines: "No deadlines",
       recurring: "Recurring",
       reminder: "Reminder",
+      inProgress: "In progress",
+      status: {
+        toDo: "To do",
+        inProgress: "In progress",
+        completed: "Completed",
+        overdue: "Overdue",
+      },
+    },
+    
+    // Notifications
+    notifications: {
+      title: "Notifications",
+      document: "Document",
+      deadline: "Deadline",
+      welcome: "Welcome",
+      invite: "Invite",
+      employee: "Employee",
+      communication: "Communication",
+      noNotifications: "No notifications",
     },
     
     // Fees
@@ -1099,6 +1195,35 @@ export const translations = {
       total: "Total",
       details: "Detalles",
       logout: "Salir",
+      optional: "opcional",
+      saving: "Guardando...",
+      renaming: "Renombrando...",
+      rename: "Renombrar",
+      preview: "Vista previa",
+      enterNewName: "Introduce nuevo nombre",
+      saveChanges: "Guardar Cambios",
+    },
+    
+    // Messages
+    messages: {
+      saveSuccess: "Guardado con éxito",
+      saveError: "Error al guardar",
+      deleteSuccess: "Eliminado con éxito",
+      deleteError: "Error al eliminar",
+      loadError: "Error al cargar los datos",
+      profileUpdated: "Perfil actualizado con éxito",
+      profileUpdateError: "Error al actualizar el perfil",
+      downloadComplete: "Descarga completada",
+      downloadError: "Error en la descarga",
+      invalidName: "Introduce un nombre válido",
+      documentRenamed: "Documento renombrado con éxito",
+      documentRenameError: "Error al renombrar el documento",
+      fillAllFields: "Rellena todos los campos",
+      credentialAdded: "Credencial añadida",
+      credentialAddError: "Error al añadir la credencial",
+      confirmDelete: "¿Estás seguro de que quieres eliminar?",
+      operationSuccess: "Operación completada",
+      operationError: "Error en la operación",
     },
     
     // Auth
@@ -1211,6 +1336,25 @@ export const translations = {
       noDeadlines: "Sin vencimientos",
       recurring: "Recurrente",
       reminder: "Recordatorio",
+      inProgress: "En proceso",
+      status: {
+        toDo: "Por hacer",
+        inProgress: "En proceso",
+        completed: "Completado",
+        overdue: "Vencido",
+      },
+    },
+    
+    // Notifications
+    notifications: {
+      title: "Notificaciones",
+      document: "Documento",
+      deadline: "Vencimiento",
+      welcome: "Bienvenida",
+      invite: "Invitación",
+      employee: "Empleado",
+      communication: "Comunicación",
+      noNotifications: "Sin notificaciones",
     },
     
     // Fees
