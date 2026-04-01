@@ -252,6 +252,24 @@ class FolderCategoryCreate(BaseModel):
     icon: Optional[str] = "folder"
     color: Optional[str] = "#6b7280"
 
+# Modelli per le categorie clienti
+class ClientCategoryCreate(BaseModel):
+    id: str  # ID univoco (es: "case_vacanza")
+    name: str  # Nome visualizzato (es: "Case Vacanza")
+    description: Optional[str] = ""
+    icon: Optional[str] = "users"
+    color: Optional[str] = "slate"
+
+class ClientCategoryResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    icon: str
+    color: str
+    is_default: bool
+    order: int
+    created_at: Optional[str] = None
+
 class FolderCategoryResponse(BaseModel):
     id: str
     name: str
@@ -1617,6 +1635,122 @@ async def send_notification_to_list(
         "list_name": lst["name"],
         "errors": errors if errors else None
     }
+
+# ==================== CLIENT CATEGORIES ROUTES ====================
+
+# Categorie clienti predefinite
+DEFAULT_CLIENT_CATEGORIES = [
+    {"id": "autonomo", "name": "Autonomi", "description": "Lavoratori autonomi e liberi professionisti", "icon": "briefcase", "color": "blue", "is_default": True, "order": 1},
+    {"id": "societa", "name": "Società", "description": "Società di capitali e di persone", "icon": "building", "color": "purple", "is_default": True, "order": 2},
+    {"id": "privato", "name": "Privati", "description": "Persone fisiche private", "icon": "user", "color": "emerald", "is_default": True, "order": 3},
+    {"id": "vivienda_vacacional", "name": "Vivienda Vacacional", "description": "Gestori di case vacanza", "icon": "home", "color": "amber", "is_default": True, "order": 4},
+    {"id": "persona_fisica", "name": "Persona Fisica", "description": "Persone fisiche con attività", "icon": "user", "color": "teal", "is_default": True, "order": 5},
+]
+
+@api_router.get("/client-categories")
+async def get_client_categories(user: dict = Depends(get_current_user)):
+    """Ottiene tutte le categorie clienti (predefinite + personalizzate)"""
+    # Carica le categorie personalizzate dal database
+    custom_categories = await db.client_categories.find({}, {"_id": 0}).to_list(100)
+    
+    # Unisci con le categorie predefinite
+    all_categories = []
+    
+    # Aggiungi le predefinite
+    for cat in DEFAULT_CLIENT_CATEGORIES:
+        all_categories.append({
+            **cat,
+            "created_at": None
+        })
+    
+    # Aggiungi le personalizzate
+    for cat in custom_categories:
+        all_categories.append(cat)
+    
+    # Ordina per 'order'
+    all_categories.sort(key=lambda x: x.get("order", 999))
+    
+    return all_categories
+
+@api_router.post("/client-categories")
+async def create_client_category(category: ClientCategoryCreate, user: dict = Depends(require_commercialista)):
+    """Crea una nuova categoria cliente personalizzata"""
+    # Verifica che non esista già una categoria con lo stesso ID
+    existing = await db.client_categories.find_one({"id": category.id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Esiste già una categoria con questo ID")
+    
+    # Verifica che non sia un ID predefinito
+    default_ids = [c["id"] for c in DEFAULT_CLIENT_CATEGORIES]
+    if category.id in default_ids:
+        raise HTTPException(status_code=400, detail="Non puoi usare un ID riservato alle categorie predefinite")
+    
+    # Trova l'ultimo ordine
+    last_custom = await db.client_categories.find_one(sort=[("order", -1)])
+    next_order = (last_custom.get("order", 100) + 1) if last_custom else 101
+    
+    cat_doc = {
+        "id": category.id,
+        "name": category.name,
+        "description": category.description or "",
+        "icon": category.icon or "users",
+        "color": category.color or "slate",
+        "is_default": False,
+        "order": next_order,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user["id"]
+    }
+    
+    await db.client_categories.insert_one(cat_doc)
+    
+    # Log activity
+    await log_activity("categoria_cliente_creata", f"Nuova categoria cliente: {category.name}", user["id"])
+    
+    return {**cat_doc, "_id": None}
+
+@api_router.put("/client-categories/{category_id}")
+async def update_client_category(category_id: str, category: ClientCategoryCreate, user: dict = Depends(require_commercialista)):
+    """Aggiorna una categoria cliente personalizzata"""
+    # Verifica che non sia una categoria predefinita
+    default_ids = [c["id"] for c in DEFAULT_CLIENT_CATEGORIES]
+    if category_id in default_ids:
+        raise HTTPException(status_code=400, detail="Non puoi modificare le categorie predefinite")
+    
+    existing = await db.client_categories.find_one({"id": category_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    update_data = {
+        "name": category.name,
+        "description": category.description or "",
+        "icon": category.icon or "users",
+        "color": category.color or "slate"
+    }
+    
+    await db.client_categories.update_one({"id": category_id}, {"$set": update_data})
+    
+    return {"success": True, "message": "Categoria aggiornata"}
+
+@api_router.delete("/client-categories/{category_id}")
+async def delete_client_category(category_id: str, user: dict = Depends(require_commercialista)):
+    """Elimina una categoria cliente personalizzata"""
+    # Verifica che non sia una categoria predefinita
+    default_ids = [c["id"] for c in DEFAULT_CLIENT_CATEGORIES]
+    if category_id in default_ids:
+        raise HTTPException(status_code=400, detail="Non puoi eliminare le categorie predefinite")
+    
+    # Verifica se ci sono clienti con questa categoria
+    clients_count = await db.users.count_documents({"role": "cliente", "tipo_cliente": category_id})
+    if clients_count > 0:
+        raise HTTPException(status_code=400, detail=f"Impossibile eliminare: ci sono {clients_count} clienti assegnati a questa categoria")
+    
+    result = await db.client_categories.delete_one({"id": category_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    await log_activity("categoria_cliente_eliminata", f"Categoria cliente eliminata: {category_id}", user["id"])
+    
+    return {"success": True, "message": "Categoria eliminata"}
 
 # ==================== FOLDER CATEGORIES ROUTES ====================
 

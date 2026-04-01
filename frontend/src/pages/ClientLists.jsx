@@ -46,6 +46,9 @@ const ClientLists = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("lists");
   
+  // Client categories state
+  const [clientCategories, setClientCategories] = useState([]);
+  
   // Stato per vista categoria dettaglio
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categorySearchTerm, setCategorySearchTerm] = useState("");
@@ -71,59 +74,37 @@ const ClientLists = () => {
 
   const headers = { Authorization: `Bearer ${token}` };
 
-  // Definizione categorie clienti
-  const clientCategories = [
-    { 
-      id: "autonomo", 
-      name: "Autonomi", 
-      description: "Lavoratori autonomi e liberi professionisti",
-      icon: Briefcase,
-      color: "blue",
-      bgColor: "bg-blue-50",
-      textColor: "text-blue-600",
-      borderColor: "border-blue-200"
-    },
-    { 
-      id: "societa", 
-      name: "Società", 
-      description: "Società di capitali e di persone",
-      icon: Building2,
-      color: "purple",
-      bgColor: "bg-purple-50",
-      textColor: "text-purple-600",
-      borderColor: "border-purple-200"
-    },
-    { 
-      id: "privato", 
-      name: "Privati", 
-      description: "Persone fisiche private",
-      icon: User,
-      color: "emerald",
-      bgColor: "bg-emerald-50",
-      textColor: "text-emerald-600",
-      borderColor: "border-emerald-200"
-    },
-    { 
-      id: "vivienda_vacacional", 
-      name: "Vivienda Vacacional", 
-      description: "Gestori di case vacanza",
-      icon: Home,
-      color: "amber",
-      bgColor: "bg-amber-50",
-      textColor: "text-amber-600",
-      borderColor: "border-amber-200"
-    },
-    { 
-      id: "persona_fisica", 
-      name: "Persona Fisica", 
-      description: "Persone fisiche con attività",
-      icon: User,
-      color: "teal",
-      bgColor: "bg-teal-50",
-      textColor: "text-teal-600",
-      borderColor: "border-teal-200"
-    }
-  ];
+  // Icon map for dynamic categories
+  const iconMap = {
+    briefcase: Briefcase,
+    building: Building2,
+    user: User,
+    home: Home,
+    users: Users
+  };
+
+  // Color map for dynamic categories
+  const colorMap = {
+    blue: { bgColor: "bg-blue-50", textColor: "text-blue-600", borderColor: "border-blue-200" },
+    purple: { bgColor: "bg-purple-50", textColor: "text-purple-600", borderColor: "border-purple-200" },
+    emerald: { bgColor: "bg-emerald-50", textColor: "text-emerald-600", borderColor: "border-emerald-200" },
+    amber: { bgColor: "bg-amber-50", textColor: "text-amber-600", borderColor: "border-amber-200" },
+    teal: { bgColor: "bg-teal-50", textColor: "text-teal-600", borderColor: "border-teal-200" },
+    slate: { bgColor: "bg-slate-50", textColor: "text-slate-600", borderColor: "border-slate-200" },
+    red: { bgColor: "bg-red-50", textColor: "text-red-600", borderColor: "border-red-200" },
+    orange: { bgColor: "bg-orange-50", textColor: "text-orange-600", borderColor: "border-orange-200" },
+    green: { bgColor: "bg-green-50", textColor: "text-green-600", borderColor: "border-green-200" },
+    cyan: { bgColor: "bg-cyan-50", textColor: "text-cyan-600", borderColor: "border-cyan-200" },
+    pink: { bgColor: "bg-pink-50", textColor: "text-pink-600", borderColor: "border-pink-200" },
+    indigo: { bgColor: "bg-indigo-50", textColor: "text-indigo-600", borderColor: "border-indigo-200" }
+  };
+
+  // Helper to get category display props
+  const getCategoryDisplayProps = (cat) => {
+    const colors = colorMap[cat.color] || colorMap.slate;
+    const Icon = iconMap[cat.icon] || Users;
+    return { ...colors, icon: Icon };
+  };
 
   // Funzione per ottenere clienti per categoria
   const getClientsInCategory = (categoryId) => {
@@ -145,7 +126,18 @@ const ClientLists = () => {
 
   useEffect(() => {
     fetchData();
+    fetchClientCategories();
   }, []);
+
+  // Fetch client categories
+  const fetchClientCategories = async () => {
+    try {
+      const res = await axios.get(`${API}/client-categories`, { headers });
+      setClientCategories(res.data);
+    } catch (error) {
+      console.error("Errore nel caricamento categorie:", error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -532,24 +524,25 @@ const ClientLists = () => {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {clientCategories.map((category) => {
                     const count = getClientsInCategory(category.id).length;
-                    const Icon = category.icon;
+                    const displayProps = getCategoryDisplayProps(category);
+                    const Icon = displayProps.icon;
                     
                     return (
                       <div 
                         key={category.id}
-                        onClick={() => setSelectedCategory(category)}
-                        className={`p-4 ${category.bgColor} rounded-lg border ${category.borderColor} cursor-pointer hover:shadow-md transition-all hover:scale-[1.02] group`}
+                        onClick={() => setSelectedCategory({...category, ...displayProps})}
+                        className={`p-4 ${displayProps.bgColor} rounded-lg border ${displayProps.borderColor} cursor-pointer hover:shadow-md transition-all hover:scale-[1.02] group`}
                         data-testid={`category-card-${category.id}`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <Icon className={`h-5 w-5 ${category.textColor}`} />
-                            <h4 className={`font-semibold text-${category.color}-800`}>{category.name}</h4>
+                            <Icon className={`h-5 w-5 ${displayProps.textColor}`} />
+                            <h4 className={`font-semibold ${displayProps.textColor}`}>{category.name}</h4>
                           </div>
-                          <ChevronRight className={`h-5 w-5 ${category.textColor} opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all`} />
+                          <ChevronRight className={`h-5 w-5 ${displayProps.textColor} opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all`} />
                         </div>
                         <p className="text-xs text-slate-500 mb-3">{category.description}</p>
-                        <p className={`text-2xl font-bold ${category.textColor}`}>
+                        <p className={`text-2xl font-bold ${displayProps.textColor}`}>
                           {count} <span className="text-sm font-normal text-slate-500">clienti</span>
                         </p>
                       </div>
@@ -565,14 +558,17 @@ const ClientLists = () => {
                 <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-3">
-                      <div className={`w-10 h-10 ${selectedCategory.bgColor} rounded-lg flex items-center justify-center`}>
-                        <selectedCategory.icon className={`h-5 w-5 ${selectedCategory.textColor}`} />
+                      <div className={`w-10 h-10 ${selectedCategory.bgColor || 'bg-slate-50'} rounded-lg flex items-center justify-center`}>
+                        {(() => {
+                          const Icon = selectedCategory.icon || iconMap[selectedCategory.icon] || Users;
+                          return <Icon className={`h-5 w-5 ${selectedCategory.textColor || 'text-slate-600'}`} />;
+                        })()}
                       </div>
                       <div>
                         <span className="text-xl">{selectedCategory.name}</span>
                         <p className="text-sm font-normal text-slate-500">{selectedCategory.description}</p>
                       </div>
-                      <Badge className={`${selectedCategory.bgColor} ${selectedCategory.textColor} ml-auto`}>
+                      <Badge className={`${selectedCategory.bgColor || 'bg-slate-50'} ${selectedCategory.textColor || 'text-slate-600'} ml-auto`}>
                         {getClientsInCategory(selectedCategory.id).length} clienti
                       </Badge>
                     </DialogTitle>

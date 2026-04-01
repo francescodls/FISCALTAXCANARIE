@@ -153,6 +153,9 @@ const ClientDetail = () => {
   const [newEmail, setNewEmail] = useState("");
   const [addingEmail, setAddingEmail] = useState(false);
 
+  // Client categories state
+  const [clientCategories, setClientCategories] = useState([]);
+
   // Document rename state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameDoc, setRenameDoc] = useState(null);
@@ -181,7 +184,18 @@ const ClientDetail = () => {
   useEffect(() => {
     fetchData();
     fetchBankData();
+    fetchClientCategories();
   }, [clientId]);
+
+  // Fetch client categories
+  const fetchClientCategories = async () => {
+    try {
+      const res = await axios.get(`${API}/client-categories`, { headers });
+      setClientCategories(res.data);
+    } catch (error) {
+      console.error("Errore nel caricamento categorie clienti:", error);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -2033,12 +2047,22 @@ const ClientDetail = () => {
                           disabled={!editingClient}
                         >
                           <SelectTrigger className="border-slate-200">
-                            <SelectValue />
+                            <SelectValue placeholder="Seleziona categoria" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="autonomo">Autonomo</SelectItem>
-                            <SelectItem value="societa">Società</SelectItem>
-                            <SelectItem value="privato">Privato</SelectItem>
+                            {clientCategories.length > 0 ? (
+                              clientCategories.map((cat) => (
+                                <SelectItem key={cat.id} value={cat.id}>
+                                  {cat.name}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <>
+                                <SelectItem value="autonomo">Autonomo</SelectItem>
+                                <SelectItem value="societa">Società</SelectItem>
+                                <SelectItem value="privato">Privato</SelectItem>
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
