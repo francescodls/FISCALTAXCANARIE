@@ -5,6 +5,83 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 67 (1 Aprile 2026) - COMPLETATA ✅
+
+**Security Hardening Completo**
+
+**Richiesta Utente:** Hardening completo dell'applicazione contro accessi non autorizzati, brute force, upload malevoli, escalation privilegi.
+
+**Modulo Sicurezza (`/app/backend/security.py`):**
+
+**1. Rate Limiting (slowapi):**
+- ✅ Login: 5 tentativi/minuto
+- ✅ Registrazione: 3/minuto
+- ✅ Reset password: 3/minuto
+- ✅ Inviti admin: 10/minuto
+- ✅ Upload documenti: 20/minuto
+
+**2. Brute Force Protection:**
+- ✅ Blocco account dopo 5 tentativi falliti
+- ✅ Lockout temporaneo di 15 minuti
+- ✅ Logging dettagliato IP + User Agent
+- ✅ Reset automatico dopo lockout
+
+**3. Password Policy:**
+- ✅ Minimo 8 caratteri
+- ✅ Almeno una maiuscola
+- ✅ Almeno una minuscola
+- ✅ Almeno un numero
+- ✅ Blocco password comuni (password123, admin123, ecc.)
+
+**4. File Upload Security:**
+- ✅ Whitelist estensioni (.pdf, .doc, .docx, .xls, .xlsx, .jpg, .png, ecc.)
+- ✅ Blacklist estensioni pericolose (.exe, .php, .sh, .bat, ecc.)
+- ✅ Blocco doppie estensioni (.pdf.exe)
+- ✅ Validazione MIME type
+- ✅ Limite dimensione 10MB documenti, 5MB immagini
+- ✅ Sanitizzazione filename (rimozione path traversal, null bytes)
+
+**5. Security Headers Middleware:**
+- ✅ X-Frame-Options: DENY
+- ✅ X-Content-Type-Options: nosniff
+- ✅ X-XSS-Protection: 1; mode=block
+- ✅ Referrer-Policy: strict-origin-when-cross-origin
+- ✅ Permissions-Policy
+- ✅ CSP (Content Security Policy) in produzione
+
+**6. Audit Logging:**
+- ✅ Login success/failed con IP e User Agent
+- ✅ Upload documenti (file, size, client)
+- ✅ Download documenti
+- ✅ Eliminazione documenti
+- ✅ Inviti admin
+- ✅ Tentativi accesso non autorizzato
+- ✅ File upload bloccati
+- ✅ Export dati
+
+**7. IDOR Protection:**
+- ✅ Verifica ownership su GET /documents/{id}
+- ✅ Verifica ownership su DELETE /documents/{id}
+- ✅ Log tentativi IDOR
+
+**8. Admin Domain Validation:**
+- ✅ Solo @fiscaltaxcanarie.com per ruoli admin
+- ✅ Blocco registrazione con email admin domain
+- ✅ Blocco inviti con email esterna
+- ✅ Log security violation
+
+**Test Eseguiti:**
+- ✅ Rate limiting login (5/min bloccato al 6° tentativo)
+- ✅ Password policy (rifiutate password deboli)
+- ✅ Upload .exe → BLOCCATO
+- ✅ Upload .php → BLOCCATO
+- ✅ Upload .sh → BLOCCATO
+- ✅ Upload .pdf → ACCETTATO
+- ✅ Invito admin con @gmail.com → BLOCCATO
+- ✅ Audit log scritti correttamente
+
+---
+
 ### Fase 66 (1 Aprile 2026) - COMPLETATA ✅
 
 **Estensione Sezione Onorari nella Scheda Cliente**

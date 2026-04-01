@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Response, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -15,6 +15,20 @@ from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
 import base64
+
+# Import security module
+from security import (
+    limiter, SecurityHeadersMiddleware, 
+    RATE_LIMIT_LOGIN, RATE_LIMIT_REGISTER, RATE_LIMIT_PASSWORD_RESET, RATE_LIMIT_ADMIN_INVITE, RATE_LIMIT_UPLOAD,
+    record_login_attempt, is_login_locked, get_client_ip,
+    validate_password_strength, is_valid_admin_email, validate_admin_access,
+    sanitize_filename, validate_file_upload, generate_secure_filename,
+    ALLOWED_DOCUMENT_EXTENSIONS, ALLOWED_IMAGE_EXTENSIONS, MAX_FILE_SIZE, MAX_IMAGE_SIZE,
+    AuditEvent, log_security_event, log_audit_to_db,
+    verify_resource_ownership, ADMIN_ROLES
+)
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Import AI service
 from ai_service import extract_text_from_pdf, analyze_document_with_ai, generate_standard_filename, search_documents_semantic
@@ -63,11 +77,8 @@ SUPER_ADMINS = [
     {"email": "bruno@fiscaltaxcanarie.com", "first_name": "Bruno", "last_name": "Ferraiuolo", "password": "Lanzarote1"}
 ]
 
-# Dominio ammesso per ruoli amministrativi
-ADMIN_ALLOWED_DOMAIN = "fiscaltaxcanarie.com"
-
-# Ruoli amministrativi (richiedono dominio aziendale)
-ADMIN_ROLES = ["super_admin", "admin", "commercialista"]
+# Dominio ammesso per ruoli amministrativi (importato da security.py)
+# ADMIN_ALLOWED_DOMAIN e ADMIN_ROLES sono già importati dal modulo security
 
 # Categorie cartelle predefinite per l'organizzazione documenti
 DEFAULT_FOLDER_CATEGORIES = [
@@ -81,6 +92,14 @@ DEFAULT_FOLDER_CATEGORIES = [
 ]
 
 app = FastAPI(title="Fiscal Tax Canarie API")
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
@@ -552,10 +571,10 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Token non valido")
 
-# Helper per verificare dominio email admin
-def is_valid_admin_email(email: str) -> bool:
-    """Verifica che l'email appartenga al dominio amministrativo consentito"""
-    return email.lower().endswith(f"@{ADMIN_ALLOWED_DOMAIN}")
+# Helper is_valid_admin_email è già importato dal modulo security
+
+# Costante ADMIN_ALLOWED_DOMAIN importata da security
+from security import ADMIN_ALLOWED_DOMAIN
 
 async def require_admin(user: dict = Depends(get_current_user)):
     """Richiede ruolo admin o super_admin"""
@@ -670,11 +689,33 @@ async def startup_event():
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
-async def register(user_data: UserCreate):
+@limiter.limit(RATE_LIMIT_REGISTER)
+async def register(request: Request, user_data: UserCreate):
     """Registrazione SOLO per clienti"""
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
+    # Validate password strength
+    is_valid, password_error = validate_password_strength(user_data.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=password_error)
+    
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email già registrata")
+    
+    # SECURITY: Block any attempt to register with admin domain (clients use different emails)
+    if is_valid_admin_email(user_data.email):
+        log_security_event(
+            AuditEvent.SUSPICIOUS_ACTIVITY,
+            None, user_data.email, None,
+            client_ip, user_agent,
+            "Registration attempt with admin domain email blocked"
+        )
+        raise HTTPException(
+            status_code=400, 
+            detail="Questa email non può essere usata per la registrazione clienti"
+        )
     
     # Sempre cliente - nessuna opzione per commercialista
     user_id = str(uuid.uuid4())
@@ -705,8 +746,14 @@ async def register(user_data: UserCreate):
     }
     await db.users.insert_one(user_doc)
     
-    # Log attività
+    # Log attività e audit
     await log_activity("registrazione", f"Nuovo cliente registrato: {user_data.email} (tipo: {tipo_cliente})", user_id)
+    log_security_event(
+        AuditEvent.CLIENT_REGISTERED,
+        user_id, user_data.email, "cliente",
+        client_ip, user_agent,
+        f"New client registered: {user_data.full_name} ({tipo_cliente})"
+    )
     
     # Invia email di benvenuto (in background)
     try:
@@ -758,9 +805,36 @@ async def register(user_data: UserCreate):
     return TokenResponse(access_token=token, user=user_response)
 
 @api_router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+@limiter.limit(RATE_LIMIT_LOGIN)
+async def login(request: Request, credentials: UserLogin):
+    # Get client IP for brute force protection
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
+    # Check if login is locked due to brute force
+    is_locked, remaining_seconds = is_login_locked(client_ip, credentials.email)
+    if is_locked:
+        log_security_event(
+            AuditEvent.LOGIN_FAILED,
+            None, credentials.email, None,
+            client_ip, user_agent,
+            f"Login blocked - account locked for {remaining_seconds}s"
+        )
+        raise HTTPException(
+            status_code=429, 
+            detail=f"Troppi tentativi di accesso. Riprova tra {remaining_seconds // 60 + 1} minuti."
+        )
+    
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password"]):
+        # Record failed login attempt
+        record_login_attempt(client_ip, credentials.email, success=False)
+        log_security_event(
+            AuditEvent.LOGIN_FAILED,
+            user.get("id") if user else None, credentials.email, None,
+            client_ip, user_agent,
+            "Invalid credentials"
+        )
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     
     # SICUREZZA: Blocca accesso admin per email esterne al dominio aziendale
@@ -768,6 +842,12 @@ async def login(credentials: UserLogin):
     if user_role in ADMIN_ROLES:
         if not is_valid_admin_email(credentials.email):
             # Log tentativo di accesso non autorizzato
+            log_security_event(
+                AuditEvent.UNAUTHORIZED_ACCESS,
+                user.get("id"), credentials.email, user_role,
+                client_ip, user_agent,
+                "Admin access attempted with external email"
+            )
             await log_activity(
                 "security_violation", 
                 f"Tentativo accesso admin con email esterna bloccato: {credentials.email}", 
@@ -780,7 +860,16 @@ async def login(credentials: UserLogin):
     
     # Verifica se l'utente è bloccato
     if user.get("blocked"):
+        log_security_event(
+            AuditEvent.LOGIN_FAILED,
+            user.get("id"), credentials.email, user_role,
+            client_ip, user_agent,
+            "Account blocked"
+        )
         raise HTTPException(status_code=403, detail="Account bloccato. Contattare l'amministratore.")
+    
+    # Record successful login
+    record_login_attempt(client_ip, credentials.email, success=True)
     
     # Aggiorna last_login
     await db.users.update_one(
@@ -788,8 +877,14 @@ async def login(credentials: UserLogin):
         {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
     )
     
-    # Log attività
+    # Log attività e audit
     await log_activity("login", f"Accesso utente: {credentials.email}", user["id"])
+    log_security_event(
+        AuditEvent.LOGIN_SUCCESS,
+        user["id"], credentials.email, user_role,
+        client_ip, user_agent,
+        "Login successful"
+    )
     
     token = create_token(user["id"], user["email"], user["role"])
     user_response = UserResponse(
@@ -909,9 +1004,22 @@ class PasswordResetConfirm(BaseModel):
     new_password: str
 
 @api_router.post("/auth/forgot-password")
-async def forgot_password(request: PasswordResetRequest):
+@limiter.limit(RATE_LIMIT_PASSWORD_RESET)
+async def forgot_password(request_obj: Request, request: PasswordResetRequest):
     """Richiesta di reset password - invia email con link"""
+    client_ip = get_client_ip(request_obj)
+    user_agent = request_obj.headers.get("User-Agent", "")
+    
     user = await db.users.find_one({"email": request.email.lower()}, {"_id": 0})
+    
+    # Log the attempt regardless of result
+    log_security_event(
+        AuditEvent.PASSWORD_RESET_REQUEST,
+        user.get("id") if user else None, request.email, 
+        user.get("role") if user else None,
+        client_ip, user_agent,
+        "Password reset requested"
+    )
     
     # Non rivelare se l'email esiste o meno per sicurezza
     if not user:
@@ -930,7 +1038,8 @@ async def forgot_password(request: PasswordResetRequest):
         "token": reset_token,
         "expires_at": expires_at.isoformat(),
         "used": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ip_address": client_ip
     })
     
     # Invia email con link di reset
@@ -976,9 +1085,10 @@ async def reset_password(request: PasswordResetConfirm):
     if datetime.now(timezone.utc) > expires_at:
         raise HTTPException(status_code=400, detail="Il link è scaduto. Richiedi un nuovo reset")
     
-    # Valida la nuova password
-    if len(request.new_password) < 6:
-        raise HTTPException(status_code=400, detail="La password deve essere di almeno 6 caratteri")
+    # Valida la nuova password con policy di sicurezza
+    is_valid, password_error = validate_password_strength(request.new_password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=password_error)
     
     # Aggiorna la password
     hashed_password = bcrypt.hashpw(request.new_password.encode('utf-8'), bcrypt.gensalt())
@@ -994,6 +1104,12 @@ async def reset_password(request: PasswordResetConfirm):
     )
     
     await log_activity("reset_password", f"Password reimpostata per {reset_record['email']}", reset_record["user_id"])
+    log_security_event(
+        AuditEvent.PASSWORD_RESET_COMPLETE,
+        reset_record["user_id"], reset_record["email"], None,
+        "unknown", "",
+        "Password reset completed successfully"
+    )
     
     return {"message": "Password reimpostata con successo. Ora puoi accedere con la nuova password"}
 
@@ -1041,14 +1157,23 @@ async def get_admin_team(user: dict = Depends(require_admin)):
     return result
 
 @api_router.post("/admin/invite")
-async def invite_admin(invite_data: AdminInvite, user: dict = Depends(require_super_admin)):
+@limiter.limit(RATE_LIMIT_ADMIN_INVITE)
+async def invite_admin(request: Request, invite_data: AdminInvite, user: dict = Depends(require_super_admin)):
     """Invita un nuovo amministratore (solo Super Admin)"""
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
     
     # Verifica dominio email
     if not is_valid_admin_email(invite_data.email):
+        log_security_event(
+            AuditEvent.SUSPICIOUS_ACTIVITY,
+            user["id"], user["email"], user["role"],
+            client_ip, user_agent,
+            f"Admin invite attempted with external email: {invite_data.email}"
+        )
         raise HTTPException(
             status_code=400, 
-            detail=f"L'email deve appartenere al dominio @{ADMIN_ALLOWED_DOMAIN}"
+            detail="L'email deve appartenere al dominio @fiscaltaxcanarie.com"
         )
     
     # Verifica che non esista già
@@ -1077,14 +1202,21 @@ async def invite_admin(invite_data: AdminInvite, user: dict = Depends(require_su
         "invited_by_name": user.get("full_name", user["email"]),
         "expires_at": expires_at.isoformat(),
         "used": False,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "ip_address": client_ip
     })
     
-    # Log attività
+    # Log attività e audit
     await log_activity(
         "admin_invito", 
         f"Invito inviato a {invite_data.email} come {invite_data.role} da {user.get('full_name', user['email'])}", 
         user["id"]
+    )
+    log_security_event(
+        AuditEvent.ADMIN_INVITE_SENT,
+        user["id"], user["email"], user["role"],
+        client_ip, user_agent,
+        f"Admin invite sent to {invite_data.email} as {invite_data.role}"
     )
     
     return {
@@ -1963,7 +2095,9 @@ async def get_client_documents_by_folder(
 # ==================== DOCUMENTS ROUTES ====================
 
 @api_router.post("/documents")
+@limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload_document(
+    request: Request,
     title: str = Form(...),
     description: str = Form(None),
     category: str = Form(...),
@@ -1971,7 +2105,34 @@ async def upload_document(
     file: UploadFile = File(...),
     user: dict = Depends(require_commercialista)
 ):
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
+    # Read file content for size check
     file_content = await file.read()
+    file_size = len(file_content)
+    
+    # SECURITY: Validate file upload
+    is_valid, error_msg = validate_file_upload(
+        filename=file.filename,
+        content_type=file.content_type,
+        file_size=file_size,
+        allowed_extensions=ALLOWED_DOCUMENT_EXTENSIONS,
+        max_size=MAX_FILE_SIZE
+    )
+    
+    if not is_valid:
+        log_security_event(
+            AuditEvent.SUSPICIOUS_ACTIVITY,
+            user["id"], user["email"], user["role"],
+            client_ip, user_agent,
+            f"Invalid file upload blocked: {file.filename} - {error_msg}"
+        )
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Sanitize filename
+    safe_filename = sanitize_filename(file.filename)
+    
     file_base64 = base64.b64encode(file_content).decode('utf-8')
     
     doc_id = str(uuid.uuid4())
@@ -1981,10 +2142,13 @@ async def upload_document(
         "description": description,
         "category": category,
         "client_id": client_id,
-        "file_name": file.filename,
+        "file_name": safe_filename,
+        "original_file_name": file.filename,  # Keep original for reference
         "file_data": file_base64,
         "file_type": file.content_type,
+        "file_size": file_size,
         "uploaded_by": user["id"],
+        "upload_ip": client_ip,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "ai_description": None,
         "tags": [],
@@ -1993,7 +2157,14 @@ async def upload_document(
     }
     await db.documents.insert_one(document)
     
+    # Audit log
     await log_activity("caricamento_documento", f"Documento {title} caricato per cliente {client_id}", user["id"])
+    log_security_event(
+        AuditEvent.DOCUMENT_UPLOADED,
+        user["id"], user["email"], user["role"],
+        client_ip, user_agent,
+        f"Document uploaded: {safe_filename} ({file_size} bytes) for client {client_id}"
+    )
     
     return {"id": doc_id, "message": "Documento caricato con successo"}
 
@@ -2074,13 +2245,29 @@ async def get_documents_pending_verification(user: dict = Depends(require_commer
     return documents
 
 @api_router.get("/documents/{doc_id}")
-async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
+async def get_document(doc_id: str, request: Request, user: dict = Depends(get_current_user)):
     document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
     if not document:
         raise HTTPException(status_code=404, detail="Documento non trovato")
     
+    # IDOR Protection: clients can only access their own documents
     if user["role"] == "cliente" and document["client_id"] != user["id"]:
+        client_ip = get_client_ip(request)
+        log_security_event(
+            AuditEvent.UNAUTHORIZED_ACCESS,
+            user["id"], user["email"], user["role"],
+            client_ip, request.headers.get("User-Agent", ""),
+            f"IDOR attempt: tried to access document {doc_id} belonging to {document['client_id']}"
+        )
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Audit log for document access
+    log_security_event(
+        AuditEvent.DOCUMENT_DOWNLOADED,
+        user["id"], user["email"], user["role"],
+        get_client_ip(request), request.headers.get("User-Agent", ""),
+        f"Document accessed: {doc_id} ({document.get('file_name', 'unknown')})"
+    )
     
     # Se il file è su B2, scaricalo e aggiungi file_data
     if document.get("storage_path") and not document.get("file_data"):
@@ -2092,15 +2279,24 @@ async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     return document
 
 @api_router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
+async def delete_document(doc_id: str, request: Request, user: dict = Depends(get_current_user)):
     """Elimina un documento. Admin può eliminare tutti, cliente solo i propri."""
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
     document = await db.documents.find_one({"id": doc_id}, {"_id": 0})
     
     if not document:
         raise HTTPException(status_code=404, detail="Documento non trovato")
     
-    # Verifica permessi
+    # IDOR Protection: Verifica permessi
     if user["role"] == "cliente" and document.get("client_id") != user["id"]:
+        log_security_event(
+            AuditEvent.UNAUTHORIZED_ACCESS,
+            user["id"], user["email"], user["role"],
+            client_ip, user_agent,
+            f"IDOR delete attempt: tried to delete document {doc_id} belonging to {document.get('client_id')}"
+        )
         raise HTTPException(status_code=403, detail="Non puoi eliminare questo documento")
     
     # Se il file è su B2, eliminalo
@@ -2112,7 +2308,15 @@ async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Documento non trovato")
     
+    # Audit logging
     await log_activity("eliminazione_documento", f"Documento {doc_id} eliminato", user["id"])
+    log_security_event(
+        AuditEvent.DOCUMENT_DELETED,
+        user["id"], user["email"], user["role"],
+        client_ip, user_agent,
+        f"Document deleted: {doc_id} ({document.get('file_name', 'unknown')})"
+    )
+    
     return {"message": "Documento eliminato"}
 
 @api_router.get("/documents/{doc_id}/preview")
@@ -2204,7 +2408,9 @@ async def preview_document(
 # ==================== AI DOCUMENT ANALYSIS ====================
 
 @api_router.post("/documents/upload-auto")
+@limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload_document_with_ai(
+    request: Request,
     file: UploadFile = File(...),
     client_id: Optional[str] = Form(None),
     user: dict = Depends(require_commercialista)
@@ -2217,7 +2423,30 @@ async def upload_document_with_ai(
     - Genera descrizione e tag
     - Rinomina automaticamente il file
     """
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
     file_content = await file.read()
+    file_size = len(file_content)
+    
+    # SECURITY: Validate file upload
+    is_valid, error_msg = validate_file_upload(
+        filename=file.filename,
+        content_type=file.content_type,
+        file_size=file_size,
+        allowed_extensions=ALLOWED_DOCUMENT_EXTENSIONS,
+        max_size=MAX_FILE_SIZE
+    )
+    
+    if not is_valid:
+        log_security_event(
+            AuditEvent.SUSPICIOUS_ACTIVITY,
+            user["id"], user["email"], user["role"],
+            client_ip, user_agent,
+            f"Invalid AI upload blocked: {file.filename} - {error_msg}"
+        )
+        raise HTTPException(status_code=400, detail=error_msg)
+    
     file_base64 = base64.b64encode(file_content).decode('utf-8')
     
     # Estrai testo dal PDF

@@ -1,7 +1,7 @@
 """
 Routes per la gestione degli Onorari (Fees)
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -10,6 +10,14 @@ import io
 
 from .deps import get_db, get_current_user, require_commercialista, log_activity
 from .models import FeeCreate, FeeUpdate, FeeResponse
+
+# Import security module for audit logging
+import sys
+sys.path.insert(0, '/app/backend')
+from security import (
+    AuditEvent, log_security_event, get_client_ip, 
+    limiter, RATE_LIMIT_EXPORT
+)
 
 router = APIRouter(tags=["fees"])
 
@@ -433,11 +441,23 @@ async def get_monthly_stats(
 
 @router.get("/fees/export-excel")
 async def export_fees_excel(
+    request: Request,
     category: Optional[str] = None,
     fee_type: Optional[str] = None,
     user: dict = Depends(require_commercialista)
 ):
     """Esporta onorari in formato Excel con filtri"""
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
+    # Audit log for export
+    log_security_event(
+        AuditEvent.DATA_EXPORTED,
+        user["id"], user["email"], user["role"],
+        client_ip, user_agent,
+        f"Fees export requested: category={category}, fee_type={fee_type}"
+    )
+    
     try:
         import openpyxl
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
