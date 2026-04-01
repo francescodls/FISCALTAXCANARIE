@@ -47,7 +47,8 @@ import {
   MessageSquare,
   ShieldCheck,
   Building2,
-  Home
+  Home,
+  Bell
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -59,6 +60,7 @@ import GlobalFeesManagement from "@/components/GlobalFeesManagement";
 import GlobalTicketManagement from "@/components/GlobalTicketManagement";
 import AdminTeamManagement from "@/components/AdminTeamManagement";
 import AdminProfileDialog from "@/components/AdminProfileDialog";
+import NotificationsManagement from "@/components/NotificationsManagement";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
@@ -678,6 +680,14 @@ const CommercialDashboard = () => {
                 {t('admin.team')}
               </TabsTrigger>
             )}
+            <TabsTrigger 
+              value="notifications" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-notifications"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Notifiche
+            </TabsTrigger>
             <TabsTrigger 
               value="activity" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
@@ -1466,6 +1476,11 @@ const CommercialDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Notifications Tab */}
+          <TabsContent value="notifications">
+            <NotificationsManagement token={token} />
           </TabsContent>
 
           {/* Activity Tab */}

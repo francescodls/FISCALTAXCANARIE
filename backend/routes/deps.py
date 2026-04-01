@@ -69,6 +69,12 @@ async def require_commercialista(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Accesso riservato al commercialista")
     return user
 
+async def require_admin(user: dict = Depends(get_current_user)):
+    # Allow only admin and super_admin roles
+    if user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Accesso riservato agli amministratori")
+    return user
+
 async def require_commercialista_or_consulente(user: dict = Depends(get_current_user)):
     if user["role"] not in ["commercialista", "consulente_lavoro"]:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato")
