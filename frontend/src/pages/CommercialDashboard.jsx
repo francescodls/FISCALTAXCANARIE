@@ -556,15 +556,17 @@ const CommercialDashboard = () => {
           </Card>
           <Card 
             className="bg-white border border-slate-200 card-hover cursor-pointer"
-            onClick={() => navigate("/admin/deadlines")}
-            data-testid="stats-deadlines-overdue"
+            onClick={() => setActiveTab("notifications")}
+            data-testid="stats-notifications"
           >
             <CardContent className="p-4 flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center mb-2">
-                <AlertTriangle className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center mb-2">
+                <Bell className="h-5 w-5 text-white" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">{stats.deadlines_scadute || 0}</p>
-              <p className="text-xs text-slate-500">{t("dashboard.deadlinesOverdue")}</p>
+              <p className="text-2xl font-bold text-slate-900">
+                {t("notifications.title") || "Notifiche"}
+              </p>
+              <p className="text-xs text-slate-500">Gestione Notifiche</p>
             </CardContent>
           </Card>
           <Card 
@@ -687,14 +689,6 @@ const CommercialDashboard = () => {
             >
               <Bell className="h-4 w-4 mr-2" />
               Notifiche
-            </TabsTrigger>
-            <TabsTrigger 
-              value="activity" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
-              data-testid="tab-activity"
-            >
-              <Activity className="h-4 w-4 mr-2" />
-              {t("dashboard.recentActivity")}
             </TabsTrigger>
           </TabsList>
 
@@ -1481,43 +1475,6 @@ const CommercialDashboard = () => {
           {/* Notifications Tab */}
           <TabsContent value="notifications">
             <NotificationsManagement token={token} />
-          </TabsContent>
-
-          {/* Activity Tab */}
-          <TabsContent value="activity">
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-lg flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-teal-500" />
-                  Attività Recenti
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {activityLogs.length > 0 ? (
-                  <div className="space-y-3">
-                    {activityLogs.map((log, index) => (
-                      <div key={log.id || index} className="flex items-start gap-4 p-3 bg-stone-50 rounded-lg">
-                        <div className="w-2 h-2 bg-teal-500 rounded-full mt-2"></div>
-                        <div className="flex-1">
-                          <p className="text-slate-700">{log.description}</p>
-                          <p className="text-xs text-slate-400 mt-1">
-                            {new Date(log.timestamp).toLocaleString("it-IT")}
-                          </p>
-                        </div>
-                        <Badge className="bg-slate-100 text-slate-600 text-xs">
-                          {log.action}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Activity className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nessuna attività registrata</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Consulenti Tab */}
