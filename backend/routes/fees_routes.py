@@ -284,7 +284,7 @@ async def export_fees_excel(
     buffer.seek(0)
     
     # Genera nome file
-    filename = f"onorari"
+    filename = "onorari"
     if category and category != "all":
         filename += f"_{category}"
     if fee_type and fee_type != "all":
@@ -406,3 +406,151 @@ async def get_fees_summary(client_id: str, user: dict = Depends(require_commerci
         "count_paid": len([f for f in fees if f["status"] == "paid"]),
         "count_pending": len([f for f in fees if f["status"] == "pending"])
     }
+
+
+
+# ==================== GESTIONE TIPI DI ONORARIO ====================
+
+@router.get("/fees/fee-types")
+async def get_fee_types(user: dict = Depends(get_current_user)):
+    """
+    Recupera tutti i tipi di onorario.
+    Accessibile sia da admin che da clienti.
+    """
+    db = get_db()
+    fee_types = await db.fee_types.find({}, {"_id": 0}).sort("order", 1).to_list(100)
+    
+    # Se non ci sono tipi, crea quelli di default
+    if not fee_types:
+        default_types = [
+            {"id": "standard", "label": "Onorario Standard", "requires_due_date": False, "is_iguala": False, "icon": "receipt", "color": "bg-slate-100 text-slate-700", "order": 1},
+            {"id": "consulenza", "label": "Consulenza", "requires_due_date": False, "is_iguala": False, "icon": "file-text", "color": "bg-blue-100 text-blue-700", "order": 2},
+            {"id": "pratica", "label": "Pratica/Procedura", "requires_due_date": True, "is_iguala": False, "icon": "calendar", "color": "bg-purple-100 text-purple-700", "order": 3},
+            {"id": "dichiarazione", "label": "Dichiarazione Fiscale", "requires_due_date": True, "is_iguala": False, "icon": "calculator", "color": "bg-amber-100 text-amber-700", "order": 4},
+            {"id": "iguala_buste_paga", "label": "Iguala - Buste Paga", "requires_due_date": False, "is_iguala": True, "icon": "credit-card", "color": "bg-teal-100 text-teal-700", "order": 5},
+            {"id": "iguala_contabilita", "label": "Iguala - Contabilità Società", "requires_due_date": False, "is_iguala": True, "icon": "calculator", "color": "bg-green-100 text-green-700", "order": 6},
+            {"id": "iguala_domicilio", "label": "Iguala - Domicilio Sociale", "requires_due_date": False, "is_iguala": True, "icon": "map-pin", "color": "bg-indigo-100 text-indigo-700", "order": 7}
+        ]
+        for ft in default_types:
+            ft["created_at"] = datetime.now(timezone.utc).isoformat()
+            await db.fee_types.insert_one(ft)
+        # Ricarica per evitare problemi con _id
+        fee_types = await db.fee_types.find({}, {"_id": 0}).sort("order", 1).to_list(100)
+    
+    return fee_types
+
+
+@router.post("/fees/fee-types")
+async def create_fee_type(
+    fee_type_data: dict,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Crea un nuovo tipo di onorario.
+    Solo admin può creare tipi di onorario.
+    """
+    db = get_db()
+    
+    # Genera ID dal label se non fornito
+    fee_type_id = fee_type_data.get("id") or fee_type_data.get("label", "").lower().replace(" ", "_").replace("-", "_")
+    
+    # Verifica che non esista già
+    existing = await db.fee_types.find_one({"id": fee_type_id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Tipo di onorario già esistente")
+    
+    # Calcola il prossimo ordine
+    max_order = await db.fee_types.find_one(sort=[("order", -1)])
+    next_order = (max_order.get("order", 0) if max_order else 0) + 1
+    
+    new_fee_type = {
+        "id": fee_type_id,
+        "label": fee_type_data.get("label", ""),
+        "requires_due_date": fee_type_data.get("requires_due_date", False),
+        "is_iguala": fee_type_data.get("is_iguala", False),
+        "icon": fee_type_data.get("icon", "receipt"),
+        "color": fee_type_data.get("color", "bg-slate-100 text-slate-700"),
+        "order": fee_type_data.get("order", next_order),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user.get("id")
+    }
+    
+    await db.fee_types.insert_one(new_fee_type)
+    
+    await log_activity(
+        db, user["id"],
+        f"Creato nuovo tipo di onorario: {new_fee_type['label']}",
+        "fee_type_created"
+    )
+    
+    return {"success": True, "fee_type": {k: v for k, v in new_fee_type.items() if k != "_id"}}
+
+
+@router.put("/fees/fee-types/{fee_type_id}")
+async def update_fee_type(
+    fee_type_id: str,
+    fee_type_data: dict,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Aggiorna un tipo di onorario esistente.
+    """
+    db = get_db()
+    
+    existing = await db.fee_types.find_one({"id": fee_type_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Tipo di onorario non trovato")
+    
+    update_data = {
+        "label": fee_type_data.get("label", existing.get("label")),
+        "requires_due_date": fee_type_data.get("requires_due_date", existing.get("requires_due_date")),
+        "is_iguala": fee_type_data.get("is_iguala", existing.get("is_iguala")),
+        "icon": fee_type_data.get("icon", existing.get("icon")),
+        "color": fee_type_data.get("color", existing.get("color")),
+        "order": fee_type_data.get("order", existing.get("order")),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.fee_types.update_one({"id": fee_type_id}, {"$set": update_data})
+    
+    await log_activity(
+        db, user["id"],
+        f"Aggiornato tipo di onorario: {update_data['label']}",
+        "fee_type_updated"
+    )
+    
+    return {"success": True, "message": "Tipo di onorario aggiornato"}
+
+
+@router.delete("/fees/fee-types/{fee_type_id}")
+async def delete_fee_type(
+    fee_type_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Elimina un tipo di onorario.
+    Non elimina se ci sono onorari associati.
+    """
+    db = get_db()
+    
+    existing = await db.fee_types.find_one({"id": fee_type_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Tipo di onorario non trovato")
+    
+    # Verifica che non ci siano onorari con questo tipo
+    fees_count = await db.fees.count_documents({"fee_type": fee_type_id})
+    if fees_count > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Impossibile eliminare: ci sono {fees_count} onorari associati a questo tipo"
+        )
+    
+    await db.fee_types.delete_one({"id": fee_type_id})
+    
+    await log_activity(
+        db, user["id"],
+        f"Eliminato tipo di onorario: {existing.get('label')}",
+        "fee_type_deleted"
+    )
+    
+    return {"success": True, "message": "Tipo di onorario eliminato"}

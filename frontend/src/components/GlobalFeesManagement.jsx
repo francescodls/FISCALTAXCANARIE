@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -57,60 +69,56 @@ import {
   MapPin,
   ArrowLeft,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Settings,
+  Tag
 } from "lucide-react";
 
 const API = process.env.REACT_APP_BACKEND_URL + "/api";
 
-// ==================== TIPI DI ONORARIO ====================
-const FEE_TYPES = {
-  standard: {
-    label: "Onorario Standard",
-    requiresDueDate: false,
-    icon: Receipt,
-    color: "bg-slate-100 text-slate-700"
-  },
-  consulenza: {
-    label: "Consulenza",
-    requiresDueDate: false,
-    icon: FileText,
-    color: "bg-blue-100 text-blue-700"
-  },
-  pratica: {
-    label: "Pratica/Procedura",
-    requiresDueDate: true,
-    icon: Calendar,
-    color: "bg-purple-100 text-purple-700"
-  },
-  dichiarazione: {
-    label: "Dichiarazione Fiscale",
-    requiresDueDate: true,
-    icon: Calculator,
-    color: "bg-amber-100 text-amber-700"
-  },
-  iguala_buste_paga: {
-    label: "Iguala - Buste Paga",
-    requiresDueDate: false,
-    isIguala: true,
-    icon: CreditCard,
-    color: "bg-teal-100 text-teal-700"
-  },
-  iguala_contabilita: {
-    label: "Iguala - Contabilità Società",
-    requiresDueDate: false,
-    isIguala: true,
-    icon: Calculator,
-    color: "bg-green-100 text-green-700"
-  },
-  iguala_domicilio: {
-    label: "Iguala - Domicilio Sociale",
-    requiresDueDate: false,
-    isIguala: true,
-    icon: MapPin,
-    color: "bg-indigo-100 text-indigo-700"
-  }
+// ==================== ICONE DISPONIBILI ====================
+const ICON_OPTIONS = [
+  { value: "receipt", label: "Ricevuta", icon: Receipt },
+  { value: "file-text", label: "Documento", icon: FileText },
+  { value: "calendar", label: "Calendario", icon: Calendar },
+  { value: "calculator", label: "Calcolatrice", icon: Calculator },
+  { value: "credit-card", label: "Carta di Credito", icon: CreditCard },
+  { value: "map-pin", label: "Posizione", icon: MapPin },
+  { value: "briefcase", label: "Lavoro", icon: Briefcase },
+  { value: "euro", label: "Euro", icon: Euro },
+  { value: "tag", label: "Tag", icon: Tag },
+];
+
+const COLOR_OPTIONS = [
+  { value: "bg-slate-100 text-slate-700", label: "Grigio" },
+  { value: "bg-blue-100 text-blue-700", label: "Blu" },
+  { value: "bg-purple-100 text-purple-700", label: "Viola" },
+  { value: "bg-amber-100 text-amber-700", label: "Ambra" },
+  { value: "bg-teal-100 text-teal-700", label: "Verde Acqua" },
+  { value: "bg-green-100 text-green-700", label: "Verde" },
+  { value: "bg-indigo-100 text-indigo-700", label: "Indaco" },
+  { value: "bg-red-100 text-red-700", label: "Rosso" },
+  { value: "bg-orange-100 text-orange-700", label: "Arancione" },
+  { value: "bg-pink-100 text-pink-700", label: "Rosa" },
+];
+
+// Funzione per ottenere l'icona dal nome
+const getIconComponent = (iconName) => {
+  const iconMap = {
+    "receipt": Receipt,
+    "file-text": FileText,
+    "calendar": Calendar,
+    "calculator": Calculator,
+    "credit-card": CreditCard,
+    "map-pin": MapPin,
+    "briefcase": Briefcase,
+    "euro": Euro,
+    "tag": Tag,
+  };
+  return iconMap[iconName] || Receipt;
 };
 
+// ==================== TIPI CLIENTE ====================
 const CLIENT_TYPES = [
   { value: "all", label: "Tutte le categorie", icon: Users },
   { value: "societa", label: "Società", icon: Building2 },
@@ -131,6 +139,24 @@ const GlobalFeesManagement = ({ token }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [clientTypeFilter, setClientTypeFilter] = useState("all");
   const [exportLoading, setExportLoading] = useState(false);
+  
+  // Tipi di onorario dinamici
+  const [feeTypes, setFeeTypes] = useState([]);
+  const [feeTypesMap, setFeeTypesMap] = useState({});
+  const [loadingFeeTypes, setLoadingFeeTypes] = useState(true);
+  
+  // Gestione tipi di onorario dialog
+  const [showFeeTypeDialog, setShowFeeTypeDialog] = useState(false);
+  const [editingFeeType, setEditingFeeType] = useState(null);
+  const [feeTypeForm, setFeeTypeForm] = useState({
+    label: "",
+    requires_due_date: false,
+    is_iguala: false,
+    icon: "receipt",
+    color: "bg-slate-100 text-slate-700"
+  });
+  const [savingFeeType, setSavingFeeType] = useState(false);
+  const [deleteFeeTypeDialog, setDeleteFeeTypeDialog] = useState({ open: false, feeType: null });
   
   // Dialog state
   const [showFeeDialog, setShowFeeDialog] = useState(false);
@@ -156,10 +182,37 @@ const GlobalFeesManagement = ({ token }) => {
 
   // ==================== DATA FETCHING ====================
   useEffect(() => {
+    fetchFeeTypes();
     fetchClientsWithFees();
     fetchSummary();
     fetchIgualaFees();
   }, []);
+
+  const fetchFeeTypes = async () => {
+    try {
+      setLoadingFeeTypes(true);
+      const response = await axios.get(`${API}/fees/fee-types`, { headers });
+      setFeeTypes(response.data);
+      
+      // Crea una mappa per accesso rapido
+      const map = {};
+      response.data.forEach(ft => {
+        map[ft.id] = {
+          label: ft.label,
+          requiresDueDate: ft.requires_due_date,
+          isIguala: ft.is_iguala,
+          icon: getIconComponent(ft.icon),
+          color: ft.color
+        };
+      });
+      setFeeTypesMap(map);
+    } catch (error) {
+      console.error("Errore caricamento tipi onorario:", error);
+      toast.error("Errore nel caricamento dei tipi di onorario");
+    } finally {
+      setLoadingFeeTypes(false);
+    }
+  };
 
   const fetchClientsWithFees = async () => {
     setLoading(true);
@@ -332,7 +385,7 @@ const GlobalFeesManagement = ({ token }) => {
         ...feeForm,
         amount: parseFloat(feeForm.amount),
         // Se il tipo non richiede scadenza, la rimuoviamo
-        due_date: FEE_TYPES[feeForm.fee_type]?.requiresDueDate ? feeForm.due_date : null
+        due_date: feeTypesMap[feeForm.fee_type]?.requiresDueDate ? feeForm.due_date : null
       };
 
       const clientId = selectedClient?.id || feeForm.client_id;
@@ -351,7 +404,7 @@ const GlobalFeesManagement = ({ token }) => {
       }
       fetchClientsWithFees();
       fetchSummary();
-      if (feeForm.fee_type.startsWith("iguala_")) {
+      if (feeForm.fee_type.startsWith("iguala_") || feeTypesMap[feeForm.fee_type]?.isIguala) {
         fetchIgualaFees();
       }
     } catch (error) {
@@ -397,6 +450,70 @@ const GlobalFeesManagement = ({ token }) => {
     }
   };
 
+  // ==================== GESTIONE TIPI DI ONORARIO ====================
+  const openCreateFeeTypeDialog = () => {
+    setEditingFeeType(null);
+    setFeeTypeForm({
+      label: "",
+      requires_due_date: false,
+      is_iguala: false,
+      icon: "receipt",
+      color: "bg-slate-100 text-slate-700"
+    });
+    setShowFeeTypeDialog(true);
+  };
+
+  const openEditFeeTypeDialog = (feeType) => {
+    setEditingFeeType(feeType);
+    setFeeTypeForm({
+      label: feeType.label || "",
+      requires_due_date: feeType.requires_due_date || false,
+      is_iguala: feeType.is_iguala || false,
+      icon: feeType.icon || "receipt",
+      color: feeType.color || "bg-slate-100 text-slate-700"
+    });
+    setShowFeeTypeDialog(true);
+  };
+
+  const handleSaveFeeType = async (e) => {
+    e.preventDefault();
+    if (!feeTypeForm.label.trim()) {
+      toast.error("Inserisci un nome per il tipo di onorario");
+      return;
+    }
+
+    setSavingFeeType(true);
+    try {
+      if (editingFeeType) {
+        await axios.put(`${API}/fees/fee-types/${editingFeeType.id}`, feeTypeForm, { headers });
+        toast.success("Tipo di onorario aggiornato");
+      } else {
+        await axios.post(`${API}/fees/fee-types`, feeTypeForm, { headers });
+        toast.success("Tipo di onorario creato");
+      }
+      
+      setShowFeeTypeDialog(false);
+      fetchFeeTypes();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nel salvataggio");
+    } finally {
+      setSavingFeeType(false);
+    }
+  };
+
+  const handleDeleteFeeType = async () => {
+    if (!deleteFeeTypeDialog.feeType) return;
+    
+    try {
+      await axios.delete(`${API}/fees/fee-types/${deleteFeeTypeDialog.feeType.id}`, { headers });
+      toast.success("Tipo di onorario eliminato");
+      setDeleteFeeTypeDialog({ open: false, feeType: null });
+      fetchFeeTypes();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'eliminazione");
+    }
+  };
+
   // ==================== FILTERING ====================
   const filteredClients = clients.filter(client => {
     const matchesSearch = !searchTerm || 
@@ -439,10 +556,11 @@ const GlobalFeesManagement = ({ token }) => {
   };
 
   const getFeeTypeBadge = (feeType) => {
-    const type = FEE_TYPES[feeType] || FEE_TYPES.standard;
+    const type = feeTypesMap[feeType] || { label: feeType, color: "bg-slate-100 text-slate-700", icon: Receipt };
+    const IconComponent = type.icon || Receipt;
     return (
       <Badge className={`${type.color} border-0`}>
-        <type.icon className="h-3 w-3 mr-1" />
+        <IconComponent className="h-3 w-3 mr-1" />
         {type.label}
       </Badge>
     );
@@ -482,6 +600,14 @@ const GlobalFeesManagement = ({ token }) => {
           >
             <Repeat className="h-4 w-4 mr-2" />
             Iguala (Mensili)
+          </TabsTrigger>
+          <TabsTrigger 
+            value="types" 
+            className="data-[state=active]:bg-white data-[state=active]:text-purple-600"
+            data-testid="tab-fees-types"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Gestione Tipi
           </TabsTrigger>
         </TabsList>
 
@@ -618,7 +744,221 @@ const GlobalFeesManagement = ({ token }) => {
             }}
           />
         </TabsContent>
+
+        {/* TAB: Gestione Tipi */}
+        <TabsContent value="types" className="space-y-4">
+          <Card className="bg-white border border-slate-200">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-purple-500" />
+                  Gestione Tipi di Onorario
+                </CardTitle>
+                <Button 
+                  onClick={openCreateFeeTypeDialog}
+                  className="bg-purple-500 hover:bg-purple-600 text-white"
+                  data-testid="add-fee-type-btn"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuovo Tipo
+                </Button>
+              </div>
+              <p className="text-sm text-slate-500 mt-2">
+                Gestisci i tipi di onorario disponibili. I tipi marcati come "Iguala" appariranno nella sezione mensile.
+              </p>
+            </CardHeader>
+            <CardContent>
+              {loadingFeeTypes ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : feeTypes.length === 0 ? (
+                <div className="text-center py-12">
+                  <Tag className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500">Nessun tipo di onorario configurato</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {feeTypes.map((feeType) => {
+                    const IconComponent = getIconComponent(feeType.icon);
+                    return (
+                      <div
+                        key={feeType.id}
+                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors"
+                        data-testid={`fee-type-row-${feeType.id}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${feeType.color}`}>
+                            <IconComponent className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-slate-900">{feeType.label}</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              {feeType.is_iguala && (
+                                <Badge className="bg-teal-100 text-teal-700 text-xs">Iguala</Badge>
+                              )}
+                              {feeType.requires_due_date && (
+                                <Badge className="bg-amber-100 text-amber-700 text-xs">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  Richiede Scadenza
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditFeeTypeDialog(feeType)}
+                            className="border-slate-200"
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Modifica
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDeleteFeeTypeDialog({ open: true, feeType })}
+                            className="border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Dialog Gestione Tipo Onorario */}
+      <Dialog open={showFeeTypeDialog} onOpenChange={setShowFeeTypeDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-purple-500" />
+              {editingFeeType ? "Modifica Tipo Onorario" : "Nuovo Tipo Onorario"}
+            </DialogTitle>
+            <DialogDescription>
+              Configura le proprietà del tipo di onorario
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSaveFeeType} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nome *</Label>
+              <Input
+                value={feeTypeForm.label}
+                onChange={(e) => setFeeTypeForm({ ...feeTypeForm, label: e.target.value })}
+                placeholder="Es: Consulenza Fiscale"
+                required
+                className="border-slate-200"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Icona</Label>
+                <Select 
+                  value={feeTypeForm.icon} 
+                  onValueChange={(value) => setFeeTypeForm({ ...feeTypeForm, icon: value })}
+                >
+                  <SelectTrigger className="border-slate-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ICON_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div className="flex items-center gap-2">
+                          <opt.icon className="h-4 w-4" />
+                          {opt.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Colore</Label>
+                <Select 
+                  value={feeTypeForm.color} 
+                  onValueChange={(value) => setFeeTypeForm({ ...feeTypeForm, color: value })}
+                >
+                  <SelectTrigger className="border-slate-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLOR_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-4 h-4 rounded ${opt.value}`}></div>
+                          {opt.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="requires_due_date"
+                  checked={feeTypeForm.requires_due_date}
+                  onCheckedChange={(checked) => setFeeTypeForm({ ...feeTypeForm, requires_due_date: checked })}
+                />
+                <Label htmlFor="requires_due_date" className="cursor-pointer">
+                  Richiede data di scadenza
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="is_iguala"
+                  checked={feeTypeForm.is_iguala}
+                  onCheckedChange={(checked) => setFeeTypeForm({ ...feeTypeForm, is_iguala: checked })}
+                />
+                <Label htmlFor="is_iguala" className="cursor-pointer">
+                  È un tipo Iguala (mensile/ricorrente)
+                </Label>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowFeeTypeDialog(false)}>
+                Annulla
+              </Button>
+              <Button type="submit" disabled={savingFeeType} className="bg-purple-500 hover:bg-purple-600">
+                {savingFeeType ? "Salvataggio..." : editingFeeType ? "Aggiorna" : "Crea"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Conferma Eliminazione Tipo */}
+      <AlertDialog open={deleteFeeTypeDialog.open} onOpenChange={(open) => setDeleteFeeTypeDialog({ ...deleteFeeTypeDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina Tipo di Onorario</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare il tipo "<strong>{deleteFeeTypeDialog.feeType?.label}</strong>"?
+              <br /><br />
+              Questa azione non può essere annullata. Non sarà possibile eliminare il tipo se ci sono onorari associati.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteFeeType} className="bg-red-600 hover:bg-red-700">
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Fee Dialog */}
       <Dialog open={showFeeDialog} onOpenChange={setShowFeeDialog}>
@@ -645,13 +985,9 @@ const GlobalFeesManagement = ({ token }) => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="standard">Onorario Standard</SelectItem>
-                  <SelectItem value="consulenza">Consulenza</SelectItem>
-                  <SelectItem value="pratica">Pratica/Procedura</SelectItem>
-                  <SelectItem value="dichiarazione">Dichiarazione Fiscale</SelectItem>
-                  <SelectItem value="iguala_buste_paga">Iguala - Buste Paga</SelectItem>
-                  <SelectItem value="iguala_contabilita">Iguala - Contabilità Società</SelectItem>
-                  <SelectItem value="iguala_domicilio">Iguala - Domicilio Sociale</SelectItem>
+                  {feeTypes.map((ft) => (
+                    <SelectItem key={ft.id} value={ft.id}>{ft.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -684,7 +1020,7 @@ const GlobalFeesManagement = ({ token }) => {
             </div>
 
             {/* Scadenza - Solo se richiesta */}
-            {FEE_TYPES[feeForm.fee_type]?.requiresDueDate && (
+            {feeTypesMap[feeForm.fee_type]?.requiresDueDate && (
               <div className="space-y-2">
                 <Label>Data Scadenza *</Label>
                 <Input
@@ -701,7 +1037,7 @@ const GlobalFeesManagement = ({ token }) => {
             )}
 
             {/* Mese di riferimento per Iguala */}
-            {feeForm.fee_type.startsWith('iguala_') && (
+            {(feeForm.fee_type.startsWith('iguala_') || feeTypesMap[feeForm.fee_type]?.isIguala) && (
               <div className="space-y-2">
                 <Label>Mese di Riferimento</Label>
                 <Input

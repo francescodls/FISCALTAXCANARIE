@@ -5,6 +5,37 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 60 (1 Aprile 2026) - COMPLETATA ✅
+
+**Gestione Dinamica Tipi di Onorario**
+
+**Richiesta Utente:** Nella sezione "Onorari" del pannello admin, permettere di creare, modificare e cancellare i tipi di onorario dinamicamente.
+
+**Backend (`/app/backend/routes/fees_routes.py`):**
+- ✅ `GET /api/fees/fee-types` - Lista tutti i tipi (crea default se vuoti)
+- ✅ `POST /api/fees/fee-types` - Crea nuovo tipo
+- ✅ `PUT /api/fees/fee-types/{id}` - Modifica tipo esistente
+- ✅ `DELETE /api/fees/fee-types/{id}` - Elimina tipo (blocca se ci sono onorari associati)
+- ✅ 7 tipi di default: Standard, Consulenza, Pratica, Dichiarazione, Iguala Buste Paga/Contabilità/Domicilio
+
+**Frontend (`/app/frontend/src/components/GlobalFeesManagement.jsx`):**
+- ✅ Nuovo tab "**Gestione Tipi**" (viola) nella sezione Onorari
+- ✅ Lista dinamica dei tipi con icona, label, badge (Iguala/Richiede Scadenza)
+- ✅ Pulsante "**+ Nuovo Tipo**" per creare
+- ✅ Pulsanti "**Modifica**" e "**Elimina**" per ogni tipo
+- ✅ Dialog creazione/modifica con:
+  - Nome
+  - Icona (9 opzioni: Ricevuta, Documento, Calendario, Calcolatrice, ecc.)
+  - Colore (10 opzioni)
+  - Checkbox "Richiede data di scadenza"
+  - Checkbox "È un tipo Iguala (mensile/ricorrente)"
+- ✅ Dialog conferma eliminazione
+- ✅ Dropdown tipi nel form creazione onorario caricato dinamicamente
+
+**Test:** Screenshot verificano UI funzionante con dialog e lista tipi
+
+---
+
 ### Fase 59 (31 Marzo 2026) - COMPLETATA ✅
 
 **Correzione Dominio e Reindirizzamenti**
