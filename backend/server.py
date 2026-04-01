@@ -3113,7 +3113,7 @@ async def get_activity_logs(limit: int = 50, user: dict = Depends(require_commer
 
 @api_router.get("/stats")
 async def get_stats(user: dict = Depends(get_current_user)):
-    if user["role"] == "commercialista":
+    if user["role"] in ["commercialista", "admin", "super_admin"]:
         clients_count = await db.users.count_documents({"role": "cliente"})
         clients_active = await db.users.count_documents({"role": "cliente", "stato": "attivo"})
         documents_count = await db.documents.count_documents({})
@@ -3129,6 +3129,26 @@ async def get_stats(user: dict = Depends(get_current_user)):
         # Documenti da verificare (senza AI description)
         docs_da_verificare = await db.documents.count_documents({"ai_description": None})
         
+        # ========== STATISTICHE PER CATEGORIA CLIENTE ==========
+        # Conta clienti dalla collection clients (anagrafica dettagliata)
+        clients_societa = await db.clients.count_documents({"tipo_cliente": "societa"})
+        clients_autonomo = await db.clients.count_documents({"tipo_cliente": "autonomo"})
+        clients_persona_fisica = await db.clients.count_documents({"tipo_cliente": {"$in": ["persona_fisica", "privato"]}})
+        clients_vivienda = await db.clients.count_documents({"tipo_cliente": "vivienda_vacacional"})
+        
+        # Se non ci sono dati in clients, prova da users
+        if clients_societa == 0 and clients_autonomo == 0:
+            clients_societa = await db.users.count_documents({"role": "cliente", "tipo_cliente": "societa"})
+            clients_autonomo = await db.users.count_documents({"role": "cliente", "tipo_cliente": "autonomo"})
+            clients_persona_fisica = await db.users.count_documents({"role": "cliente", "tipo_cliente": {"$in": ["persona_fisica", "privato"]}})
+            clients_vivienda = await db.users.count_documents({"role": "cliente", "tipo_cliente": "vivienda_vacacional"})
+        
+        # Clienti attivi per categoria
+        clients_societa_attivi = await db.clients.count_documents({"tipo_cliente": "societa", "stato": "attivo"})
+        clients_autonomo_attivi = await db.clients.count_documents({"tipo_cliente": "autonomo", "stato": "attivo"})
+        clients_persona_fisica_attivi = await db.clients.count_documents({"tipo_cliente": {"$in": ["persona_fisica", "privato"]}, "stato": "attivo"})
+        clients_vivienda_attivi = await db.clients.count_documents({"tipo_cliente": "vivienda_vacacional", "stato": "attivo"})
+        
         return {
             "clients_count": clients_count,
             "clients_active": clients_active,
@@ -3139,7 +3159,21 @@ async def get_stats(user: dict = Depends(get_current_user)):
             "deadlines_in_lavorazione": deadlines_in_lavorazione,
             "deadlines_completate": deadlines_completate,
             "deadlines_scadute": deadlines_scadute,
-            "docs_da_verificare": docs_da_verificare
+            "docs_da_verificare": docs_da_verificare,
+            # Nuove statistiche per categoria
+            "clients_by_category": {
+                "societa": clients_societa,
+                "autonomo": clients_autonomo,
+                "persona_fisica": clients_persona_fisica,
+                "vivienda_vacacional": clients_vivienda,
+                "totale": clients_societa + clients_autonomo + clients_persona_fisica + clients_vivienda
+            },
+            "clients_active_by_category": {
+                "societa": clients_societa_attivi,
+                "autonomo": clients_autonomo_attivi,
+                "persona_fisica": clients_persona_fisica_attivi,
+                "vivienda_vacacional": clients_vivienda_attivi
+            }
         }
     else:
         documents_count = await db.documents.count_documents({"client_id": user["id"]})
