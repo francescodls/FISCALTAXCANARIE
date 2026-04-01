@@ -312,13 +312,21 @@ class DeadlineResponse(BaseModel):
 
 class FeeCreate(BaseModel):
     description: str
-    amount: float
+    amount: float  # Importo base (netto o lordo a seconda di include_tax)
     due_date: Optional[str] = None  # Opzionale - richiesto solo per certi tipi
-    status: str = "pending"  # pending, paid, overdue
+    status: str = "pending"  # pending, paid, overdue, recurring
     notes: Optional[str] = None
     fee_type: str = "standard"  # standard, consulenza, pratica, dichiarazione, iguala_buste_paga, iguala_contabilita, iguala_domicilio
     is_recurring: bool = False
+    recurring_frequency: Optional[str] = None  # monthly, quarterly, yearly
     recurring_month: Optional[str] = None  # YYYY-MM per Iguala
+    reference_month: Optional[int] = None  # 1-12
+    reference_year: Optional[int] = None  # YYYY
+    # Campi fiscali
+    tax_type: Optional[str] = None  # IGIC_7, IVA_22, IVA_21, ESENTE
+    net_amount: Optional[float] = None
+    tax_amount: Optional[float] = None
+    gross_amount: Optional[float] = None
 
 class FeeUpdate(BaseModel):
     description: Optional[str] = None
@@ -329,7 +337,15 @@ class FeeUpdate(BaseModel):
     notes: Optional[str] = None
     fee_type: Optional[str] = None
     is_recurring: Optional[bool] = None
+    recurring_frequency: Optional[str] = None
     recurring_month: Optional[str] = None
+    reference_month: Optional[int] = None
+    reference_year: Optional[int] = None
+    # Campi fiscali
+    tax_type: Optional[str] = None
+    net_amount: Optional[float] = None
+    tax_amount: Optional[float] = None
+    gross_amount: Optional[float] = None
 
 class FeeResponse(BaseModel):
     id: str
@@ -342,7 +358,15 @@ class FeeResponse(BaseModel):
     notes: Optional[str] = None
     fee_type: str = "standard"
     is_recurring: bool = False
+    recurring_frequency: Optional[str] = None
     recurring_month: Optional[str] = None
+    reference_month: Optional[int] = None
+    reference_year: Optional[int] = None
+    # Campi fiscali
+    tax_type: Optional[str] = None
+    net_amount: Optional[float] = None
+    tax_amount: Optional[float] = None
+    gross_amount: Optional[float] = None
     created_at: str
 
 # ==================== EMPLOYEE MODELS ====================

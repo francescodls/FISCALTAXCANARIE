@@ -161,6 +161,276 @@ async def get_fees_grouped_by_client(user: dict = Depends(require_commercialista
     return result
 
 
+@router.get("/fees/by-category")
+async def get_fees_grouped_by_category(user: dict = Depends(require_commercialista)):
+    """
+    Recupera onorari raggruppati per categoria cliente.
+    Restituisce statistiche aggregate per ogni categoria senza lista clienti.
+    """
+    db = get_db()
+    
+    # Recupera tutte le categorie clienti
+    default_categories = [
+        {"id": "autonomo", "name": "Autonomi", "icon": "briefcase", "color": "blue"},
+        {"id": "societa", "name": "Società", "icon": "building", "color": "purple"},
+        {"id": "privato", "name": "Privati", "icon": "user", "color": "emerald"},
+        {"id": "vivienda_vacacional", "name": "Vivienda Vacacional", "icon": "home", "color": "amber"},
+        {"id": "persona_fisica", "name": "Persona Fisica", "icon": "user", "color": "teal"},
+    ]
+    
+    # Carica categorie custom
+    custom_categories = await db.client_categories.find({}, {"_id": 0}).to_list(100)
+    all_categories = default_categories + [
+        {"id": c["id"], "name": c["name"], "icon": c.get("icon", "users"), "color": c.get("color", "slate")}
+        for c in custom_categories
+    ]
+    
+    # Recupera clienti e fees
+    clients = await db.users.find(
+        {"role": "cliente"}, 
+        {"_id": 0, "id": 1, "tipo_cliente": 1}
+    ).to_list(10000)
+    
+    fees = await db.fees.find({}, {"_id": 0}).to_list(10000)
+    
+    # Mappa client_id -> tipo_cliente
+    client_type_map = {c["id"]: c.get("tipo_cliente", "autonomo") for c in clients}
+    
+    # Raggruppa fees per categoria
+    category_stats = {}
+    for cat in all_categories:
+        category_stats[cat["id"]] = {
+            "id": cat["id"],
+            "name": cat["name"],
+            "icon": cat["icon"],
+            "color": cat["color"],
+            "total_pending": 0,
+            "total_paid": 0,
+            "total_recurring": 0,
+            "total_gross": 0,
+            "clients_count": 0,
+            "fees_count": 0,
+            "client_ids": set()
+        }
+    
+    # Processa fees
+    for fee in fees:
+        client_id = fee.get("client_id")
+        cat_id = client_type_map.get(client_id, "autonomo")
+        
+        if cat_id not in category_stats:
+            # Categoria sconosciuta, usa autonomo come fallback
+            cat_id = "autonomo"
+        
+        amount = fee.get("gross_amount") or fee.get("amount", 0)
+        category_stats[cat_id]["fees_count"] += 1
+        category_stats[cat_id]["total_gross"] += amount
+        category_stats[cat_id]["client_ids"].add(client_id)
+        
+        status = fee.get("status", "pending")
+        if status == "paid":
+            category_stats[cat_id]["total_paid"] += amount
+        elif status in ["pending", "overdue"]:
+            category_stats[cat_id]["total_pending"] += amount
+        
+        if fee.get("is_recurring") or fee.get("status") == "recurring":
+            category_stats[cat_id]["total_recurring"] += amount
+    
+    # Finalizza risultati
+    result = []
+    for cat_id, stats in category_stats.items():
+        stats["clients_count"] = len(stats["client_ids"])
+        del stats["client_ids"]  # Rimuovi set non serializzabile
+        result.append(stats)
+    
+    # Ordina per totale lordo decrescente
+    result.sort(key=lambda x: x["total_gross"], reverse=True)
+    return result
+
+
+@router.get("/fees/category/{category_id}/clients")
+async def get_category_clients_with_fees(
+    category_id: str, 
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Recupera tutti i clienti di una categoria con i loro onorari.
+    Vista dettaglio quando si clicca su una categoria.
+    """
+    db = get_db()
+    
+    # Recupera clienti della categoria
+    clients = await db.users.find(
+        {"role": "cliente", "tipo_cliente": category_id}, 
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "tipo_cliente": 1}
+    ).to_list(10000)
+    
+    if not clients:
+        return []
+    
+    client_ids = [c["id"] for c in clients]
+    
+    # Recupera fees
+    fees = await db.fees.find(
+        {"client_id": {"$in": client_ids}}, 
+        {"_id": 0}
+    ).to_list(10000)
+    
+    # Raggruppa per cliente
+    fees_by_client = {}
+    for fee in fees:
+        cid = fee.get("client_id")
+        if cid not in fees_by_client:
+            fees_by_client[cid] = []
+        fees_by_client[cid].append(fee)
+    
+    # Costruisci risultato
+    result = []
+    for client in clients:
+        client_fees = fees_by_client.get(client["id"], [])
+        total_pending = sum(f.get("gross_amount") or f.get("amount", 0) for f in client_fees if f.get("status") in ["pending", "overdue"])
+        total_paid = sum(f.get("gross_amount") or f.get("amount", 0) for f in client_fees if f.get("status") == "paid")
+        total_recurring = sum(f.get("gross_amount") or f.get("amount", 0) for f in client_fees if f.get("is_recurring") or f.get("status") == "recurring")
+        
+        result.append({
+            "id": client["id"],
+            "full_name": client.get("full_name", "N/A"),
+            "email": client.get("email", ""),
+            "fees_count": len(client_fees),
+            "total_pending": total_pending,
+            "total_paid": total_paid,
+            "total_recurring": total_recurring,
+            "total": total_pending + total_paid,
+            "fees": client_fees
+        })
+    
+    result.sort(key=lambda x: x["total"], reverse=True)
+    return result
+
+
+@router.get("/fees/monthly-stats")
+async def get_monthly_stats(
+    year: Optional[int] = None,
+    category: Optional[str] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Statistiche mensili degli onorari per grafici.
+    Raggruppa per mese e calcola totali.
+    """
+    from datetime import datetime as dt
+    db = get_db()
+    
+    current_year = year or dt.now().year
+    
+    # Recupera clienti per filtrare per categoria
+    client_query = {"role": "cliente"}
+    if category and category != "all":
+        client_query["tipo_cliente"] = category
+    
+    clients = await db.users.find(client_query, {"_id": 0, "id": 1}).to_list(10000)
+    client_ids = [c["id"] for c in clients]
+    
+    # Recupera fees
+    fee_query = {}
+    if client_ids and category and category != "all":
+        fee_query["client_id"] = {"$in": client_ids}
+    
+    fees = await db.fees.find(fee_query, {"_id": 0}).to_list(10000)
+    
+    # Inizializza stats per ogni mese
+    monthly_stats = {}
+    for month in range(1, 13):
+        monthly_stats[month] = {
+            "month": month,
+            "month_name": ["", "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", 
+                          "Giugno", "Luglio", "Agosto", "Settembre", "Ottobre", 
+                          "Novembre", "Dicembre"][month],
+            "total_pending": 0,
+            "total_paid": 0,
+            "total_recurring": 0,
+            "total_gross": 0,
+            "fees_count": 0
+        }
+    
+    # Processa fees
+    for fee in fees:
+        # Determina mese di riferimento
+        ref_month = fee.get("reference_month")
+        ref_year = fee.get("reference_year")
+        
+        if not ref_month or not ref_year:
+            # Fallback: usa created_at o recurring_month
+            created = fee.get("created_at", "")
+            recurring_month = fee.get("recurring_month", "")
+            
+            if recurring_month and len(recurring_month) >= 7:
+                try:
+                    ref_year = int(recurring_month[:4])
+                    ref_month = int(recurring_month[5:7])
+                except:
+                    pass
+            elif created and len(created) >= 10:
+                try:
+                    ref_year = int(created[:4])
+                    ref_month = int(created[5:7])
+                except:
+                    pass
+        
+        if not ref_month or not ref_year or ref_year != current_year:
+            continue
+        
+        amount = fee.get("gross_amount") or fee.get("amount", 0)
+        monthly_stats[ref_month]["fees_count"] += 1
+        monthly_stats[ref_month]["total_gross"] += amount
+        
+        status = fee.get("status", "pending")
+        if status == "paid":
+            monthly_stats[ref_month]["total_paid"] += amount
+        elif status in ["pending", "overdue"]:
+            monthly_stats[ref_month]["total_pending"] += amount
+        
+        if fee.get("is_recurring") or status == "recurring":
+            monthly_stats[ref_month]["total_recurring"] += amount
+    
+    # Calcola totali annuali e trend
+    total_year = sum(m["total_gross"] for m in monthly_stats.values())
+    total_paid_year = sum(m["total_paid"] for m in monthly_stats.values())
+    total_pending_year = sum(m["total_pending"] for m in monthly_stats.values())
+    
+    # Calcola confronto con anno precedente (se dati disponibili)
+    prev_year_total = 0
+    prev_year_fees = await db.fees.find({}, {"_id": 0, "amount": 1, "gross_amount": 1, "created_at": 1, "reference_year": 1}).to_list(10000)
+    for fee in prev_year_fees:
+        ref_year = fee.get("reference_year")
+        if not ref_year:
+            created = fee.get("created_at", "")
+            if created and len(created) >= 4:
+                try:
+                    ref_year = int(created[:4])
+                except:
+                    continue
+        if ref_year == current_year - 1:
+            prev_year_total += fee.get("gross_amount") or fee.get("amount", 0)
+    
+    # Calcola variazione percentuale
+    year_change_percent = 0
+    if prev_year_total > 0:
+        year_change_percent = ((total_year - prev_year_total) / prev_year_total) * 100
+    
+    return {
+        "year": current_year,
+        "months": list(monthly_stats.values()),
+        "totals": {
+            "total_gross": total_year,
+            "total_paid": total_paid_year,
+            "total_pending": total_pending_year,
+            "prev_year_total": prev_year_total,
+            "year_change_percent": round(year_change_percent, 1)
+        }
+    }
+
+
 @router.get("/fees/export-excel")
 async def export_fees_excel(
     category: Optional[str] = None,
@@ -319,22 +589,54 @@ async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(r
     if not client:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
     
-    # Determina se is_recurring in base al fee_type
-    is_recurring = fee_data.is_recurring or fee_data.fee_type.startswith("iguala_")
+    # Determina se is_recurring in base al fee_type o status
+    is_recurring = fee_data.is_recurring or fee_data.fee_type.startswith("iguala_") or fee_data.status == "recurring"
+    
+    # Calcola importi fiscali
+    base_amount = fee_data.amount
+    tax_type = fee_data.tax_type
+    net_amount = fee_data.net_amount
+    tax_amount = fee_data.tax_amount
+    gross_amount = fee_data.gross_amount
+    
+    # Se non sono forniti gli importi calcolati, calcolali
+    if tax_type and not gross_amount:
+        tax_rates = {
+            "IGIC_7": 0.07,
+            "IVA_22": 0.22,
+            "IVA_21": 0.21,
+            "ESENTE": 0
+        }
+        rate = tax_rates.get(tax_type, 0)
+        net_amount = base_amount
+        tax_amount = round(base_amount * rate, 2)
+        gross_amount = round(base_amount + tax_amount, 2)
+    elif not gross_amount:
+        net_amount = base_amount
+        tax_amount = 0
+        gross_amount = base_amount
     
     fee_id = str(uuid.uuid4())
     fee = {
         "id": fee_id,
         "client_id": client_id,
         "description": fee_data.description,
-        "amount": fee_data.amount,
+        "amount": base_amount,
         "due_date": fee_data.due_date,
-        "status": fee_data.status,
+        "status": "recurring" if is_recurring and fee_data.status == "recurring" else fee_data.status,
         "paid_date": None,
         "notes": fee_data.notes,
         "fee_type": fee_data.fee_type,
         "is_recurring": is_recurring,
+        "recurring_frequency": fee_data.recurring_frequency,
         "recurring_month": fee_data.recurring_month,
+        "reference_month": fee_data.reference_month,
+        "reference_year": fee_data.reference_year,
+        # Campi fiscali
+        "tax_type": tax_type,
+        "net_amount": net_amount,
+        "tax_amount": tax_amount,
+        "gross_amount": gross_amount,
         "created_by": user["id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -342,7 +644,7 @@ async def create_fee(client_id: str, fee_data: FeeCreate, user: dict = Depends(r
     
     await log_activity(
         "creazione_onorario",
-        f"Onorario €{fee_data.amount} ({fee_data.fee_type}) creato per cliente {client_id}",
+        f"Onorario €{gross_amount} ({fee_data.fee_type}) creato per cliente {client_id}",
         user["id"]
     )
     
