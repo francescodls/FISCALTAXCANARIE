@@ -5,6 +5,72 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 65 (1 Aprile 2026) - COMPLETATA ✅
+
+**Riorganizzazione Completa Sezione Onorari**
+
+**Richiesta Utente:** Riorganizzare la sezione "Onorari" nel pannello admin per renderla più ordinata, pulita e funzionale con:
+- Vista esterna pulita per categoria (no lista clienti visibile)
+- Dettaglio al click sulla categoria
+- Nuovo stato "Ricorrente"
+- Gestione IVA/IGIC (7%, 21%, 22%, Esente)
+- Grafici mensili interattivi
+- Filtri avanzati per categoria, mese, stato pagamento
+- Vista per categoria e vista per cliente separate
+
+**Backend (`/app/backend/routes/fees_routes.py`):**
+
+**1. Nuovi Endpoint:**
+- ✅ `GET /api/fees/by-category` - Onorari raggruppati per categoria cliente con totali
+- ✅ `GET /api/fees/category/{id}/clients` - Clienti di una categoria con i loro onorari
+- ✅ `GET /api/fees/monthly-stats` - Statistiche mensili per grafici con filtri anno/categoria
+
+**2. Modelli Aggiornati (FeeCreate, FeeUpdate, FeeResponse):**
+- ✅ `tax_type`: IGIC_7, IVA_22, IVA_21, ESENTE
+- ✅ `net_amount`, `tax_amount`, `gross_amount`: Calcolo automatico
+- ✅ `recurring_frequency`: monthly, quarterly, yearly
+- ✅ `reference_month`, `reference_year`: Periodo di riferimento
+
+**Frontend (`/app/frontend/src/components/GlobalFeesManagement.jsx`):**
+
+**1. Summary Cards (4 card colorate):**
+- ✅ Totale Incassato (verde/teal)
+- ✅ Da Incassare (ambra)
+- ✅ Scaduti (rosso)
+- ✅ Clienti Attivi (blu)
+
+**2. 4 Tabs Principali:**
+- ✅ **"Per Categoria"**: Card pulite con nome, totale €, clienti count, ricorrenti
+- ✅ **"Per Cliente"**: Lista clienti con search e filtro categoria
+- ✅ **"Statistiche"**: Grafico a barre mensile con Recharts, filtri anno/categoria
+- ✅ **"Tipi Onorario"**: Gestione tipi onorario
+
+**3. Vista Categoria (PULITA come richiesto):**
+- ✅ Card mostrano SOLO: nome categoria, totale, numero clienti
+- ✅ NO lista clienti visibile dall'esterno
+- ✅ Click su card → Dialog con lista clienti e importi
+
+**4. Dialog Creazione/Modifica Onorario:**
+- ✅ Importo netto con preview calcolo IVA/IGIC in tempo reale
+- ✅ Dropdown Tassazione: IGIC 7%, IVA 21%, IVA 22%, Esente
+- ✅ Stato: Da pagare, Pagato, Ricorrente, Scaduto
+- ✅ Checkbox "Onorario Ricorrente (Iguala)"
+- ✅ Mese e Anno di riferimento
+- ✅ Preview: Netto + Imposta = Totale Lordo
+
+**5. Grafici Statistiche:**
+- ✅ Grafico a barre mensile con Recharts
+- ✅ Legenda: Pagato (verde) / Da pagare (ambra)
+- ✅ Summary anno: Totale, Incassato, Da incassare, vs Anno precedente (%)
+- ✅ Filtri: Anno, Categoria cliente
+
+**Testing:**
+- ✅ Backend: 14/14 test passati (100%)
+- ✅ Frontend: Tutte le funzionalità verificate (100%)
+- ✅ Test report: `/app/test_reports/iteration_32.json`
+
+---
+
 ### Fase 64 (1 Aprile 2026) - COMPLETATA ✅
 
 **Gestione Tipi di Scadenza Standard e Modelli Tributari**
