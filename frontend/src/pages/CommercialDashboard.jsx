@@ -71,6 +71,7 @@ const CommercialDashboard = () => {
   const [clients, setClients] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
   const [pendingDocs, setPendingDocs] = useState([]);
+  const [scheduledNotifications, setScheduledNotifications] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [docSearchTerm, setDocSearchTerm] = useState("");
   const [docSearchResults, setDocSearchResults] = useState([]);
@@ -175,18 +176,20 @@ const CommercialDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, clientsRes, logsRes, pendingRes, invitationsRes] = await Promise.all([
+      const [statsRes, clientsRes, logsRes, pendingRes, invitationsRes, scheduledRes] = await Promise.all([
         axios.get(`${API}/stats`, { headers }),
         axios.get(`${API}/clients`, { headers }),
         axios.get(`${API}/activity-logs?limit=20`, { headers }),
         axios.get(`${API}/documents/pending-verification`, { headers }),
-        axios.get(`${API}/invitations`, { headers })
+        axios.get(`${API}/invitations`, { headers }),
+        axios.get(`${API}/notifications/scheduled`, { headers }).catch(() => ({ data: [] }))
       ]);
       setStats(statsRes.data);
       setClients(clientsRes.data);
       setActivityLogs(logsRes.data);
       setPendingDocs(pendingRes.data);
       setPendingInvitations(invitationsRes.data);
+      setScheduledNotifications(scheduledRes.data);
     } catch (error) {
       toast.error("Errore nel caricamento dei dati");
     } finally {
@@ -563,10 +566,8 @@ const CommercialDashboard = () => {
               <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center mb-2">
                 <Bell className="h-5 w-5 text-white" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">
-                {t("notifications.title") || "Notifiche"}
-              </p>
-              <p className="text-xs text-slate-500">Gestione Notifiche</p>
+              <p className="text-2xl font-bold text-slate-900">{scheduledNotifications.length}</p>
+              <p className="text-xs text-slate-500">Notifiche Programmate</p>
             </CardContent>
           </Card>
           <Card 
@@ -682,14 +683,6 @@ const CommercialDashboard = () => {
                 {t('admin.team')}
               </TabsTrigger>
             )}
-            <TabsTrigger 
-              value="notifications" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
-              data-testid="tab-notifications"
-            >
-              <Bell className="h-4 w-4 mr-2" />
-              Notifiche
-            </TabsTrigger>
           </TabsList>
 
           {/* Clients Tab */}
