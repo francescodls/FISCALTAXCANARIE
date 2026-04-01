@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -5769,6 +5770,19 @@ api_router.include_router(declarations_router)
 api_router.include_router(notifications_router)
 api_router.include_router(deadline_types_router)
 api_router.include_router(tax_models_router)
+
+# Desktop app downloads endpoint
+@api_router.get("/downloads/{filename}")
+async def download_desktop_app(filename: str):
+    """Download desktop app files"""
+    file_path = Path(__file__).parent / "static" / "downloads" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type="application/zip"
+    )
 
 app.include_router(api_router)
 

@@ -212,3 +212,4 @@ frontend/public/FiscalTaxCanarie-Mac-v1.2.zip
 *.env.*
 desktop-app/dist/FiscalTaxCanarie-Mac-v1.3.zip
 frontend/public/downloads/FiscalTaxCanarie-Mac-v1.3.zip
+backend/static/downloads/FiscalTaxCanarie-Mac-v1.3.zip
