@@ -30,6 +30,7 @@ from routes.tickets import router as tickets_router, admin_router as tickets_adm
 from routes.fees_routes import router as fees_global_router, client_fees_router
 from routes.declarations import router as declarations_router
 from routes.notifications import router as notifications_router
+from routes.deadline_types import router as deadline_types_router, tax_models_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -5740,6 +5741,8 @@ api_router.include_router(fees_global_router)
 api_router.include_router(client_fees_router)
 api_router.include_router(declarations_router)
 api_router.include_router(notifications_router)
+api_router.include_router(deadline_types_router)
+api_router.include_router(tax_models_router)
 
 app.include_router(api_router)
 

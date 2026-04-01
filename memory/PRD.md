@@ -5,6 +5,63 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 64 (1 Aprile 2026) - COMPLETATA ✅
+
+**Gestione Tipi di Scadenza Standard e Modelli Tributari**
+
+**Richiesta Utente:** Nella sezione Scadenze del pannello admin, permettere creazione/modifica/eliminazione di tipi di scadenza standard collegati ai modelli tributari, con assegnazione per categoria cliente o cliente specifico. Possibilità di creare nuovi modelli tributari.
+
+**Backend (`/app/backend/routes/deadline_types.py`):**
+
+**1. Tipi di Scadenza (CRUD):**
+- ✅ Endpoint: `GET/POST/PUT/DELETE /api/deadline-types`
+- ✅ Schema completo: name, description, tax_model_id, frequency, due_day, due_month, due_rule, reminder_days, assigned_category_ids, assigned_client_ids, priority, color, is_active
+- ✅ Collegamento con modelli tributari esistenti
+- ✅ Assegnazione per categoria (societa, autonomo, persona_fisica, vivienda_vacacional)
+- ✅ Assegnazione per clienti specifici
+- ✅ Endpoint `POST /api/deadline-types/{id}/generate-deadlines?year=2026` per generazione automatica
+
+**2. Modelli Tributari (CRUD):**
+- ✅ Endpoint: `GET/POST/PUT/DELETE /api/tax-models`
+- ✅ Schema: codice, nome, descrizione, a_cosa_serve, chi_deve_presentarlo, periodicita, scadenza_tipica, documenti_necessari, is_custom
+- ✅ 9 modelli predefiniti (Modelo-303, 111, 130, IGIC, 390, 200, 347, IRPF-Renta, TEST-001)
+- ✅ Possibilità di creare modelli custom
+- ✅ Protezione eliminazione modelli predefiniti
+
+**Frontend (`/app/frontend/src/components/DeadlineTypesManagement.jsx`):**
+
+**1. UI Pagina Scadenze con 2 Tab Principali:**
+- ✅ **"Scadenze Manuali"**: Funzionalità esistente
+- ✅ **"Tipi Standard"**: Nuovo tab con gestione avanzata
+
+**2. Tab "Tipi Standard" con 2 sotto-tab:**
+- ✅ **"Tipi Scadenza"**: Lista tipi con card (modello tributario, frequenza, priorità, categorie, clienti)
+- ✅ **"Modelli Tributari"**: Griglia modelli con codice, nome, periodicità, scadenza tipica
+
+**3. Form Creazione/Modifica Tipo Scadenza:**
+- ✅ Nome, Modello Tributario (dropdown), Descrizione
+- ✅ Frequenza (Trimestrale/Mensile/Annuale/Semestrale/Una Tantum)
+- ✅ Priorità (Bassa/Normale/Alta/Urgente), Colore
+- ✅ Giorno del mese, Mese (per scadenze annuali), Date tipiche
+- ✅ Categorie Clienti: 4 box cliccabili con icone
+- ✅ Clienti Specifici: Ricerca con lista e badge selezionati
+- ✅ Switch Attivo/Disattivo
+
+**4. Form Creazione/Modifica Modello Tributario:**
+- ✅ Codice, Nome, Periodicità
+- ✅ Descrizione, A cosa serve, Chi deve presentarlo
+- ✅ Scadenza tipica, Documenti necessari (lista dinamica)
+- ✅ Conseguenze mancata presentazione, Note operative
+
+**5. Generazione Scadenze:**
+- ✅ Pulsante "Genera" per ogni tipo
+- ✅ Dialog con selezione anno
+- ✅ Generazione automatica per tutti i clienti assegnati
+
+**Test:** API verificate con curl, Frontend testato con screenshot (tipi, modelli, form creazione)
+
+---
+
 ### Fase 63 (1 Aprile 2026) - COMPLETATA ✅
 
 **Sistema Notifiche Completo - Pannello Amministratore**

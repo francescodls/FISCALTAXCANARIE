@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -25,12 +26,16 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  Trash2
+  Trash2,
+  ListChecks,
+  Settings
 } from "lucide-react";
+import DeadlineTypesManagement from "@/components/DeadlineTypesManagement";
 
 const DeadlinesManagement = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
+  const [activeMainTab, setActiveMainTab] = useState("scadenze");
   const [deadlines, setDeadlines] = useState([]);
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -201,14 +206,29 @@ const DeadlinesManagement = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
         
-        {/* Create Form */}
-        <Card className="bg-white border border-slate-200">
-          <CardHeader>
-            <CardTitle className="font-heading text-lg flex items-center gap-2">
-              <Plus className="h-5 w-5 text-teal-500" />
-              Crea Scadenza per Categorie
-            </CardTitle>
-          </CardHeader>
+        {/* Main Tabs */}
+        <Tabs value={activeMainTab} onValueChange={setActiveMainTab} className="w-full">
+          <TabsList className="grid grid-cols-2 w-full max-w-md mb-6">
+            <TabsTrigger value="scadenze" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Scadenze Manuali
+            </TabsTrigger>
+            <TabsTrigger value="tipi" className="flex items-center gap-2">
+              <ListChecks className="h-4 w-4" />
+              Tipi Standard
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Tab: Scadenze Manuali */}
+          <TabsContent value="scadenze" className="space-y-8">
+            {/* Create Form */}
+            <Card className="bg-white border border-slate-200">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Plus className="h-5 w-5 text-teal-500" />
+                  Crea Scadenza per Categorie
+                </CardTitle>
+              </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-4">
@@ -498,6 +518,13 @@ const DeadlinesManagement = () => {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Tab: Tipi Standard */}
+          <TabsContent value="tipi">
+            <DeadlineTypesManagement token={token} />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
