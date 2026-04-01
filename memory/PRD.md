@@ -5,6 +5,50 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 66 (1 Aprile 2026) - COMPLETATA ✅
+
+**Estensione Sezione Onorari nella Scheda Cliente**
+
+**Richiesta Utente:** Parità funzionale tra la sezione Onorari nel dettaglio cliente e la gestione generale onorari. Aggiunta gestione IVA/IGIC, stato ricorrente, calcolo netto/lordo.
+
+**Frontend (`/app/frontend/src/components/FeeManagement.jsx`):**
+
+**1. Form Onorario Completo:**
+- ✅ Tipo Onorario (7 tipi disponibili)
+- ✅ Descrizione
+- ✅ Importo Netto (€)
+- ✅ Regime Fiscale: IGIC 7%, IVA 21%, IVA 22%, Esente (0%)
+- ✅ Preview calcolo in tempo reale: Netto + Imposta = Totale Lordo
+- ✅ Mese e Anno di Riferimento
+- ✅ Stato: Da pagare, Pagato, Ricorrente, Scaduto
+- ✅ Checkbox "Onorario Ricorrente (Iguala)"
+- ✅ Frequenza Ricorrenza (Mensile, Trimestrale, Annuale)
+- ✅ Note opzionali
+
+**2. Summary Cards (4):**
+- ✅ Totale Pagato (teal)
+- ✅ Da Incassare (amber)
+- ✅ Totale (blue)
+- ✅ Numero Onorari (slate)
+
+**3. Lista Onorari:**
+- ✅ Badge tipo onorario colorato con icona
+- ✅ Badge stato (Pagato/Da pagare/Ricorrente/Scaduto)
+- ✅ Badge "Ricorrente" se applicabile
+- ✅ Importo lordo grande + breakdown netto/imposta sotto
+- ✅ Mese e anno di riferimento
+- ✅ Pulsanti: Segna Pagato, Modifica, Elimina
+
+**Backend:**
+- ✅ Già aggiornato nella Fase 65 con supporto completo per tax_type, net_amount, tax_amount, gross_amount, reference_month, reference_year, recurring_frequency
+
+**Testing:**
+- ✅ Backend: 11/11 test passati (100%)
+- ✅ Frontend: 100% verificato
+- ✅ Test report: `/app/test_reports/iteration_33.json`
+
+---
+
 ### Fase 65 (1 Aprile 2026) - COMPLETATA ✅
 
 **Riorganizzazione Completa Sezione Onorari**
