@@ -5,6 +5,43 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 59 (31 Marzo 2026) - COMPLETATA ✅
+
+**Correzione Dominio e Reindirizzamenti**
+
+**Richiesta Utente:** Sostituire tutti i riferimenti al dominio di preview `tribute-models-docs.preview.emergentagent.com` con il dominio di produzione `app.fiscaltaxcanarie.com`.
+
+**File Aggiornati:**
+
+**1. `/app/backend/.env`:**
+- ✅ `FRONTEND_URL="https://app.fiscaltaxcanarie.com"`
+
+**2. `/app/frontend/.env`:**
+- ✅ `REACT_APP_BACKEND_URL=https://app.fiscaltaxcanarie.com`
+
+**3. `/app/wordpress_section_v2.html`:**
+- ✅ `var APP_URL = 'https://app.fiscaltaxcanarie.com'`
+
+**4. `/app/wordpress_section_area_clienti.html`:**
+- ✅ `const FTC_APP_URL = 'https://app.fiscaltaxcanarie.com'`
+
+**5. File di test aggiornati:**
+- `/app/backend/tests/test_refactoring_iteration23.py`
+- `/app/backend/tests/test_declarations_iteration24.py`
+- `/app/backend/tests/test_fees_iteration20.py`
+- `/app/backend_test.py`
+
+**Comportamento Backend (già corretto):**
+- `email_service.py`: `get_frontend_url()` usa `os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')`
+- `server.py`: Tutti i link di invito usano `os.environ.get('FRONTEND_URL', 'https://app.fiscaltaxcanarie.com')`
+  - Link reset password
+  - Link completamento registrazione cliente
+  - Link invito amministratore
+
+**Servizi riavviati:** Backend e Frontend per applicare nuove variabili ambiente
+
+---
+
 ### Fase 58 (31 Marzo 2026) - COMPLETATA ✅
 
 **Correzione Traduzioni Spagnolo e Inglese - Completamento Integrale**
