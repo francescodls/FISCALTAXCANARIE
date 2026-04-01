@@ -27,6 +27,15 @@ import AdminActivate from "@/pages/AdminActivate";
 // Helper per verificare ruoli admin
 const isAdminRole = (role) => ['commercialista', 'super_admin', 'admin'].includes(role);
 
+// Dominio ammesso per admin
+const ADMIN_ALLOWED_DOMAIN = 'fiscaltaxcanarie.com';
+
+// Verifica se email è valida per ruoli admin
+const isValidAdminEmail = (email) => {
+  if (!email) return false;
+  return email.toLowerCase().endsWith(`@${ADMIN_ALLOWED_DOMAIN}`);
+};
+
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
 
@@ -48,7 +57,20 @@ const AuthProvider = ({ children }) => {
           const response = await axios.get(`${API}/auth/me`, {
             headers: { Authorization: `Bearer ${storedToken}` }
           });
-          setUser(response.data);
+          const userData = response.data;
+          
+          // SICUREZZA: Blocca admin con email esterne
+          if (isAdminRole(userData.role) && !isValidAdminEmail(userData.email)) {
+            console.warn("Accesso admin non autorizzato - email esterna");
+            localStorage.removeItem("token");
+            setToken(null);
+            setUser(null);
+            toast.error("Accesso non autorizzato. Solo email @fiscaltaxcanarie.com possono accedere come admin.");
+            setLoading(false);
+            return;
+          }
+          
+          setUser(userData);
           setToken(storedToken);
         } catch (error) {
           localStorage.removeItem("token");

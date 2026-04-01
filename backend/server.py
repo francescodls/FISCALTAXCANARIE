@@ -65,8 +65,8 @@ SUPER_ADMINS = [
 # Dominio ammesso per ruoli amministrativi
 ADMIN_ALLOWED_DOMAIN = "fiscaltaxcanarie.com"
 
-# Ruoli amministrativi
-ADMIN_ROLES = ["super_admin", "admin"]
+# Ruoli amministrativi (richiedono dominio aziendale)
+ADMIN_ROLES = ["super_admin", "admin", "commercialista"]
 
 # Categorie cartelle predefinite per l'organizzazione documenti
 DEFAULT_FOLDER_CATEGORIES = [
@@ -744,6 +744,25 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user["password"]):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     
+    # SICUREZZA: Blocca accesso admin per email esterne al dominio aziendale
+    user_role = user.get("role", "cliente")
+    if user_role in ADMIN_ROLES:
+        if not is_valid_admin_email(credentials.email):
+            # Log tentativo di accesso non autorizzato
+            await log_activity(
+                "security_violation", 
+                f"Tentativo accesso admin con email esterna bloccato: {credentials.email}", 
+                user.get("id")
+            )
+            raise HTTPException(
+                status_code=403, 
+                detail="Accesso amministratore consentito solo per email @fiscaltaxcanarie.com"
+            )
+    
+    # Verifica se l'utente è bloccato
+    if user.get("blocked"):
+        raise HTTPException(status_code=403, detail="Account bloccato. Contattare l'amministratore.")
+    
     # Aggiorna last_login
     await db.users.update_one(
         {"id": user["id"]},
@@ -1087,6 +1106,13 @@ async def activate_admin_account(activation: AdminActivation):
     
     if not invite:
         raise HTTPException(status_code=400, detail="Invito non valido o già utilizzato")
+    
+    # SICUREZZA: Verifica dominio email (doppio controllo)
+    if not is_valid_admin_email(invite["email"]):
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Solo email @{ADMIN_ALLOWED_DOMAIN} possono essere attivate come amministratori"
+        )
     
     expires_at = datetime.fromisoformat(invite["expires_at"].replace("Z", "+00:00"))
     if datetime.now(timezone.utc) > expires_at:
