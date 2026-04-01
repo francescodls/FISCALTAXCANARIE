@@ -206,3 +206,7 @@ frontend/public/FiscalTaxCanarie-Mac-v1.2.zip
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
