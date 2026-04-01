@@ -45,7 +45,9 @@ import {
   Trash2,
   Euro,
   MessageSquare,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  Home
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -1290,6 +1292,89 @@ const CommercialDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Clienti per Categoria */}
+            <Card className="bg-white border border-slate-200 mb-6">
+              <CardHeader>
+                <CardTitle className="font-heading text-lg flex items-center gap-2">
+                  <Users className="h-5 w-5 text-teal-500" />
+                  Clienti per Categoria
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Società */}
+                  <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-blue-500 rounded-lg">
+                        <Building2 className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-blue-800">Società</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-blue-700">{stats.clients_by_category?.societa || 0}</span>
+                      <span className="text-xs text-blue-600">
+                        ({stats.clients_active_by_category?.societa || 0} attive)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Autonomi */}
+                  <div className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl border border-emerald-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-emerald-500 rounded-lg">
+                        <Briefcase className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-emerald-800">Autonomi</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-emerald-700">{stats.clients_by_category?.autonomo || 0}</span>
+                      <span className="text-xs text-emerald-600">
+                        ({stats.clients_active_by_category?.autonomo || 0} attivi)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Persone Fisiche */}
+                  <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-purple-500 rounded-lg">
+                        <User className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-purple-800">Persone Fisiche</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-purple-700">{stats.clients_by_category?.persona_fisica || 0}</span>
+                      <span className="text-xs text-purple-600">
+                        ({stats.clients_active_by_category?.persona_fisica || 0} attive)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Case Vacanza */}
+                  <div className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl border border-amber-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2 bg-amber-500 rounded-lg">
+                        <Home className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="text-sm font-medium text-amber-800">Case Vacanza</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-amber-700">{stats.clients_by_category?.vivienda_vacacional || 0}</span>
+                      <span className="text-xs text-amber-600">
+                        ({stats.clients_active_by_category?.vivienda_vacacional || 0} attive)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Totale */}
+                <div className="mt-4 p-3 bg-slate-100 rounded-lg flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-600">Totale Clienti</span>
+                  <span className="text-xl font-bold text-slate-800">{stats.clients_by_category?.totale || 0}</span>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Progress Bars */}
             <Card className="bg-white border border-slate-200">

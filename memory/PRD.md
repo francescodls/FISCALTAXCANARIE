@@ -5,6 +5,38 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 61 (1 Aprile 2026) - COMPLETATA ✅
+
+**Statistiche Dashboard Admin - Clienti per Categoria**
+
+**Richiesta Utente:** Nella Dashboard Admin, rimuovere le vecchie statistiche e inserire il conteggio dei clienti suddiviso per categorie: Società, Autonomi, Persone Fisiche, Case Vacanza.
+
+**Backend (`/app/backend/server.py` - route `/api/stats`):**
+- ✅ Query per contare clienti da collection `clients` per `tipo_cliente`
+- ✅ Fallback su collection `users` se `clients` vuota
+- ✅ Conteggio separato clienti attivi per categoria
+- ✅ Risposta include:
+  - `clients_by_category`: {societa, autonomo, persona_fisica, vivienda_vacacional, totale}
+  - `clients_active_by_category`: {societa, autonomo, persona_fisica, vivienda_vacacional}
+
+**Frontend (`/app/frontend/src/pages/CommercialDashboard.jsx`):**
+- ✅ Nuova card "**Clienti per Categoria**" nel tab Statistiche
+- ✅ 4 box colorati con icone distintive:
+  - **Blu**: Società (Building2 icon)
+  - **Verde**: Autonomi (Briefcase icon)
+  - **Viola**: Persone Fisiche (User icon)
+  - **Ambra**: Case Vacanza (Home icon)
+- ✅ Ogni box mostra: conteggio totale + (X attive/attivi)
+- ✅ Riga totale in fondo: "Totale Clienti: N"
+- ✅ Aggiunte icone `Building2`, `Home` agli import di lucide-react
+
+**Correzione Dominio Produzione (`/app/frontend/.env`):**
+- ✅ Ripristinato `REACT_APP_BACKEND_URL=https://app.fiscaltaxcanarie.com`
+
+**Test:** Backend API verificato con curl, Frontend verificato con screenshot
+
+---
+
 ### Fase 60 (1 Aprile 2026) - COMPLETATA ✅
 
 **Gestione Dinamica Tipi di Onorario**
