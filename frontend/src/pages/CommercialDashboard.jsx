@@ -1050,35 +1050,79 @@ const CommercialDashboard = () => {
 
           {/* Pending Documents Tab */}
           <TabsContent value="pending">
-            <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-xl flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-purple-500" />
-                  Documenti da Verificare
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {pendingDocs.length > 0 ? (
-                  <div className="space-y-4">
-                    {pendingDocs.map((doc) => (
-                      <PendingDocCard 
-                        key={doc.id} 
-                        doc={doc} 
-                        clients={clients}
-                        onVerify={handleVerifyDoc}
-                        verifying={verifyingDoc === doc.id}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <CheckCircle2 className="h-12 w-12 text-green-300 mx-auto mb-4" />
-                    <p className="text-slate-500">Nessun documento da verificare</p>
-                    <p className="text-sm text-slate-400">Tutti i documenti sono stati assegnati correttamente</p>
+            <div className="space-y-6">
+              {/* Header con statistiche */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-heading font-semibold text-slate-900 flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-purple-500" />
+                    Documenti da Verificare
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Documenti che l'AI non è riuscita a classificare correttamente
+                  </p>
+                </div>
+                {pendingDocs.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <div className="px-4 py-2 bg-purple-100 rounded-lg">
+                      <span className="text-2xl font-bold text-purple-700">{pendingDocs.length}</span>
+                      <span className="text-sm text-purple-600 ml-2">in attesa</span>
+                    </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* Guida rapida */}
+              {pendingDocs.length > 0 && (
+                <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <AlertTriangle className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-purple-900">Come gestire i documenti sospesi</p>
+                        <ul className="text-sm text-purple-700 mt-1 space-y-1">
+                          <li>1. Cerca il cliente corretto usando nome, email, codice fiscale, NIE o CIF</li>
+                          <li>2. Seleziona il cliente dalla lista dei risultati</li>
+                          <li>3. Clicca "Assegna a Cliente" per completare la verifica</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Lista documenti */}
+              {pendingDocs.length > 0 ? (
+                <div className="space-y-4">
+                  {pendingDocs.map((doc) => (
+                    <PendingDocCard 
+                      key={doc.id} 
+                      doc={doc} 
+                      clients={clients}
+                      onVerify={handleVerifyDoc}
+                      verifying={verifyingDoc === doc.id}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Card className="bg-white border border-slate-200">
+                  <CardContent className="py-16">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle2 className="h-8 w-8 text-green-500" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-slate-900 mb-2">Tutto in ordine!</h3>
+                      <p className="text-slate-500">Nessun documento da verificare</p>
+                      <p className="text-sm text-slate-400 mt-1">
+                        Tutti i documenti sono stati assegnati correttamente ai clienti
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
 
           {/* Semantic Search Tab */}
@@ -1622,69 +1666,200 @@ const CommercialDashboard = () => {
 };
 
 // Componente per documento da verificare
-const PendingDocCard = ({ doc, clients, onVerify, verifying }) => {
-  const [selectedClientId, setSelectedClientId] = useState(doc.client_id || "");
+const PendingDocCard = ({ doc, clients, onVerify, verifying, onPreview }) => {
+  const [selectedClientId, setSelectedClientId] = useState(doc.client_id && doc.client_id !== "unassigned" ? doc.client_id : "");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showClientSearch, setShowClientSearch] = useState(false);
+  const { t } = useLanguage();
+
+  // Filtra clienti in base alla ricerca
+  const filteredClients = clients.filter(client => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      (client.full_name && client.full_name.toLowerCase().includes(query)) ||
+      (client.email && client.email.toLowerCase().includes(query)) ||
+      (client.codice_fiscale && client.codice_fiscale.toLowerCase().includes(query)) ||
+      (client.nie && client.nie.toLowerCase().includes(query)) ||
+      (client.nif && client.nif.toLowerCase().includes(query)) ||
+      (client.cif && client.cif.toLowerCase().includes(query)) ||
+      (client.company_name && client.company_name.toLowerCase().includes(query))
+    );
+  });
+
+  const selectedClient = clients.find(c => c.id === selectedClientId);
+
+  // Mappa motivi sospensione a etichette
+  const getReasonLabel = (reason) => {
+    const labels = {
+      verifica_richiesta: { text: "Verifica richiesta", color: "bg-amber-100 text-amber-700" },
+      cliente_non_assegnato: { text: "Cliente non assegnato", color: "bg-red-100 text-red-700" },
+      confidenza_bassa: { text: "Confidenza AI bassa", color: "bg-orange-100 text-orange-700" },
+      ai_non_classificato: { text: "AI non ha classificato", color: "bg-slate-100 text-slate-700" }
+    };
+    return labels[reason] || { text: reason, color: "bg-slate-100 text-slate-600" };
+  };
+
+  const handleSelectClient = (clientId) => {
+    setSelectedClientId(clientId);
+    setShowClientSearch(false);
+    setSearchQuery("");
+  };
 
   return (
-    <div className="p-4 bg-purple-50 rounded-lg border border-purple-100">
-      <div className="flex items-start justify-between gap-4">
+    <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow" data-testid={`pending-doc-${doc.id}`}>
+      <div className="flex flex-col lg:flex-row gap-4">
+        {/* Info documento */}
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="h-5 w-5 text-purple-600" />
-            <p className="font-medium text-slate-900">{doc.title || doc.file_name}</p>
+          <div className="flex items-start gap-3 mb-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <FileText className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-slate-900 truncate">{doc.title || doc.file_name}</p>
+              {doc.file_name_original && doc.file_name_original !== doc.file_name && (
+                <p className="text-xs text-slate-400 truncate">Originale: {doc.file_name_original}</p>
+              )}
+            </div>
           </div>
-          {doc.file_name_original && (
-            <p className="text-xs text-slate-500 mb-1">File originale: {doc.file_name_original}</p>
-          )}
+
+          {/* Descrizione AI */}
           {doc.ai_description && (
-            <p className="text-sm text-slate-600 mb-2">{doc.ai_description}</p>
+            <p className="text-sm text-slate-600 mb-3 line-clamp-2">{doc.ai_description}</p>
           )}
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Badge className="bg-purple-100 text-purple-700">{doc.category}</Badge>
-            {doc.modello_tributario && (
-              <Badge className="bg-blue-100 text-blue-700">{doc.modello_tributario}</Badge>
-            )}
-            {doc.client_confidence && (
-              <Badge className={`${
-                doc.client_confidence === 'alta' ? 'bg-green-100 text-green-700' :
-                doc.client_confidence === 'media' ? 'bg-amber-100 text-amber-700' :
-                'bg-red-100 text-red-700'
-              }`}>
-                Confidenza: {doc.client_confidence}
-              </Badge>
+
+          {/* Badge motivi sospensione */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {doc.suspension_reasons?.map((reason, idx) => {
+              const { text, color } = getReasonLabel(reason);
+              return (
+                <Badge key={idx} className={`${color} text-xs`}>
+                  {text}
+                </Badge>
+              );
+            })}
+            {doc.category && (
+              <Badge className="bg-slate-100 text-slate-600 text-xs">{doc.category}</Badge>
             )}
           </div>
+
+          {/* Data caricamento */}
+          <p className="text-xs text-slate-400">
+            Caricato: {doc.created_at ? new Date(doc.created_at).toLocaleDateString('it-IT', { 
+              day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+            }) : 'N/D'}
+          </p>
         </div>
-        <div className="flex flex-col gap-2 min-w-[200px]">
-          <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-            <SelectTrigger className="border-purple-200 bg-white">
-              <SelectValue placeholder="Assegna cliente..." />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map(client => (
-                <SelectItem key={client.id} value={client.id}>
-                  {client.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+        {/* Sezione assegnazione cliente */}
+        <div className="lg:w-80 space-y-3">
+          {/* Ricerca cliente */}
+          <div className="relative">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Cerca cliente (nome, email, CF, NIE, CIF...)"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowClientSearch(true);
+                }}
+                onFocus={() => setShowClientSearch(true)}
+                className="pl-10 border-purple-200 focus:border-purple-400"
+                data-testid={`search-client-${doc.id}`}
+              />
+            </div>
+
+            {/* Dropdown risultati ricerca */}
+            {showClientSearch && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredClients.length > 0 ? (
+                  filteredClients.slice(0, 10).map(client => (
+                    <button
+                      key={client.id}
+                      onClick={() => handleSelectClient(client.id)}
+                      className={`w-full px-4 py-3 text-left hover:bg-purple-50 flex items-center gap-3 border-b border-slate-100 last:border-0 ${
+                        selectedClientId === client.id ? 'bg-purple-50' : ''
+                      }`}
+                      data-testid={`select-client-${client.id}`}
+                    >
+                      <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-medium text-slate-600">
+                        {client.full_name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-900 truncate">{client.full_name}</p>
+                        <p className="text-xs text-slate-500 truncate">{client.email}</p>
+                        {(client.codice_fiscale || client.nie || client.cif) && (
+                          <p className="text-xs text-slate-400 truncate">
+                            {client.codice_fiscale || client.nie || client.cif}
+                          </p>
+                        )}
+                      </div>
+                      {selectedClientId === client.id && (
+                        <Check className="h-4 w-4 text-purple-600" />
+                      )}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-4 py-6 text-center text-slate-500">
+                    <User className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                    <p className="text-sm">Nessun cliente trovato</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Cliente selezionato */}
+          {selectedClient && (
+            <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-200 rounded-full flex items-center justify-center text-sm font-bold text-purple-700">
+                  {selectedClient.full_name?.charAt(0)?.toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-purple-900 truncate">{selectedClient.full_name}</p>
+                  <p className="text-xs text-purple-600 truncate">{selectedClient.email}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedClientId("");
+                    setSearchQuery("");
+                  }}
+                  className="p-1 hover:bg-purple-200 rounded"
+                >
+                  <X className="h-4 w-4 text-purple-600" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pulsante assegnazione */}
           <Button
             onClick={() => onVerify(doc.id, selectedClientId)}
             disabled={verifying || !selectedClientId}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
-            size="sm"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium"
+            data-testid={`verify-btn-${doc.id}`}
           >
             {verifying ? (
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
             ) : (
               <>
-                <Check className="h-4 w-4 mr-1" />
-                Verifica
+                <Check className="h-4 w-4 mr-2" />
+                Assegna a Cliente
               </>
             )}
           </Button>
         </div>
       </div>
+
+      {/* Click fuori per chiudere dropdown */}
+      {showClientSearch && (
+        <div 
+          className="fixed inset-0 z-10" 
+          onClick={() => setShowClientSearch(false)}
+        />
+      )}
     </div>
   );
 };

@@ -5,6 +5,54 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 62 (1 Aprile 2026) - COMPLETATA ✅
+
+**Gestione Avanzata "Da Verificare" - Documenti Non Classificati AI**
+
+**Richiesta Utente:** La sezione "Da Verificare" deve gestire i documenti che l'AI non riesce a classificare correttamente, con ricerca cliente avanzata e assegnazione manuale.
+
+**Backend (`/app/backend/server.py` - route `/api/documents/pending-verification`):**
+- ✅ Query ampliata per includere documenti con:
+  - `needs_verification: True`
+  - `client_id: "unassigned"`, `null`, o vuoto
+  - `client_confidence: "bassa"`
+- ✅ Ordinamento per data creazione (più recenti prima)
+- ✅ Aggiunto campo `suspension_reasons` con array di motivi:
+  - `verifica_richiesta`, `cliente_non_assegnato`, `confidenza_bassa`, `ai_non_classificato`
+- ✅ Campo `suspension_reason_primary` per motivo principale
+
+**Frontend (`/app/frontend/src/pages/CommercialDashboard.jsx`):**
+
+**1. UI Tab "Da Verificare" Rinnovata:**
+- ✅ Header con titolo, descrizione e contatore documenti in attesa
+- ✅ Card guida "Come gestire i documenti sospesi" con istruzioni 1-2-3
+- ✅ Stato vuoto "Tutto in ordine!" con icona verde
+
+**2. Componente `PendingDocCard` Potenziato:**
+- ✅ Layout card moderna con shadow e hover
+- ✅ Badge colorati per motivi sospensione:
+  - Ambra: "Verifica richiesta"
+  - Rosso: "Cliente non assegnato"
+  - Arancione: "Confidenza AI bassa"
+  - Grigio: "AI non ha classificato"
+- ✅ Data caricamento formattata
+- ✅ **Ricerca cliente avanzata** con autocomplete:
+  - Cerca per nome, cognome, email, codice fiscale, NIE, NIF, CIF
+  - Dropdown risultati con avatar, nome, email, CF
+  - Selezione con click
+- ✅ Box cliente selezionato (viola) con pulsante X per deselezionare
+- ✅ Pulsante "Assegna a Cliente" attivato solo con cliente selezionato
+
+**3. Flusso Completo:**
+- ✅ Documento caricato senza cliente → appare in "Da Verificare"
+- ✅ Admin cerca e seleziona cliente
+- ✅ Click "Assegna" → documento sparisce dalla lista
+- ✅ Documento ora visibile nella documentazione del cliente
+
+**Test:** Backend API testato con curl, Frontend testato con screenshot (ricerca, selezione, assegnazione)
+
+---
+
 ### Fase 61 (1 Aprile 2026) - COMPLETATA ✅
 
 **Statistiche Dashboard Admin - Clienti per Categoria**

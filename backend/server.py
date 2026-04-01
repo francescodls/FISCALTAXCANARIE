@@ -1874,11 +1874,40 @@ async def search_documents(
 
 @api_router.get("/documents/pending-verification")
 async def get_documents_pending_verification(user: dict = Depends(require_commercialista)):
-    """Recupera documenti che necessitano verifica manuale"""
+    """
+    Recupera documenti che necessitano verifica manuale.
+    Include:
+    - Documenti con needs_verification: True
+    - Documenti con client_id: "unassigned" o null
+    - Documenti con confidenza bassa
+    """
     documents = await db.documents.find(
-        {"needs_verification": True},
+        {
+            "$or": [
+                {"needs_verification": True},
+                {"client_id": "unassigned"},
+                {"client_id": None},
+                {"client_id": ""},
+                {"client_confidence": "bassa"}
+            ]
+        },
         {"_id": 0, "file_data": 0, "extracted_text": 0}
-    ).to_list(100)
+    ).sort("created_at", -1).to_list(200)
+    
+    # Aggiungi motivo sospensione per ogni documento
+    for doc in documents:
+        reasons = []
+        if doc.get("needs_verification"):
+            reasons.append("verifica_richiesta")
+        if doc.get("client_id") in [None, "", "unassigned"]:
+            reasons.append("cliente_non_assegnato")
+        if doc.get("client_confidence") == "bassa":
+            reasons.append("confidenza_bassa")
+        if not doc.get("ai_description"):
+            reasons.append("ai_non_classificato")
+        doc["suspension_reasons"] = reasons
+        doc["suspension_reason_primary"] = reasons[0] if reasons else "sconosciuto"
+    
     return documents
 
 @api_router.get("/documents/{doc_id}")
