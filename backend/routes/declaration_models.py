@@ -399,6 +399,17 @@ class TaxReturnResponse(BaseModel):
     # Autorizzazione
     autorizacion: Optional[TaxReturnAuthorization] = None
     
+    # Onorario Dichiarazione
+    declaration_fee: Optional[float] = None
+    declaration_fee_notes: Optional[str] = None
+    declaration_fee_tax_type: Optional[str] = None  # IGIC_7, IVA_22, IVA_21, ESENTE
+    declaration_fee_net_amount: Optional[float] = None
+    declaration_fee_tax_amount: Optional[float] = None
+    declaration_fee_gross_amount: Optional[float] = None
+    declaration_fee_status: Optional[str] = None  # pending, paid, notified
+    declaration_fee_notified_at: Optional[str] = None
+    declaration_fee_notification_text: Optional[str] = None
+    
     # Metadata
     status_logs: List[TaxReturnStatusLog] = []
     created_at: str
@@ -432,6 +443,11 @@ class TaxReturnListItem(BaseModel):
     
     # Autorizzazione
     has_authorization: bool = False
+    
+    # Onorario Dichiarazione (per lista admin)
+    declaration_fee: Optional[float] = None
+    declaration_fee_status: Optional[str] = None
+    declaration_fee_notified_at: Optional[str] = None
     
     created_at: str
     updated_at: str
@@ -506,3 +522,38 @@ class ClientDeclarationsListResponse(BaseModel):
     clients: List[ClientDeclarationSummary]
     total_clients: int
     total_declarations: int
+
+
+
+# ==================== DECLARATION FEE ====================
+
+class DeclarationFeeUpdate(BaseModel):
+    """Aggiornamento onorario dichiarazione"""
+    amount: float  # Importo netto
+    notes: Optional[str] = None
+    tax_type: Optional[str] = "ESENTE"  # IGIC_7, IVA_22, IVA_21, ESENTE
+    status: Optional[str] = "pending"  # pending, notified, paid
+
+
+class DeclarationFeeNotify(BaseModel):
+    """Notifica onorario al cliente via email"""
+    subject: Optional[str] = None  # Oggetto email personalizzato
+    message: Optional[str] = None  # Testo personalizzato (se None usa template)
+    use_default_template: bool = True  # Se True usa il template predefinito
+
+
+class DeclarationFeeResponse(BaseModel):
+    """Risposta con dettagli onorario"""
+    declaration_id: str
+    client_id: str
+    client_name: str
+    anno_fiscale: int
+    fee_amount: float
+    fee_net_amount: Optional[float] = None
+    fee_tax_amount: Optional[float] = None
+    fee_gross_amount: Optional[float] = None
+    fee_tax_type: Optional[str] = None
+    fee_notes: Optional[str] = None
+    fee_status: Optional[str] = None
+    notified_at: Optional[str] = None
+    notification_text: Optional[str] = None

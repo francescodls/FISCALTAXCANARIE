@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
+import { Label } from './ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from './ui/dialog';
@@ -13,11 +14,20 @@ import {
   ArrowLeft, User, Calendar, FileText, MessageCircle, Send, 
   AlertCircle, CheckCircle, Clock, Download, Paperclip, Eye,
   Plus, X, Upload, FileCheck, Building2, Briefcase, Home,
-  TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw, Trash2, UserCheck
+  TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw, Trash2, UserCheck,
+  Euro, Mail, Bell, CreditCard
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Tax types per onorario
+const TAX_TYPES = [
+  { value: "ESENTE", label: "Esente IVA (0%)", rate: 0 },
+  { value: "IGIC_7", label: "IGIC 7%", rate: 0.07 },
+  { value: "IVA_21", label: "IVA 21%", rate: 0.21 },
+  { value: "IVA_22", label: "IVA 22%", rate: 0.22 },
+];
 
 const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -35,6 +45,23 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   });
   const [newDocRequest, setNewDocRequest] = useState('');
   const messagesEndRef = useRef(null);
+  
+  // State per onorario dichiarazione
+  const [showFeeDialog, setShowFeeDialog] = useState(false);
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false);
+  const [feeForm, setFeeForm] = useState({
+    amount: declaration.declaration_fee_net_amount || declaration.declaration_fee || '',
+    notes: declaration.declaration_fee_notes || '',
+    tax_type: declaration.declaration_fee_tax_type || 'ESENTE',
+    status: declaration.declaration_fee_status || 'pending'
+  });
+  const [notifyForm, setNotifyForm] = useState({
+    subject: `Onorario Dichiarazione Redditi ${declaration.anno_fiscale} - Fiscal Tax Canarie`,
+    message: '',
+    use_default_template: true
+  });
+  const [savingFee, setSavingFee] = useState(false);
+  const [sendingNotify, setSendingNotify] = useState(false);
   
   const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(user?.role);
 
@@ -99,6 +126,96 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
       setSendingMessage(false);
     }
   };
+
+  // ==================== ONORARIO DICHIARAZIONE ====================
+  
+  const calculateFeeAmounts = (netAmount, taxType) => {
+    const tax = TAX_TYPES.find(t => t.value === taxType) || TAX_TYPES[0];
+    const net = parseFloat(netAmount) || 0;
+    const taxAmount = Math.round(net * tax.rate * 100) / 100;
+    const gross = Math.round((net + taxAmount) * 100) / 100;
+    return { net, taxAmount, gross };
+  };
+
+  const handleSaveFee = async () => {
+    if (!feeForm.amount || parseFloat(feeForm.amount) <= 0) {
+      toast.error('Inserisci un importo valido');
+      return;
+    }
+    
+    setSavingFee(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}/fee`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: parseFloat(feeForm.amount),
+          notes: feeForm.notes,
+          tax_type: feeForm.tax_type,
+          status: feeForm.status
+        })
+      });
+      
+      if (!res.ok) throw new Error('Errore salvataggio');
+      
+      toast.success('Onorario salvato con successo');
+      setShowFeeDialog(false);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      toast.error('Errore nel salvataggio dell\'onorario');
+    } finally {
+      setSavingFee(false);
+    }
+  };
+
+  const handleSendFeeNotification = async () => {
+    setSendingNotify(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}/fee/notify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subject: notifyForm.subject,
+          message: notifyForm.use_default_template ? null : notifyForm.message,
+          use_default_template: notifyForm.use_default_template
+        })
+      });
+      
+      if (!res.ok) throw new Error('Errore invio notifica');
+      
+      toast.success('Notifica inviata al cliente via email!');
+      setShowNotifyDialog(false);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      toast.error('Errore nell\'invio della notifica');
+    } finally {
+      setSendingNotify(false);
+    }
+  };
+
+  const handleMarkFeePaid = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}/fee/mark-paid`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Errore');
+      
+      toast.success('Onorario segnato come pagato');
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      toast.error('Errore');
+    }
+  };
+
+  const feePreview = calculateFeeAmounts(feeForm.amount, feeForm.tax_type);
 
   const sendIntegrationRequest = async () => {
     if (!integrationRequest.seccion || !integrationRequest.mensaje) {
@@ -561,6 +678,143 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
             </Card>
           </div>
 
+          {/* Card Onorario Dichiarazione */}
+          <Card className={`border-2 ${
+            declaration.declaration_fee_status === 'paid' 
+              ? 'border-green-200 bg-green-50/30' 
+              : declaration.declaration_fee 
+                ? 'border-teal-200 bg-teal-50/30'
+                : 'border-slate-200'
+          }`}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Euro className="w-5 h-5 text-teal-600" />
+                  Onorario Presentazione Dichiarazione
+                </div>
+                {declaration.declaration_fee_status === 'paid' && (
+                  <Badge className="bg-green-100 text-green-700">Pagato</Badge>
+                )}
+                {declaration.declaration_fee_status === 'notified' && (
+                  <Badge className="bg-blue-100 text-blue-700">Notificato</Badge>
+                )}
+                {declaration.declaration_fee_status === 'pending' && declaration.declaration_fee && (
+                  <Badge className="bg-amber-100 text-amber-700">Da notificare</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {declaration.declaration_fee ? (
+                <div className="space-y-4">
+                  {/* Importi */}
+                  <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                    <div>
+                      <p className="text-sm text-slate-500">Importo Totale</p>
+                      <p className="text-2xl font-bold text-teal-700">
+                        €{(declaration.declaration_fee_gross_amount || declaration.declaration_fee).toFixed(2)}
+                      </p>
+                      {declaration.declaration_fee_tax_amount > 0 && (
+                        <p className="text-xs text-slate-500">
+                          (Netto €{declaration.declaration_fee_net_amount?.toFixed(2)} + 
+                          {' '}{TAX_TYPES.find(t => t.value === declaration.declaration_fee_tax_type)?.label || 'IVA'} 
+                          {' '}€{declaration.declaration_fee_tax_amount?.toFixed(2)})
+                        </p>
+                      )}
+                    </div>
+                    {isAdmin && declaration.declaration_fee_status !== 'paid' && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleMarkFeePaid}
+                        className="border-green-200 text-green-700 hover:bg-green-50"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Segna Pagato
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Note */}
+                  {declaration.declaration_fee_notes && (
+                    <div className="p-3 bg-slate-50 rounded-lg">
+                      <p className="text-sm text-slate-600">{declaration.declaration_fee_notes}</p>
+                    </div>
+                  )}
+                  
+                  {/* Notifica inviata */}
+                  {declaration.declaration_fee_notified_at && (
+                    <div className="flex items-center gap-2 text-sm text-blue-600">
+                      <Mail className="w-4 h-4" />
+                      <span>
+                        Notificato al cliente il {new Date(declaration.declaration_fee_notified_at).toLocaleString('it-IT')}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Azioni Admin */}
+                  {isAdmin && (
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          setFeeForm({
+                            amount: declaration.declaration_fee_net_amount || declaration.declaration_fee || '',
+                            notes: declaration.declaration_fee_notes || '',
+                            tax_type: declaration.declaration_fee_tax_type || 'ESENTE',
+                            status: declaration.declaration_fee_status || 'pending'
+                          });
+                          setShowFeeDialog(true);
+                        }}
+                      >
+                        <Receipt className="w-4 h-4 mr-1" />
+                        Modifica
+                      </Button>
+                      {!declaration.declaration_fee_notified_at && (
+                        <Button 
+                          size="sm"
+                          className="bg-blue-500 hover:bg-blue-600 text-white"
+                          onClick={() => setShowNotifyDialog(true)}
+                        >
+                          <Mail className="w-4 h-4 mr-1" />
+                          Notifica al Cliente
+                        </Button>
+                      )}
+                      {declaration.declaration_fee_notified_at && declaration.declaration_fee_status !== 'paid' && (
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          className="border-blue-200 text-blue-600"
+                          onClick={() => setShowNotifyDialog(true)}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Invia Promemoria
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  {isAdmin ? (
+                    <>
+                      <p className="text-slate-500 mb-3">Nessun onorario ancora impostato</p>
+                      <Button 
+                        onClick={() => setShowFeeDialog(true)}
+                        className="bg-teal-500 hover:bg-teal-600 text-white"
+                      >
+                        <Plus className="w-4 h-4 mr-1" />
+                        Inserisci Onorario
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="text-slate-500">L'onorario per questa dichiarazione non è ancora stato definito</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Sezioni Compilate */}
           <Card>
             <CardHeader>
@@ -934,6 +1188,170 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog Onorario Dichiarazione */}
+      <Dialog open={showFeeDialog} onOpenChange={setShowFeeDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Euro className="w-5 h-5 text-teal-500" />
+              {declaration.declaration_fee ? 'Modifica' : 'Inserisci'} Onorario Dichiarazione
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Importo Netto (€) *</Label>
+                <div className="relative">
+                  <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={feeForm.amount}
+                    onChange={(e) => setFeeForm({ ...feeForm, amount: e.target.value })}
+                    placeholder="0.00"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Regime Fiscale</Label>
+                <Select 
+                  value={feeForm.tax_type}
+                  onValueChange={(v) => setFeeForm({ ...feeForm, tax_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TAX_TYPES.map(t => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Preview importi */}
+            {feeForm.amount && parseFloat(feeForm.amount) > 0 && (
+              <div className="p-3 bg-slate-50 rounded-lg border">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Netto:</span>
+                  <span className="font-medium">€{feePreview.net.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">
+                    {TAX_TYPES.find(t => t.value === feeForm.tax_type)?.label || 'IVA'}:
+                  </span>
+                  <span className="font-medium">€{feePreview.taxAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold border-t pt-2 mt-2">
+                  <span>Totale Lordo:</span>
+                  <span className="text-teal-600">€{feePreview.gross.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Note (opzionale)</Label>
+              <Textarea
+                value={feeForm.notes}
+                onChange={(e) => setFeeForm({ ...feeForm, notes: e.target.value })}
+                placeholder="Note sull'onorario..."
+                rows={2}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFeeDialog(false)}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={handleSaveFee}
+              disabled={savingFee}
+              className="bg-teal-500 hover:bg-teal-600"
+            >
+              {savingFee ? 'Salvataggio...' : 'Salva Onorario'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Notifica Onorario */}
+      <Dialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="w-5 h-5 text-blue-500" />
+              Notifica Onorario al Cliente
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              <p className="text-sm text-blue-700">
+                <strong>Cliente:</strong> {declaration.client_name}<br />
+                <strong>Importo:</strong> €{(declaration.declaration_fee_gross_amount || declaration.declaration_fee)?.toFixed(2)}<br />
+                <strong>Anno:</strong> {declaration.anno_fiscale}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Oggetto Email</Label>
+              <Input
+                value={notifyForm.subject}
+                onChange={(e) => setNotifyForm({ ...notifyForm, subject: e.target.value })}
+                placeholder="Oggetto email..."
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useTemplate"
+                checked={notifyForm.use_default_template}
+                onChange={(e) => setNotifyForm({ ...notifyForm, use_default_template: e.target.checked })}
+                className="rounded border-slate-300"
+              />
+              <label htmlFor="useTemplate" className="text-sm text-slate-600 cursor-pointer">
+                Usa testo predefinito dello studio
+              </label>
+            </div>
+
+            {!notifyForm.use_default_template && (
+              <div className="space-y-2">
+                <Label>Messaggio Personalizzato</Label>
+                <Textarea
+                  value={notifyForm.message}
+                  onChange={(e) => setNotifyForm({ ...notifyForm, message: e.target.value })}
+                  placeholder={`Gentile {client_name},\n\nLe comunichiamo l'onorario per la dichiarazione {anno_fiscale}...\n\nImporto: {fee_amount}`}
+                  rows={6}
+                />
+                <p className="text-xs text-slate-500">
+                  Puoi usare: {'{client_name}'}, {'{anno_fiscale}'}, {'{fee_amount}'}, {'{fee_display}'}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNotifyDialog(false)}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={handleSendFeeNotification}
+              disabled={sendingNotify}
+              className="bg-blue-500 hover:bg-blue-600"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              {sendingNotify ? 'Invio...' : 'Invia Notifica'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

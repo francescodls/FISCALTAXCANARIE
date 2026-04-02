@@ -22,7 +22,8 @@ from .declaration_models import (
     TaxReturnAuthorization, TaxReturnDocument, TaxReturnClientNote,
     TaxReturnAdminNote, TaxReturnIntegrationRequest, TaxReturnStatusLog,
     IntegrationRequestCreate, IntegrationRequestResponse,
-    DeclarationMessageCreate, ClientDeclarationSummary
+    DeclarationMessageCreate, ClientDeclarationSummary,
+    DeclarationFeeUpdate, DeclarationFeeNotify, DeclarationFeeResponse
 )
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
@@ -1257,3 +1258,284 @@ async def mark_messages_read(
     )
     
     return {"message": "Messaggi segnati come letti"}
+
+
+
+# ==================== DECLARATION FEE (ONORARIO DICHIARAZIONE) ====================
+
+# Tax rates per calcolo
+TAX_RATES = {
+    "ESENTE": 0,
+    "IGIC_7": 0.07,
+    "IVA_21": 0.21,
+    "IVA_22": 0.22
+}
+
+# Template email predefinito
+DEFAULT_FEE_NOTIFICATION_TEMPLATE = """
+Gentile {client_name},
+
+Le comunichiamo che per la predisposizione e presentazione della Sua dichiarazione dei redditi relativa all'anno fiscale {anno_fiscale}, l'onorario previsto è di:
+
+**Importo: {fee_display}**
+
+{notes_section}
+
+Per qualsiasi chiarimento, non esiti a contattarci rispondendo a questa email o accedendo alla Sua area clienti.
+
+Cordiali saluti,
+Fiscal Tax Canarie SLP
+"""
+
+
+@router.put("/{tax_return_id}/fee")
+async def update_declaration_fee(
+    tax_return_id: str,
+    fee_data: DeclarationFeeUpdate,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Aggiorna l'onorario per una dichiarazione dei redditi.
+    Solo amministratori possono modificare l'onorario.
+    """
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Calcola importi con tassazione
+    net_amount = fee_data.amount
+    tax_type = fee_data.tax_type or "ESENTE"
+    rate = TAX_RATES.get(tax_type, 0)
+    tax_amount = round(net_amount * rate, 2)
+    gross_amount = round(net_amount + tax_amount, 2)
+    
+    update_data = {
+        "declaration_fee": gross_amount,  # Importo totale lordo
+        "declaration_fee_net_amount": net_amount,
+        "declaration_fee_tax_amount": tax_amount,
+        "declaration_fee_gross_amount": gross_amount,
+        "declaration_fee_tax_type": tax_type,
+        "declaration_fee_notes": fee_data.notes,
+        "declaration_fee_status": fee_data.status or "pending",
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {"$set": update_data}
+    )
+    
+    # Log attività
+    await log_activity(
+        "onorario_dichiarazione",
+        f"Onorario €{gross_amount} impostato per dichiarazione {tax_return.get('anno_fiscale')} cliente {tax_return.get('client_id')}",
+        user["id"]
+    )
+    
+    # Recupera dati cliente per risposta
+    client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0, "full_name": 1})
+    
+    return {
+        "message": "Onorario aggiornato con successo",
+        "declaration_id": tax_return_id,
+        "client_name": client.get("full_name", "N/A") if client else "N/A",
+        "fee_amount": gross_amount,
+        "fee_net_amount": net_amount,
+        "fee_tax_amount": tax_amount,
+        "fee_tax_type": tax_type,
+        "fee_status": fee_data.status or "pending"
+    }
+
+
+@router.get("/{tax_return_id}/fee")
+async def get_declaration_fee(
+    tax_return_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Recupera l'onorario di una dichiarazione.
+    Accessibile sia da admin che dal cliente proprietario.
+    """
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0, "full_name": 1})
+    
+    return {
+        "declaration_id": tax_return_id,
+        "client_id": tax_return["client_id"],
+        "client_name": client.get("full_name", "N/A") if client else "N/A",
+        "anno_fiscale": tax_return.get("anno_fiscale"),
+        "fee_amount": tax_return.get("declaration_fee"),
+        "fee_net_amount": tax_return.get("declaration_fee_net_amount"),
+        "fee_tax_amount": tax_return.get("declaration_fee_tax_amount"),
+        "fee_gross_amount": tax_return.get("declaration_fee_gross_amount"),
+        "fee_tax_type": tax_return.get("declaration_fee_tax_type"),
+        "fee_notes": tax_return.get("declaration_fee_notes"),
+        "fee_status": tax_return.get("declaration_fee_status"),
+        "notified_at": tax_return.get("declaration_fee_notified_at"),
+        "notification_text": tax_return.get("declaration_fee_notification_text")
+    }
+
+
+@router.post("/{tax_return_id}/fee/notify")
+async def notify_declaration_fee(
+    tax_return_id: str,
+    notify_data: DeclarationFeeNotify,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Invia notifica email al cliente con l'onorario della dichiarazione.
+    Supporta template predefinito o messaggio personalizzato.
+    """
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Verifica che ci sia un onorario impostato
+    fee_amount = tax_return.get("declaration_fee")
+    if not fee_amount:
+        raise HTTPException(status_code=400, detail="Nessun onorario impostato per questa dichiarazione")
+    
+    # Recupera dati cliente
+    client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    client_email = client.get("email")
+    client_name = client.get("full_name", "Cliente")
+    anno_fiscale = tax_return.get("anno_fiscale", "N/A")
+    
+    # Formatta importo
+    net_amount = tax_return.get("declaration_fee_net_amount", fee_amount)
+    tax_amount = tax_return.get("declaration_fee_tax_amount", 0)
+    gross_amount = tax_return.get("declaration_fee_gross_amount", fee_amount)
+    tax_type = tax_return.get("declaration_fee_tax_type", "ESENTE")
+    
+    # Formatta display importo
+    if tax_amount > 0:
+        tax_label = {"IGIC_7": "IGIC 7%", "IVA_21": "IVA 21%", "IVA_22": "IVA 22%"}.get(tax_type, tax_type)
+        fee_display = f"€{gross_amount:.2f} (Netto €{net_amount:.2f} + {tax_label} €{tax_amount:.2f})"
+    else:
+        fee_display = f"€{gross_amount:.2f} (Esente IVA)"
+    
+    # Prepara note section
+    fee_notes = tax_return.get("declaration_fee_notes", "")
+    notes_section = f"\nNote: {fee_notes}\n" if fee_notes else ""
+    
+    # Prepara messaggio
+    if notify_data.use_default_template or not notify_data.message:
+        # Usa template predefinito
+        email_body = DEFAULT_FEE_NOTIFICATION_TEMPLATE.format(
+            client_name=client_name,
+            anno_fiscale=anno_fiscale,
+            fee_display=fee_display,
+            notes_section=notes_section
+        )
+    else:
+        # Usa messaggio personalizzato
+        email_body = notify_data.message
+        # Sostituisci placeholder se presenti
+        email_body = email_body.replace("{client_name}", client_name)
+        email_body = email_body.replace("{anno_fiscale}", str(anno_fiscale))
+        email_body = email_body.replace("{fee_display}", fee_display)
+        email_body = email_body.replace("{fee_amount}", f"€{gross_amount:.2f}")
+    
+    # Oggetto email
+    subject = notify_data.subject or f"Onorario Dichiarazione Redditi {anno_fiscale} - Fiscal Tax Canarie"
+    
+    # Invia email
+    try:
+        import sys
+        sys.path.insert(0, '/app/backend')
+        from email_service import send_generic_email
+        
+        await send_generic_email(
+            to_email=client_email,
+            subject=subject,
+            html_content=email_body.replace('\n', '<br>')
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore invio email: {str(e)}")
+    
+    # Aggiorna stato dichiarazione
+    await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {"$set": {
+            "declaration_fee_status": "notified",
+            "declaration_fee_notified_at": datetime.now(timezone.utc).isoformat(),
+            "declaration_fee_notification_text": email_body,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Crea anche notifica in-app
+    notification_id = str(uuid.uuid4())
+    await db.client_notifications.insert_one({
+        "id": notification_id,
+        "client_id": tax_return["client_id"],
+        "title": f"Onorario Dichiarazione {anno_fiscale}",
+        "content": f"L'onorario previsto per la Sua dichiarazione dei redditi {anno_fiscale} è di {fee_display}.",
+        "type": "fee",
+        "priority": "normal",
+        "read": False,
+        "related_entity": {"type": "declaration", "id": tax_return_id},
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Log attività
+    await log_activity(
+        "notifica_onorario_dichiarazione",
+        f"Notifica onorario €{gross_amount} inviata a {client_email} per dichiarazione {anno_fiscale}",
+        user["id"]
+    )
+    
+    return {
+        "message": "Notifica inviata con successo",
+        "email_sent_to": client_email,
+        "notification_created": True,
+        "fee_status": "notified"
+    }
+
+
+@router.put("/{tax_return_id}/fee/mark-paid")
+async def mark_declaration_fee_paid(
+    tax_return_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Segna l'onorario della dichiarazione come pagato.
+    """
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {"$set": {
+            "declaration_fee_status": "paid",
+            "declaration_fee_paid_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    await log_activity(
+        "onorario_dichiarazione_pagato",
+        f"Onorario dichiarazione {tax_return.get('anno_fiscale')} segnato come pagato",
+        user["id"]
+    )
+    
+    return {"message": "Onorario segnato come pagato", "status": "paid"}
