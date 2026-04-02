@@ -860,6 +860,122 @@ async def delete_document(tax_return_id: str, doc_id: str, user: dict = Depends(
     return {"message": "Documento eliminato"}
 
 
+@router.get("/tax-returns/{tax_return_id}/documents/{doc_id}/download")
+async def download_declaration_document(
+    tax_return_id: str, 
+    doc_id: str, 
+    user: dict = Depends(get_current_user)
+):
+    """Scarica un documento allegato alla dichiarazione"""
+    from fastapi.responses import Response
+    import mimetypes
+    
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Admin può scaricare, cliente solo se è sua
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Trova il documento
+    document = None
+    for doc in tax_return.get("documentos", []):
+        if doc.get("id") == doc_id:
+            document = doc
+            break
+    
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    file_name = document.get("nombre") or document.get("file_name", "documento")
+    
+    # Recupera il contenuto
+    if document.get("file_data"):
+        # Documento salvato in base64 nel DB
+        content = base64.b64decode(document["file_data"])
+    elif document.get("file_path"):
+        # Documento salvato in cloud - TODO: implementare download da cloud
+        raise HTTPException(status_code=501, detail="Download da cloud non implementato")
+    else:
+        raise HTTPException(status_code=404, detail="Contenuto documento non disponibile")
+    
+    # Determina il content type
+    mime_type, _ = mimetypes.guess_type(file_name)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+    
+    return Response(
+        content=content,
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{file_name}"'
+        }
+    )
+
+
+@router.get("/tax-returns/{tax_return_id}/documents/{doc_id}/preview")
+async def preview_declaration_document(
+    tax_return_id: str, 
+    doc_id: str, 
+    user: dict = Depends(get_current_user)
+):
+    """Ottiene l'URL di preview o il contenuto base64 di un documento"""
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Admin può visualizzare, cliente solo se è sua
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Trova il documento
+    document = None
+    for doc in tax_return.get("documentos", []):
+        if doc.get("id") == doc_id:
+            document = doc
+            break
+    
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    file_name = document.get("nombre") or document.get("file_name", "documento")
+    
+    # Determina il tipo di file per il preview
+    import mimetypes
+    mime_type, _ = mimetypes.guess_type(file_name)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+    
+    # Verifica se è un tipo previewable
+    previewable_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']
+    is_previewable = mime_type in previewable_types
+    
+    if document.get("file_data"):
+        # Documento salvato in base64 nel DB
+        return {
+            "file_name": file_name,
+            "mime_type": mime_type,
+            "is_previewable": is_previewable,
+            "data_url": f"data:{mime_type};base64,{document['file_data']}"
+        }
+    elif document.get("file_path"):
+        # Documento salvato in cloud - TODO: generare URL firmato
+        return {
+            "file_name": file_name,
+            "mime_type": mime_type,
+            "is_previewable": is_previewable,
+            "cloud_path": document["file_path"],
+            "message": "Preview da cloud non implementato"
+        }
+    else:
+        raise HTTPException(status_code=404, detail="Contenuto documento non disponibile")
+
+
 # ==================== NOTE ====================
 
 @router.post("/tax-returns/{tax_return_id}/client-notes")

@@ -233,3 +233,4 @@ backend/static/downloads/FiscalTaxCanarie-Mac-v1.3.zip
 # Environment files
 *.env
 *.env.*
+frontend/node_modules/.cache/default-development/8.pack

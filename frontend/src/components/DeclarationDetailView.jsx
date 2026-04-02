@@ -63,6 +63,11 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   const [savingFee, setSavingFee] = useState(false);
   const [sendingNotify, setSendingNotify] = useState(false);
   
+  // State per preview documenti
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  
   const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(user?.role);
 
   useEffect(() => {
@@ -88,6 +93,57 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
       });
     } catch (error) {
       console.error('Errore marking messages read:', error);
+    }
+  };
+
+  // Funzione per scaricare documento
+  const downloadDocument = async (doc) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/api/declarations/tax-returns/${declaration.id}/documents/${doc.id}/download`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      if (!res.ok) throw new Error('Errore download');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.nombre || doc.file_name || 'documento';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Download completato');
+    } catch (error) {
+      console.error('Errore download:', error);
+      toast.error('Errore durante il download');
+    }
+  };
+
+  // Funzione per preview documento
+  const previewDocument = async (doc) => {
+    setPreviewLoading(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/declarations/tax-returns/${declaration.id}/documents/${doc.id}/preview`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      if (!res.ok) throw new Error('Errore preview');
+      
+      const data = await res.json();
+      setPreviewDoc({
+        ...doc,
+        ...data
+      });
+      setShowPreviewDialog(true);
+    } catch (error) {
+      console.error('Errore preview:', error);
+      toast.error('Errore durante il caricamento dell\'anteprima');
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -950,9 +1006,25 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
                           </p>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">
-                        <Download className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => previewDocument(doc)}
+                          disabled={previewLoading}
+                          title="Visualizza anteprima"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => downloadDocument(doc)}
+                          title="Scarica documento"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1349,6 +1421,69 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
               <Mail className="w-4 h-4 mr-2" />
               {sendingNotify ? 'Invio...' : 'Invia Notifica'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Preview Documento */}
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-teal-600" />
+              Anteprima Documento
+            </DialogTitle>
+            <DialogDescription>
+              {previewDoc?.file_name || previewDoc?.nombre}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto min-h-[400px] max-h-[60vh] bg-slate-100 rounded-lg p-2">
+            {previewDoc?.is_previewable && previewDoc?.data_url ? (
+              previewDoc.mime_type === 'application/pdf' ? (
+                <iframe 
+                  src={previewDoc.data_url}
+                  className="w-full h-[55vh] rounded border"
+                  title="PDF Preview"
+                />
+              ) : previewDoc.mime_type?.startsWith('image/') ? (
+                <img 
+                  src={previewDoc.data_url}
+                  alt={previewDoc.file_name}
+                  className="max-w-full max-h-[55vh] mx-auto rounded shadow"
+                />
+              ) : (
+                <div className="text-center py-12 text-slate-500">
+                  <FileText className="w-16 h-16 mx-auto mb-4 text-slate-400" />
+                  <p>Anteprima non disponibile per questo tipo di file</p>
+                  <p className="text-sm mt-2">Tipo: {previewDoc.mime_type}</p>
+                </div>
+              )
+            ) : (
+              <div className="text-center py-12 text-slate-500">
+                <FileText className="w-16 h-16 mx-auto mb-4 text-slate-400" />
+                <p>Anteprima non disponibile</p>
+                <p className="text-sm mt-2">Scarica il documento per visualizzarlo</p>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
+              Chiudi
+            </Button>
+            {previewDoc && (
+              <Button 
+                onClick={() => {
+                  downloadDocument(previewDoc);
+                  setShowPreviewDialog(false);
+                }}
+                className="bg-teal-500 hover:bg-teal-600"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Scarica
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
