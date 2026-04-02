@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Fiscal Tax Canarie",
+    "slug": "fiscal-tax-canarie",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "fiscaltaxcanarie",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d9488"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fiscaltaxcanarie.clientapp",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Questa app utilizza la fotocamera per scansionare documenti.",
+        "NSPhotoLibraryUsageDescription": "Questa app accede alla galleria per caricare documenti.",
+        "NSDocumentsFolderUsageDescription": "Questa app accede ai file per caricare documenti."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d9488"
+      },
+      "package": "com.fiscaltaxcanarie.clientapp",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0d9488",
+          "sounds": []
+        }
+      ],
+      "expo-secure-store",
+      "expo-document-picker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    },
+    "owner": "fiscaltaxcanarie"
+  }
+}
