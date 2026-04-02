@@ -5,6 +5,78 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 68 (2 Aprile 2026) - COMPLETATA ✅
+
+**Onorario Dichiarazione Redditi**
+
+**Richiesta Utente:** Aggiungere un input onorario all'interno delle Dichiarazioni Redditi, visibile lato cliente, con possibilità di invio email di notifica dal pannello admin.
+
+**Backend (`/app/backend/routes/declarations.py`):**
+
+**1. Endpoint Onorario Dichiarazione:**
+- ✅ `PUT /api/declarations/{id}/fee` - Salva onorario con calcolo automatico IVA/IGIC
+- ✅ `GET /api/declarations/{id}/fee` - Recupera onorario dichiarazione
+- ✅ `POST /api/declarations/{id}/fee/notify` - Invia notifica email al cliente (Brevo)
+- ✅ `PUT /api/declarations/{id}/fee/mark-paid` - Segna onorario come pagato
+
+**2. Calcolo Automatico Tassazione:**
+- ✅ IGIC 7% (Canarie)
+- ✅ IVA 21%
+- ✅ IVA 22%
+- ✅ Esente IVA (0%)
+- ✅ Calcolo: net_amount * rate = tax_amount, gross_amount = net + tax
+
+**3. Campi Dichiarazione (declaration_models.py):**
+- ✅ `declaration_fee`: Importo lordo totale
+- ✅ `declaration_fee_net_amount`: Importo netto
+- ✅ `declaration_fee_tax_amount`: Importo imposta
+- ✅ `declaration_fee_gross_amount`: Importo lordo
+- ✅ `declaration_fee_tax_type`: IGIC_7/IVA_21/IVA_22/ESENTE
+- ✅ `declaration_fee_notes`: Note onorario
+- ✅ `declaration_fee_status`: pending/notified/paid
+- ✅ `declaration_fee_notified_at`: Data notifica
+- ✅ `declaration_fee_notification_text`: Testo email inviata
+
+**Frontend Admin (`/app/frontend/src/components/DeclarationDetailView.jsx`):**
+- ✅ Card "Onorario Presentazione Dichiarazione" nel tab Panoramica
+- ✅ Badge stato: Pagato (verde), Notificato (blu), Da notificare (ambra)
+- ✅ Importo totale in grande + breakdown (Netto + Imposta)
+- ✅ Note onorario visualizzate
+- ✅ Data/ora notifica al cliente
+- ✅ Pulsante "Inserisci Onorario" → Dialog con form
+- ✅ Pulsante "Modifica" → Dialog con form precompilato
+- ✅ Pulsante "Notifica al Cliente" → Dialog per email
+- ✅ Pulsante "Invia Promemoria" (se già notificato)
+- ✅ Pulsante "Segna Pagato"
+- ✅ Dialog "Inserisci/Modifica Onorario" con:
+  - Importo Netto (€)
+  - Dropdown Regime Fiscale (4 opzioni)
+  - Preview calcolo in tempo reale
+  - Note opzionali
+- ✅ Dialog "Notifica Onorario" con:
+  - Oggetto email personalizzabile
+  - Checkbox "Usa testo predefinito"
+  - Messaggio personalizzato con placeholder
+
+**Frontend Cliente (`/app/frontend/src/components/TaxReturnForm.jsx`):**
+- ✅ Card onorario nella sezione "Introduzione" della dichiarazione
+- ✅ Condizionale: visibile solo se `declaration_fee` è impostato
+- ✅ Colore dinamico: verde se pagato, ambra se da pagare
+- ✅ Importo totale + breakdown
+- ✅ Note onorario
+- ✅ Badge stato (Pagato/Da pagare/In attesa)
+- ✅ Data notifica
+
+**Bug Fix:**
+- ✅ Corretto parametro `html_content` → `html_body` in `send_generic_email()`
+
+**Test Eseguiti (iteration_34.json):**
+- ✅ Backend: 10/10 test passati (100%)
+- ✅ Frontend Admin: Tutte le funzionalità verificate
+- ✅ Frontend Cliente: Code review confermato corretto
+
+---
+
 ### Fase 67 (1 Aprile 2026) - COMPLETATA ✅
 
 **Security Hardening Completo**
