@@ -46,6 +46,7 @@ from routes.fees_routes import router as fees_global_router, client_fees_router
 from routes.declarations import router as declarations_router
 from routes.notifications import router as notifications_router
 from routes.deadline_types import router as deadline_types_router, tax_models_router
+from routes.privacy_routes import get_privacy_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -6133,6 +6134,10 @@ api_router.include_router(declarations_router)
 api_router.include_router(notifications_router)
 api_router.include_router(deadline_types_router)
 api_router.include_router(tax_models_router)
+
+# Privacy router with dependencies
+privacy_router = get_privacy_router(db, get_current_user, send_generic_email)
+app.include_router(privacy_router)
 
 # Desktop app downloads endpoint
 @api_router.get("/downloads/{filename}")

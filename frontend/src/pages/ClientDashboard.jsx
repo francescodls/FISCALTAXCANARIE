@@ -30,7 +30,8 @@ import {
   Bell,
   Mail,
   ExternalLink,
-  MessageSquare
+  MessageSquare,
+  Shield
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -42,6 +43,7 @@ import EmployeeManagementClient from "@/components/EmployeeManagementClient";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
 import TicketManagementClient from "@/components/TicketManagementClient";
+import PrivacySection from "@/components/PrivacySection";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { DialogFooter } from "@/components/ui/dialog";
 
@@ -384,6 +386,14 @@ const ClientDashboard = () => {
             >
               <User className="h-4 w-4 mr-2" />
               {t("profile.personalInfo")}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="privacy" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-privacy"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Privacy
             </TabsTrigger>
           </TabsList>
 
@@ -1387,6 +1397,15 @@ const ClientDashboard = () => {
                 }}
               />
             )}
+          </TabsContent>
+
+          {/* Privacy Tab */}
+          <TabsContent value="privacy" className="space-y-6">
+            <PrivacySection 
+              token={token} 
+              user={user} 
+              documents={documents} 
+            />
           </TabsContent>
 
         </Tabs>
