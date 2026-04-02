@@ -456,7 +456,7 @@ const PrivacySection = ({ token, user, documents = [] }) => {
                 <div>
                   <h4 className="font-medium text-slate-900">Titolari del Trattamento</h4>
                   <p className="text-sm text-slate-500">
-                    Francesco De Liso e Bruno Ferraiuolo, Contitolari del Trattamento presso Fiscal Tax Canarie SLP
+                    Fiscal Tax Canarie S.L.P. con CIF B44653517
                   </p>
                 </div>
               </div>
