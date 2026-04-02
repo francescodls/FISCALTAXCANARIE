@@ -742,18 +742,6 @@ const PrivacySection = ({ token, user, documents = [] }) => {
                   </div>
                 </div>
               ))}
-              
-              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                <h4 className="font-semibold text-amber-800 flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5" />
-                  Diritto di Reclamo
-                </h4>
-                <p className="text-sm text-amber-700 mt-1">
-                  Se ritieni che il trattamento dei tuoi dati personali violi il Regolamento, hai il diritto 
-                  di proporre reclamo all'Autorità Garante per la protezione dei dati personali (AEPD in Spagna 
-                  o Garante Privacy in Italia).
-                </p>
-              </div>
             </div>
           </ScrollArea>
           
