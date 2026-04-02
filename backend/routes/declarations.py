@@ -1464,7 +1464,7 @@ async def notify_declaration_fee(
         await send_generic_email(
             to_email=client_email,
             subject=subject,
-            html_content=email_body.replace('\n', '<br>')
+            html_body=email_body.replace('\n', '<br>')
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Errore invio email: {str(e)}")

@@ -13,7 +13,7 @@ import {
   User, Users, Briefcase, Building, Home, Euro, 
   Bitcoin, TrendingUp, Receipt, MapPin, FileText,
   Upload, Pen, AlertCircle, Check, X, Plus, Trash2,
-  MessageSquare, FileUp, Eye
+  MessageSquare, FileUp, Eye, CreditCard, Clock, Bell
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ClientIntegrationRequests from './ClientIntegrationRequests';
@@ -437,7 +437,35 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
     }
   };
 
-  const renderSectionFilter = () => (
+  // Helper per formattare l'importo dell'onorario
+  const formatFeeDisplay = () => {
+    if (!taxReturn.declaration_fee) return null;
+    const grossAmount = taxReturn.declaration_fee_gross_amount || taxReturn.declaration_fee;
+    const netAmount = taxReturn.declaration_fee_net_amount;
+    const taxAmount = taxReturn.declaration_fee_tax_amount;
+    const taxType = taxReturn.declaration_fee_tax_type;
+    
+    if (taxAmount > 0) {
+      const taxLabel = {
+        'IGIC_7': 'IGIC 7%',
+        'IVA_21': 'IVA 21%',
+        'IVA_22': 'IVA 22%'
+      }[taxType] || taxType;
+      return {
+        total: `€${grossAmount?.toFixed(2)}`,
+        breakdown: `(Netto €${netAmount?.toFixed(2)} + ${taxLabel} €${taxAmount?.toFixed(2)})`
+      };
+    }
+    return {
+      total: `€${grossAmount?.toFixed(2)}`,
+      breakdown: '(Esente IVA)'
+    };
+  };
+
+  const renderSectionFilter = () => {
+    const feeDisplay = formatFeeDisplay();
+    
+    return (
     <div className="space-y-6">
       <div className="text-center mb-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-2">
@@ -447,6 +475,76 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
           Compila le sezioni pertinenti alla tua situazione. Puoi navigare tra le sezioni usando i pulsanti in alto o "Precedente" / "Successivo".
         </p>
       </div>
+
+      {/* Card Onorario Dichiarazione - visibile solo al cliente se impostato */}
+      {!isAdmin && taxReturn.declaration_fee && (
+        <Card className={`border-2 ${
+          taxReturn.declaration_fee_status === 'paid' 
+            ? 'border-green-300 bg-green-50' 
+            : 'border-amber-300 bg-amber-50'
+        }`}>
+          <CardContent className="p-5">
+            <div className="flex items-start gap-4">
+              <div className={`p-3 rounded-full ${
+                taxReturn.declaration_fee_status === 'paid' 
+                  ? 'bg-green-100' 
+                  : 'bg-amber-100'
+              }`}>
+                {taxReturn.declaration_fee_status === 'paid' ? (
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                ) : (
+                  <CreditCard className="w-6 h-6 text-amber-600" />
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <h4 className={`font-semibold ${
+                    taxReturn.declaration_fee_status === 'paid' 
+                      ? 'text-green-800' 
+                      : 'text-amber-800'
+                  }`}>
+                    Onorario Presentazione Dichiarazione
+                  </h4>
+                  <Badge className={
+                    taxReturn.declaration_fee_status === 'paid'
+                      ? 'bg-green-100 text-green-700'
+                      : taxReturn.declaration_fee_status === 'notified'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
+                  }>
+                    {taxReturn.declaration_fee_status === 'paid' ? 'Pagato' : 
+                     taxReturn.declaration_fee_status === 'notified' ? 'Da pagare' : 'In attesa'}
+                  </Badge>
+                </div>
+                
+                <div className="mt-2">
+                  <p className={`text-2xl font-bold ${
+                    taxReturn.declaration_fee_status === 'paid' 
+                      ? 'text-green-700' 
+                      : 'text-amber-700'
+                  }`}>
+                    {feeDisplay?.total}
+                  </p>
+                  <p className="text-sm text-slate-500">{feeDisplay?.breakdown}</p>
+                </div>
+                
+                {taxReturn.declaration_fee_notes && (
+                  <p className="mt-2 text-sm text-slate-600 bg-white/50 p-2 rounded">
+                    {taxReturn.declaration_fee_notes}
+                  </p>
+                )}
+                
+                {taxReturn.declaration_fee_notified_at && (
+                  <p className="mt-2 text-xs text-slate-500 flex items-center gap-1">
+                    <Bell className="w-3 h-3" />
+                    Comunicato il {new Date(taxReturn.declaration_fee_notified_at).toLocaleDateString('it-IT')}
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="bg-teal-50 border-teal-200">
         <CardContent className="p-4">
@@ -486,6 +584,7 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
       </div>
     </div>
   );
+  };
 
   const renderPersonalData = () => (
     <div className="space-y-6">
