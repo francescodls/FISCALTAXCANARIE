@@ -976,6 +976,63 @@ async def preview_declaration_document(
         raise HTTPException(status_code=404, detail="Contenuto documento non disponibile")
 
 
+@router.post("/tax-returns/{tax_return_id}/documents/download-zip")
+async def download_documents_as_zip(
+    tax_return_id: str,
+    request_data: dict,
+    user: dict = Depends(get_current_user)
+):
+    """Scarica più documenti in un file ZIP"""
+    from fastapi.responses import Response
+    import zipfile
+    import io
+    
+    db = get_db()
+    
+    document_ids = request_data.get("document_ids", [])
+    if not document_ids:
+        raise HTTPException(status_code=400, detail="Nessun documento selezionato")
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Admin può scaricare, cliente solo se è sua
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Crea lo ZIP in memoria
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for doc in tax_return.get("documentos", []):
+            if doc.get("id") in document_ids:
+                file_name = doc.get("nombre") or doc.get("file_name", "documento")
+                
+                if doc.get("file_data"):
+                    # Documento salvato in base64
+                    content = base64.b64decode(doc["file_data"])
+                    zip_file.writestr(file_name, content)
+                elif doc.get("file_path"):
+                    # TODO: implementare download da cloud
+                    pass
+    
+    zip_buffer.seek(0)
+    
+    # Nome file ZIP
+    client_name = tax_return.get("client_name", "cliente").replace(" ", "_")
+    anno = tax_return.get("anno_fiscale", "")
+    zip_filename = f"documenti_dichiarazione_{anno}_{client_name}.zip"
+    
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_filename}"'
+        }
+    )
+
+
 # ==================== NOTE ====================
 
 @router.post("/tax-returns/{tax_return_id}/client-notes")

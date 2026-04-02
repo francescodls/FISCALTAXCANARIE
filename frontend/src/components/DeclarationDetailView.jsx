@@ -68,6 +68,10 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   const [previewDoc, setPreviewDoc] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   
+  // State per selezione multipla documenti
+  const [selectedDocs, setSelectedDocs] = useState([]);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+  
   const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(user?.role);
 
   useEffect(() => {
@@ -144,6 +148,67 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
       toast.error('Errore durante il caricamento dell\'anteprima');
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  // Toggle selezione documento
+  const toggleDocSelection = (docId) => {
+    setSelectedDocs(prev => 
+      prev.includes(docId) 
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    );
+  };
+
+  // Seleziona/Deseleziona tutti
+  const toggleSelectAll = () => {
+    if (selectedDocs.length === declaration.documentos?.length) {
+      setSelectedDocs([]);
+    } else {
+      setSelectedDocs(declaration.documentos?.map(d => d.id) || []);
+    }
+  };
+
+  // Download ZIP dei documenti selezionati
+  const downloadSelectedAsZip = async () => {
+    if (selectedDocs.length === 0) {
+      toast.error('Seleziona almeno un documento');
+      return;
+    }
+    
+    setDownloadingZip(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/declarations/tax-returns/${declaration.id}/documents/download-zip`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ document_ids: selectedDocs })
+        }
+      );
+      
+      if (!res.ok) throw new Error('Errore download ZIP');
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `documenti_dichiarazione_${declaration.anno_fiscale}_${declaration.client_name?.replace(/\s+/g, '_')}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success(`${selectedDocs.length} documenti scaricati`);
+      setSelectedDocs([]);
+    } catch (error) {
+      console.error('Errore download ZIP:', error);
+      toast.error('Errore durante il download ZIP');
+    } finally {
+      setDownloadingZip(false);
     }
   };
 
@@ -982,10 +1047,39 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
         <TabsContent value="documents" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Paperclip className="w-5 h-5 text-teal-600" />
-                Documenti Caricati ({declaration.documentos?.length || 0})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Paperclip className="w-5 h-5 text-teal-600" />
+                  Documenti Caricati ({declaration.documentos?.length || 0})
+                </CardTitle>
+                
+                {/* Barra azioni selezione multipla */}
+                {declaration.documentos?.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={selectedDocs.length === declaration.documentos?.length && declaration.documentos?.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                      />
+                      Seleziona tutti
+                    </label>
+                    
+                    {selectedDocs.length > 0 && (
+                      <Button
+                        onClick={downloadSelectedAsZip}
+                        disabled={downloadingZip}
+                        className="bg-teal-500 hover:bg-teal-600"
+                        size="sm"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        {downloadingZip ? 'Creazione ZIP...' : `Scarica ZIP (${selectedDocs.length})`}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {declaration.documentos?.length === 0 ? (
@@ -995,8 +1089,22 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
               ) : (
                 <div className="space-y-3">
                   {declaration.documentos?.map(doc => (
-                    <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                    <div 
+                      key={doc.id} 
+                      className={`flex items-center justify-between p-3 rounded-lg border-2 transition-colors ${
+                        selectedDocs.includes(doc.id) 
+                          ? 'bg-teal-50 border-teal-300' 
+                          : 'bg-slate-50 border-transparent hover:border-slate-200'
+                      }`}
+                    >
                       <div className="flex items-center gap-3">
+                        {/* Checkbox selezione */}
+                        <input
+                          type="checkbox"
+                          checked={selectedDocs.includes(doc.id)}
+                          onChange={() => toggleDocSelection(doc.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                        />
                         <FileText className="w-5 h-5 text-teal-600" />
                         <div>
                           <p className="font-medium text-slate-700">{doc.nombre || doc.file_name}</p>
@@ -1013,6 +1121,7 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
                           onClick={() => previewDocument(doc)}
                           disabled={previewLoading}
                           title="Visualizza anteprima"
+                          data-testid={`preview-doc-${doc.id}`}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -1021,6 +1130,7 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
                           size="sm"
                           onClick={() => downloadDocument(doc)}
                           title="Scarica documento"
+                          data-testid={`download-doc-${doc.id}`}
                         >
                           <Download className="w-4 h-4" />
                         </Button>
