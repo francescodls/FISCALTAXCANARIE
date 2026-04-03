@@ -1,5 +1,5 @@
-// Configurazione API
-export const API_URL = 'https://tribute-models-docs.preview.emergentagent.com';
+// Configurazione API - Produzione
+export const API_URL = 'https://app.fiscaltaxcanarie.com';
 
 // Colori del brand - coerenti con la web app
 export const COLORS = {
