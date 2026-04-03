@@ -4,12 +4,10 @@
     "appVersionSource": "remote"
   },
   "build": {
-    "base": {
-      "node": "22.14.0"
-    },
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "node": "22.14.0",
       "ios": {
         "simulator": true
       },
@@ -19,6 +17,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "node": "22.14.0",
       "android": {
         "buildType": "apk"
       },
@@ -27,6 +26,7 @@
       }
     },
     "production": {
+      "node": "22.14.0",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
