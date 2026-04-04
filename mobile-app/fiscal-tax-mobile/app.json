@@ -38,7 +38,10 @@
         "WRITE_EXTERNAL_STORAGE",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
-      ]
+      ],
+      "compileSdkVersion": 35,
+      "targetSdkVersion": 35,
+      "minSdkVersion": 24
     },
     "web": {
       "favicon": "./assets/favicon.png"
