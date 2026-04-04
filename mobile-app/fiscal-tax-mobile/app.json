@@ -38,10 +38,7 @@
         "WRITE_EXTERNAL_STORAGE",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE"
-      ],
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
-      "minSdkVersion": 24
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -54,7 +51,7 @@
             "compileSdkVersion": 35,
             "targetSdkVersion": 35,
             "minSdkVersion": 24,
-            "kotlinVersion": "1.9.25"
+            "buildToolsVersion": "35.0.0"
           }
         }
       ],
