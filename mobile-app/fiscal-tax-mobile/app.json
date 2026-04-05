@@ -59,8 +59,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "d6421bc3-ee75-4de5-8b2b-6b22646aad31"
       }
-    }
+    },
+    "owner": "francescodls"
   }
 }
