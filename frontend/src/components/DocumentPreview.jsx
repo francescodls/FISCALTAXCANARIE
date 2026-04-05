@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Eye, Download, X, FileText, Image, File, Maximize2, Minimize2, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
+import { Download, X, FileText, Image, File, Maximize2, Minimize2, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
+import axios from "axios";
+import { useAuth, API } from "@/App";
 
 const DocumentPreview = ({ 
   isOpen, 
@@ -10,35 +12,86 @@ const DocumentPreview = ({
   previewUrl,
   onDownload 
 }) => {
+  const { token } = useAuth();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [loadTimeout, setLoadTimeout] = useState(false);
-  const iframeRef = useRef(null);
+  const [blobUrl, setBlobUrl] = useState(null);
   const timeoutRef = useRef(null);
 
-  // Reset state quando cambia il documento
+  // Carica il documento come blob quando si apre la preview
   useEffect(() => {
-    if (isOpen && document) {
+    if (isOpen && document && token) {
       setLoading(true);
       setError(false);
-      setLoadTimeout(false);
+      setBlobUrl(null);
       
-      // Timeout di sicurezza per evitare blocchi infiniti (15 secondi)
-      timeoutRef.current = setTimeout(() => {
-        if (loading) {
-          setLoadTimeout(true);
-          setLoading(false);
-        }
-      }, 15000);
+      loadDocumentAsBlob();
     }
     
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      // Pulisci blob URL
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
     };
-  }, [isOpen, document, previewUrl]);
+  }, [isOpen, document?.id]);
+
+  const loadDocumentAsBlob = async () => {
+    if (!document?.id) return;
+    
+    try {
+      // Carica il documento con i dati binari
+      const response = await axios.get(`${API}/documents/${document.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const docData = response.data;
+      
+      if (docData.file_data) {
+        // Decodifica base64 e crea blob
+        const byteCharacters = atob(docData.file_data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: docData.file_type || 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+        setLoading(false);
+      } else if (docData.storage_path) {
+        // Se il file è su storage esterno, prova a caricarlo
+        const previewResponse = await axios.get(`${API}/documents/${document.id}/preview`, {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        });
+        const url = URL.createObjectURL(previewResponse.data);
+        setBlobUrl(url);
+        setLoading(false);
+      } else {
+        setError(true);
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error("Errore caricamento documento:", err);
+      setError(true);
+      setLoading(false);
+    }
+  };
+
+  const handleRetry = () => {
+    loadDocumentAsBlob();
+  };
+
+  const openInNewTab = () => {
+    if (blobUrl) {
+      window.open(blobUrl, '_blank');
+    }
+  };
 
   if (!document) return null;
 
@@ -55,54 +108,6 @@ const DocumentPreview = ({
     if (isPdf) return <FileText className="h-12 w-12 text-red-500" />;
     if (isImage) return <Image className="h-12 w-12 text-blue-500" />;
     return <File className="h-12 w-12 text-slate-400" />;
-  };
-
-  const handleLoad = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setLoading(false);
-    setError(false);
-    setLoadTimeout(false);
-  };
-
-  const handleError = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    setLoading(false);
-    setError(true);
-  };
-
-  const handleRetry = () => {
-    setLoading(true);
-    setError(false);
-    setLoadTimeout(false);
-    
-    // Forza refresh dell'iframe
-    if (iframeRef.current) {
-      const currentSrc = iframeRef.current.src;
-      iframeRef.current.src = '';
-      setTimeout(() => {
-        if (iframeRef.current) {
-          iframeRef.current.src = currentSrc;
-        }
-      }, 100);
-    }
-    
-    // Nuovo timeout
-    timeoutRef.current = setTimeout(() => {
-      if (loading) {
-        setLoadTimeout(true);
-        setLoading(false);
-      }
-    }, 15000);
-  };
-
-  const openInNewTab = () => {
-    if (previewUrl) {
-      window.open(previewUrl, '_blank');
-    }
   };
 
   // Calcola dimensioni dinamiche
@@ -137,7 +142,7 @@ const DocumentPreview = ({
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {/* Apri in nuova scheda */}
-            {previewUrl && isPreviewable && (
+            {blobUrl && isPreviewable && (
               <Button
                 variant="outline"
                 size="sm"
@@ -183,74 +188,31 @@ const DocumentPreview = ({
           </div>
         </DialogHeader>
 
-        {/* Content area che occupa tutto lo spazio rimanente */}
+        {/* Content area */}
         <div 
           className="flex-1 overflow-hidden bg-slate-100 relative"
           style={{ height: contentHeight, minHeight: '400px' }}
         >
           {/* Loading spinner */}
-          {loading && isPreviewable && (
+          {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-10">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-slate-500 font-medium">Caricamento anteprima...</p>
-                <p className="text-slate-400 text-sm">Attendere qualche secondo</p>
-              </div>
-            </div>
-          )}
-
-          {/* Timeout warning */}
-          {loadTimeout && !error && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-10">
-              <div className="text-center p-8 max-w-md">
-                <AlertTriangle className="h-16 w-16 text-amber-500 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                  Il caricamento sta richiedendo più tempo del previsto
-                </h3>
-                <p className="text-slate-500 mb-6">
-                  Il documento potrebbe essere grande o la connessione lenta.
-                </p>
-                <div className="flex flex-col gap-3">
-                  <Button 
-                    onClick={handleRetry} 
-                    className="bg-teal-500 hover:bg-teal-600 text-white w-full"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Riprova
-                  </Button>
-                  <Button 
-                    onClick={openInNewTab} 
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Apri in nuova scheda
-                  </Button>
-                  {onDownload && (
-                    <Button 
-                      onClick={onDownload} 
-                      variant="outline"
-                      className="w-full border-teal-200 text-teal-600"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Scarica il file
-                    </Button>
-                  )}
-                </div>
+                <p className="text-slate-500 font-medium">Caricamento documento...</p>
               </div>
             </div>
           )}
 
           {/* Error state */}
-          {error && (
+          {error && !loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-100 z-10">
               <div className="text-center p-8 max-w-md">
                 <AlertTriangle className="h-16 w-16 text-red-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-slate-700 mb-2">
-                  Impossibile caricare l'anteprima
+                  Impossibile caricare il documento
                 </h3>
                 <p className="text-slate-500 mb-6">
-                  Si è verificato un errore nel caricamento del documento.
+                  Si è verificato un errore nel caricamento.
                   Prova a ricaricare o scarica il file direttamente.
                 </p>
                 <div className="flex flex-col gap-3">
@@ -277,49 +239,36 @@ const DocumentPreview = ({
           )}
 
           {/* Preview content */}
-          {isPreviewable && previewUrl ? (
+          {!loading && !error && blobUrl && isPreviewable ? (
             <div className="w-full h-full">
               {isPdf && (
                 <iframe
-                  ref={iframeRef}
-                  src={`${previewUrl}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`}
+                  src={blobUrl}
                   className="w-full h-full border-0"
-                  onLoad={handleLoad}
-                  onError={handleError}
                   title={fileName}
-                  style={{ display: loading || error || loadTimeout ? 'none' : 'block' }}
                   data-testid="pdf-preview-iframe"
                 />
               )}
               {isImage && (
-                <div 
-                  className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-800"
-                  style={{ display: loading || error || loadTimeout ? 'none' : 'flex' }}
-                >
+                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto bg-slate-800">
                   <img
-                    src={previewUrl}
+                    src={blobUrl}
                     alt={fileName}
                     className="max-w-full max-h-full object-contain rounded shadow-2xl"
-                    onLoad={handleLoad}
-                    onError={handleError}
                     data-testid="image-preview"
                   />
                 </div>
               )}
               {isText && (
                 <iframe
-                  ref={iframeRef}
-                  src={previewUrl}
+                  src={blobUrl}
                   className="w-full h-full border-0 bg-white"
-                  onLoad={handleLoad}
-                  onError={handleError}
                   title={fileName}
-                  style={{ display: loading || error || loadTimeout ? 'none' : 'block' }}
                   data-testid="text-preview-iframe"
                 />
               )}
             </div>
-          ) : (
+          ) : !loading && !error && !isPreviewable ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center p-8 max-w-md">
                 {getFileIcon()}
@@ -340,7 +289,7 @@ const DocumentPreview = ({
                 )}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
