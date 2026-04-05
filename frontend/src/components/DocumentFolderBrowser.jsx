@@ -31,7 +31,9 @@ import {
   CheckSquare,
   Square,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Upload,
+  User
 } from "lucide-react";
 
 // Mappa icone per le categorie
@@ -78,16 +80,27 @@ const DocumentFolderBrowser = ({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("#6b7280");
   const [creatingCategory, setCreatingCategory] = useState(false);
+  const [isClientSpecificCategory, setIsClientSpecificCategory] = useState(false);
   
   // Dialog per conferma eliminazione
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  
+  // Dialog per upload diretto
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadCategory, setUploadCategory] = useState("documenti");
+  const [uploadYear, setUploadYear] = useState(new Date().getFullYear().toString());
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const headers = { Authorization: `Bearer ${token}` };
   
   // Verifica se l'utente può eliminare documenti
   const canDelete = userRole === "commercialista" || userRole === "cliente";
+  const isAdmin = ["commercialista", "admin", "super_admin"].includes(userRole);
 
   useEffect(() => {
     if (clientId) {
@@ -97,14 +110,25 @@ const DocumentFolderBrowser = ({
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [clientId]);
 
   const fetchCategories = async () => {
     try {
-      const response = await axios.get(`${API}/folder-categories`, { headers });
+      // Carica categorie specifiche del cliente se presente clientId
+      const endpoint = clientId 
+        ? `${API}/clients/${clientId}/folder-categories`
+        : `${API}/folder-categories`;
+      const response = await axios.get(endpoint, { headers });
       setCategories(response.data);
     } catch (error) {
       console.error("Errore caricamento categorie:", error);
+      // Fallback alle categorie globali
+      try {
+        const fallback = await axios.get(`${API}/folder-categories`, { headers });
+        setCategories(fallback.data);
+      } catch (e) {
+        console.error("Errore fallback categorie:", e);
+      }
     }
   };
 
@@ -315,19 +339,61 @@ const DocumentFolderBrowser = ({
     
     setCreatingCategory(true);
     try {
-      await axios.post(`${API}/folder-categories`, {
+      // Se è una categoria specifica per il cliente, usa endpoint dedicato
+      const endpoint = isClientSpecificCategory && clientId
+        ? `${API}/clients/${clientId}/folder-categories`
+        : `${API}/folder-categories`;
+      
+      await axios.post(endpoint, {
         name: newCategoryName,
         color: newCategoryColor
       }, { headers });
-      toast.success("Categoria creata con successo");
+      
+      toast.success(isClientSpecificCategory 
+        ? "Categoria creata per questo cliente" 
+        : "Categoria creata con successo"
+      );
       setShowNewCategoryDialog(false);
       setNewCategoryName("");
+      setIsClientSpecificCategory(false);
       fetchCategories();
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || "Errore nella creazione");
     } finally {
       setCreatingCategory(false);
+    }
+  };
+
+  // Funzione per upload diretto nella cartella cliente
+  const handleDirectUpload = async () => {
+    if (!uploadFile) {
+      toast.error("Seleziona un file da caricare");
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("folder_category", uploadCategory);
+      formData.append("document_year", uploadYear);
+      if (uploadTitle) formData.append("title", uploadTitle);
+      if (uploadDescription) formData.append("description", uploadDescription);
+      
+      await axios.post(`${API}/clients/${clientId}/documents/upload`, formData, { headers });
+      
+      toast.success(`Documento caricato nella cartella "${uploadCategory}"`);
+      setShowUploadDialog(false);
+      setUploadFile(null);
+      setUploadTitle("");
+      setUploadDescription("");
+      setUploadCategory("documenti");
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nel caricamento");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -413,8 +479,21 @@ const DocumentFolderBrowser = ({
                 </Button>
               )}
               
+              {/* Pulsante upload diretto (solo admin) */}
+              {isAdmin && clientId && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowUploadDialog(true)}
+                  className="bg-teal-500 hover:bg-teal-600 text-white"
+                  data-testid="direct-upload-btn"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Carica Documento
+                </Button>
+              )}
+              
               {/* Pulsante nuova categoria (solo admin) */}
-              {userRole === "commercialista" && (
+              {isAdmin && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -829,13 +908,38 @@ const DocumentFolderBrowser = ({
               </div>
             </div>
             
-            <p className="text-xs text-slate-500">
-              La nuova categoria sarà disponibile per tutti i clienti
-            </p>
+            {/* Opzione categoria specifica per cliente */}
+            {clientId && (
+              <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                <Checkbox
+                  id="client-specific"
+                  checked={isClientSpecificCategory}
+                  onCheckedChange={setIsClientSpecificCategory}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="client-specific" className="cursor-pointer font-medium text-amber-700">
+                    Solo per questo cliente
+                  </Label>
+                  <p className="text-xs text-amber-600">
+                    La categoria sarà visibile solo nella cartella di questo cliente
+                  </p>
+                </div>
+                <User className="h-5 w-5 text-amber-500" />
+              </div>
+            )}
+            
+            {!isClientSpecificCategory && (
+              <p className="text-xs text-slate-500">
+                La nuova categoria sarà disponibile per tutti i clienti
+              </p>
+            )}
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewCategoryDialog(false)}>
+            <Button variant="outline" onClick={() => {
+              setShowNewCategoryDialog(false);
+              setIsClientSpecificCategory(false);
+            }}>
               Annulla
             </Button>
             <Button
@@ -844,6 +948,156 @@ const DocumentFolderBrowser = ({
               className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all"
             >
               {creatingCategory ? "Creazione..." : "Crea Categoria"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog upload diretto */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5 text-teal-500" />
+              Carica Documento
+            </DialogTitle>
+            <DialogDescription>
+              Carica un documento direttamente nella cartella di questo cliente
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            {/* File input */}
+            <div className="space-y-2">
+              <Label>File *</Label>
+              <div 
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                  uploadFile ? 'border-teal-300 bg-teal-50' : 'border-slate-200 hover:border-teal-300'
+                }`}
+                onClick={() => document.getElementById('direct-upload-input').click()}
+              >
+                <input
+                  id="direct-upload-input"
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt"
+                />
+                {uploadFile ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <FileText className="h-8 w-8 text-teal-500" />
+                    <div className="text-left">
+                      <p className="font-medium text-slate-700">{uploadFile.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {(uploadFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => { e.stopPropagation(); setUploadFile(null); }}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-10 w-10 text-slate-400 mx-auto mb-2" />
+                    <p className="text-slate-600">Clicca per selezionare un file</p>
+                    <p className="text-xs text-slate-400 mt-1">PDF, DOC, XLS, immagini (max 10MB)</p>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {/* Categoria */}
+            <div className="space-y-2">
+              <Label>Categoria Cartella</Label>
+              <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                <SelectTrigger className="border-slate-200">
+                  <SelectValue placeholder="Seleziona categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: cat.color }}
+                        />
+                        {cat.name}
+                        {cat.is_client_specific && (
+                          <Badge variant="outline" className="text-xs ml-1">Specifico</Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Anno */}
+            <div className="space-y-2">
+              <Label>Anno Documento</Label>
+              <Input
+                type="number"
+                min="2000"
+                max="2099"
+                value={uploadYear}
+                onChange={(e) => setUploadYear(e.target.value)}
+                placeholder="es. 2025"
+                className="border-slate-200"
+              />
+            </div>
+            
+            {/* Titolo opzionale */}
+            <div className="space-y-2">
+              <Label>Titolo (opzionale)</Label>
+              <Input
+                value={uploadTitle}
+                onChange={(e) => setUploadTitle(e.target.value)}
+                placeholder="Titolo personalizzato per il documento"
+                className="border-slate-200"
+              />
+            </div>
+            
+            {/* Descrizione opzionale */}
+            <div className="space-y-2">
+              <Label>Note (opzionale)</Label>
+              <Input
+                value={uploadDescription}
+                onChange={(e) => setUploadDescription(e.target.value)}
+                placeholder="Note o descrizione aggiuntiva"
+                className="border-slate-200"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setShowUploadDialog(false);
+              setUploadFile(null);
+              setUploadTitle("");
+              setUploadDescription("");
+            }}>
+              Annulla
+            </Button>
+            <Button
+              onClick={handleDirectUpload}
+              disabled={uploading || !uploadFile}
+              className="bg-teal-500 hover:bg-teal-600 text-white"
+            >
+              {uploading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Caricamento...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Carica Documento
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -271,6 +271,13 @@ class FolderCategoryCreate(BaseModel):
     name: str
     icon: Optional[str] = "folder"
     color: Optional[str] = "#6b7280"
+    client_id: Optional[str] = None  # Se specificato, categoria valida solo per questo cliente
+
+class ClientFolderCategoryCreate(BaseModel):
+    """Categoria cartella specifica per un cliente"""
+    name: str
+    icon: Optional[str] = "folder"
+    color: Optional[str] = "#6b7280"
 
 # Modelli per le categorie clienti
 class ClientCategoryCreate(BaseModel):
@@ -1977,6 +1984,261 @@ async def delete_folder_category(category_id: str, user: dict = Depends(require_
     
     return {"success": True, "message": "Categoria eliminata"}
 
+# ==================== CATEGORIE DOCUMENTI PER CLIENTE SPECIFICO ====================
+
+@api_router.get("/clients/{client_id}/folder-categories")
+async def get_client_folder_categories(
+    client_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Ottiene le categorie cartella per un cliente specifico.
+    Include sia le categorie globali che quelle specifiche per il cliente.
+    """
+    # Verifica permessi
+    if user["role"] == "cliente" and user["id"] != client_id:
+        raise HTTPException(status_code=403, detail="Non autorizzato")
+    
+    # Categorie globali predefinite
+    all_categories = []
+    for cat in DEFAULT_FOLDER_CATEGORIES:
+        all_categories.append({
+            **cat,
+            "is_client_specific": False,
+            "client_id": None
+        })
+    
+    # Categorie globali personalizzate
+    global_custom = await db.folder_categories.find(
+        {"client_id": {"$exists": False}}, 
+        {"_id": 0}
+    ).to_list(100)
+    for cat in global_custom:
+        all_categories.append({
+            **cat,
+            "is_client_specific": False,
+            "client_id": None
+        })
+    
+    # Categorie specifiche per questo cliente
+    client_specific = await db.client_folder_categories.find(
+        {"client_id": client_id},
+        {"_id": 0}
+    ).to_list(100)
+    for cat in client_specific:
+        all_categories.append({
+            **cat,
+            "is_client_specific": True
+        })
+    
+    # Ordina per ordine
+    all_categories.sort(key=lambda x: (0 if x.get("is_default") else 1, x.get("order", 999)))
+    
+    return all_categories
+
+@api_router.post("/clients/{client_id}/folder-categories")
+async def create_client_folder_category(
+    client_id: str,
+    category: ClientFolderCategoryCreate,
+    user: dict = Depends(require_commercialista)
+):
+    """Crea una nuova categoria cartella specifica per un cliente"""
+    # Verifica che il cliente esista
+    client = await db.clients.find_one({"id": client_id}, {"_id": 0})
+    if not client:
+        client = await db.users.find_one({"id": client_id}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    # Verifica che non esista già una categoria con lo stesso nome per questo cliente
+    existing = await db.client_folder_categories.find_one({
+        "client_id": client_id,
+        "name": {"$regex": f"^{category.name}$", "$options": "i"}
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail="Una categoria con questo nome esiste già per questo cliente")
+    
+    # Trova l'ordine più alto esistente per questo cliente
+    last_cat = await db.client_folder_categories.find_one(
+        {"client_id": client_id},
+        sort=[("order", -1)]
+    )
+    max_order = last_cat.get("order", 100) + 1 if last_cat else 101
+    
+    # Crea ID slug dal nome
+    slug_id = f"{client_id}_{category.name.lower().replace(' ', '_').replace('-', '_')}"
+    
+    cat_doc = {
+        "id": slug_id,
+        "client_id": client_id,
+        "name": category.name,
+        "icon": category.icon or "folder",
+        "color": category.color or "#6b7280",
+        "is_default": False,
+        "order": max_order,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user["id"]
+    }
+    
+    await db.client_folder_categories.insert_one(cat_doc)
+    
+    await log_activity(
+        "categoria_cliente_creata",
+        f"Creata categoria '{category.name}' per cliente {client_id}",
+        user["id"]
+    )
+    
+    return {**cat_doc, "_id": None, "is_client_specific": True}
+
+@api_router.delete("/clients/{client_id}/folder-categories/{category_id}")
+async def delete_client_folder_category(
+    client_id: str,
+    category_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """Elimina una categoria cartella specifica di un cliente"""
+    result = await db.client_folder_categories.delete_one({
+        "id": category_id,
+        "client_id": client_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    
+    # Sposta i documenti di questa categoria in "documenti"
+    await db.documents.update_many(
+        {"folder_category": category_id, "client_id": client_id},
+        {"$set": {"folder_category": "documenti"}}
+    )
+    
+    await log_activity(
+        "categoria_cliente_eliminata",
+        f"Eliminata categoria {category_id} per cliente {client_id}",
+        user["id"]
+    )
+    
+    return {"success": True, "message": "Categoria eliminata"}
+
+# ==================== UPLOAD DIRETTO NELLA CARTELLA CLIENTE ====================
+
+@api_router.post("/clients/{client_id}/documents/upload")
+@limiter.limit(RATE_LIMIT_UPLOAD)
+async def upload_document_to_client(
+    request: Request,
+    client_id: str,
+    file: UploadFile = File(...),
+    folder_category: str = Form("documenti"),
+    document_year: Optional[int] = Form(None),
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Carica un documento direttamente nella cartella di un cliente specifico.
+    Questo endpoint permette all'admin di caricare documenti contestualmente
+    mentre visualizza la scheda di un cliente, assegnando direttamente
+    la categoria e l'anno del documento.
+    """
+    client_ip = get_client_ip(request)
+    user_agent = request.headers.get("User-Agent", "")
+    
+    # Verifica che il cliente esista
+    client = await db.clients.find_one({"id": client_id}, {"_id": 0})
+    if not client:
+        client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    # Leggi contenuto file
+    file_content = await file.read()
+    file_size = len(file_content)
+    
+    # SECURITY: Valida file upload
+    is_valid, error_msg = validate_file_upload(
+        filename=file.filename,
+        content_type=file.content_type,
+        file_size=file_size
+    )
+    
+    if not is_valid:
+        await log_security_event(
+            "file_upload_blocked",
+            f"Upload bloccato per cliente {client_id}: {error_msg}",
+            user["id"],
+            {"filename": file.filename, "reason": error_msg, "ip": client_ip}
+        )
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Sanitizza filename
+    safe_filename = sanitize_filename(file.filename)
+    
+    # Genera nome standardizzato con nome cliente
+    client_name = client.get("ragione_sociale") or f"{client.get('first_name', '')} {client.get('last_name', '')}".strip()
+    year = document_year or datetime.now().year
+    
+    # Genera doc_id
+    doc_id = str(uuid.uuid4())
+    
+    # Converti in base64 per storage MongoDB (fallback)
+    file_base64 = base64.b64encode(file_content).decode('utf-8')
+    
+    # Prova upload su B2 Cloud Storage
+    storage_result = await cloud_upload(file_content, safe_filename, file.content_type)
+    
+    # Usa titolo fornito o nome file
+    doc_title = title or safe_filename
+    
+    # Crea documento
+    document = {
+        "id": doc_id,
+        "title": doc_title,
+        "description": description,
+        "category": folder_category,  # Usa la folder_category anche come category principale
+        "folder_category": folder_category,
+        "document_year": str(year),
+        "client_id": client_id,
+        "file_name": safe_filename,
+        "file_name_original": file.filename,
+        "file_type": file.content_type,
+        "uploaded_by": user["id"],
+        "uploaded_by_name": f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get("full_name", "Admin"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "needs_verification": False,
+        "client_confidence": "alta",
+        "version": 1,
+        "upload_method": "direct_to_client"  # Indica che è stato caricato direttamente
+    }
+    
+    # Salva su B2 se disponibile, altrimenti su MongoDB
+    if storage_result.get("success"):
+        document["storage_path"] = storage_result["storage_path"]
+        document["storage_provider"] = "b2"
+        document["file_size"] = storage_result.get("size", file_size)
+    else:
+        document["file_data"] = file_base64
+        document["storage_provider"] = "mongodb"
+        document["file_size"] = file_size
+    
+    await db.documents.insert_one(document)
+    
+    # Log attività
+    await log_activity(
+        "documento_caricato_diretto",
+        f"Documento '{doc_title}' caricato direttamente per cliente {client_name} in categoria {folder_category}",
+        user["id"]
+    )
+    
+    return {
+        "success": True,
+        "id": doc_id,
+        "title": doc_title,
+        "file_name": safe_filename,
+        "folder_category": folder_category,
+        "document_year": year,
+        "client_id": client_id,
+        "message": f"Documento caricato con successo nella cartella '{folder_category}'"
+    }
+
 @api_router.put("/documents/{doc_id}/category")
 async def update_document_category(
     doc_id: str,
@@ -2017,6 +2279,7 @@ async def get_client_documents_by_folder(
     """
     Ottiene i documenti di un cliente organizzati per cartelle.
     Restituisce la struttura delle cartelle con conteggio documenti.
+    Include anche le categorie specifiche del cliente.
     """
     # Verifica permessi
     if user["role"] == "cliente" and user["id"] != client_id:
@@ -2030,7 +2293,7 @@ async def get_client_documents_by_folder(
     # Query base
     query = {"client_id": client_id}
     if year:
-        query["document_year"] = year
+        query["document_year"] = str(year)
     
     # Ottieni tutti i documenti del cliente
     documents = await db.documents.find(
@@ -2038,9 +2301,19 @@ async def get_client_documents_by_folder(
         {"_id": 0, "file_data": 0, "versions_history": 0}
     ).to_list(1000)
     
-    # Ottieni tutte le categorie
-    custom_categories = await db.folder_categories.find({}, {"_id": 0}).to_list(100)
-    all_categories = list(DEFAULT_FOLDER_CATEGORIES) + custom_categories
+    # Ottieni tutte le categorie globali
+    custom_categories = await db.folder_categories.find(
+        {"client_id": {"$exists": False}}, 
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Ottieni categorie specifiche del cliente
+    client_categories = await db.client_folder_categories.find(
+        {"client_id": client_id},
+        {"_id": 0}
+    ).to_list(100)
+    
+    all_categories = list(DEFAULT_FOLDER_CATEGORIES) + custom_categories + client_categories
     
     # Organizza documenti per cartella
     folders = {}
@@ -2052,6 +2325,7 @@ async def get_client_documents_by_folder(
             "icon": cat["icon"],
             "color": cat["color"],
             "is_default": cat.get("is_default", False),
+            "is_client_specific": cat.get("client_id") == client_id,
             "order": cat.get("order", 999),
             "documents": [],
             "document_count": 0,
