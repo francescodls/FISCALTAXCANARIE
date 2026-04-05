@@ -2676,7 +2676,11 @@ async def preview_document(
         media_type=content_type,
         headers={
             "Content-Disposition": f'inline; filename="{document.get("file_name", "document")}"',
-            "Cache-Control": "private, max-age=3600"
+            "Cache-Control": "private, max-age=3600",
+            "X-Frame-Options": "SAMEORIGIN",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type"
         }
     )
 

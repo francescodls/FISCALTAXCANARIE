@@ -375,9 +375,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         
+        # Skip X-Frame-Options for document preview endpoints (they need to be shown in iframe)
+        is_preview_endpoint = "/preview" in request.url.path
+        
         # Add security headers
         for header, value in SECURITY_HEADERS.items():
+            # Skip X-Frame-Options for preview endpoints to allow iframe embedding
+            if header == "X-Frame-Options" and is_preview_endpoint:
+                continue
             response.headers[header] = value
+        
+        # For preview endpoints, allow same-origin framing
+        if is_preview_endpoint:
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
         
         # Add CSP header (be careful with this in development)
         if os.environ.get('ENVIRONMENT') == 'production':

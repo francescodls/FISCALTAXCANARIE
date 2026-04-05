@@ -101,6 +101,7 @@ const DocumentFolderBrowser = ({
   // Verifica se l'utente può eliminare documenti
   const canDelete = userRole === "commercialista" || userRole === "cliente";
   const isAdmin = ["commercialista", "admin", "super_admin"].includes(userRole);
+  const canManageDocuments = isAdmin || userRole === "cliente";
 
   useEffect(() => {
     if (clientId) {
@@ -670,7 +671,7 @@ const DocumentFolderBrowser = ({
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            {canDelete && (
+                            {canManageDocuments && (
                               <>
                                 <Button
                                   variant="ghost"
@@ -681,6 +682,7 @@ const DocumentFolderBrowser = ({
                                     openCategoryDialog(doc);
                                   }}
                                   data-testid={`edit-category-${doc.id}`}
+                                  title="Sposta in altra categoria"
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
@@ -693,6 +695,7 @@ const DocumentFolderBrowser = ({
                                     openDeleteDialog(doc);
                                   }}
                                   data-testid={`delete-doc-${doc.id}`}
+                                  title="Elimina"
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
