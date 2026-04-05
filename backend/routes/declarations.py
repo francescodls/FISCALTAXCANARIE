@@ -9,6 +9,9 @@ import uuid
 import io
 import base64
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .deps import get_db, get_current_user, require_commercialista, log_activity
 from .declaration_models import (
@@ -184,7 +187,8 @@ async def create_tax_return(data: TaxReturnCreate, user: dict = Depends(get_curr
         }],
         "created_at": now,
         "updated_at": now,
-        "submitted_at": None
+        "submitted_at": None,
+        "viewed_by_admin": False  # Per tracciare nuove dichiarazioni
     }
     
     await db.tax_returns.insert_one(tax_return)
@@ -404,6 +408,7 @@ async def update_tax_return_status(
     
     if nuovo_stato == "inviata":
         update_data["submitted_at"] = now
+        update_data["viewed_by_admin"] = False  # Reset per notifica admin
     
     await db.tax_returns.update_one(
         {"id": tax_return_id},
@@ -1712,3 +1717,99 @@ async def mark_declaration_fee_paid(
     )
     
     return {"message": "Onorario segnato come pagato", "status": "paid"}
+
+
+
+# ==================== STATISTICHE DICHIARAZIONI (PER DASHBOARD) ====================
+
+@router.get("/stats/summary")
+async def get_declarations_stats(user: dict = Depends(require_commercialista)):
+    """
+    Restituisce statistiche sulle dichiarazioni per la dashboard admin.
+    Include conteggio totale e numero di nuove richieste non ancora visualizzate.
+    """
+    db = get_db()
+    
+    if db is None:
+        logger.error("Database connection is None!")
+        return {"total": 0, "new_submissions": 0, "error": "DB not connected"}
+    
+    # Recupera tutte le dichiarazioni non archiviate/eliminate
+    tax_returns = await db.tax_returns.find(
+        {"stato": {"$nin": ["archiviata", "eliminata"]}},
+        {"_id": 0, "id": 1, "stato": 1, "submitted_at": 1, "viewed_by_admin": 1, "richieste_integrazione": 1, "conversazione": 1}
+    ).to_list(10000)
+    
+    logger.info(f"Stats query returned {len(tax_returns)} tax returns")
+    
+    total = len(tax_returns)
+    
+    # Conta le nuove dichiarazioni (inviate ma non ancora visualizzate dall'admin)
+    new_submissions = 0
+    for tr in tax_returns:
+        if tr.get("stato") == "inviata" and not tr.get("viewed_by_admin"):
+            new_submissions += 1
+    
+    # Conta per stato
+    stats_by_status = {
+        "bozza": 0,
+        "inviata": 0,
+        "in_revisione": 0,
+        "documentazione_incompleta": 0,
+        "pronta": 0,
+        "presentata": 0
+    }
+    
+    for tr in tax_returns:
+        stato = tr.get("stato", "bozza")
+        if stato in stats_by_status:
+            stats_by_status[stato] += 1
+    
+    # Conta messaggi non letti dal cliente
+    unread_client_messages = 0
+    for tr in tax_returns:
+        for msg in tr.get("conversazione", []):
+            if msg.get("sender_role") == "cliente" and not msg.get("read_by_admin"):
+                unread_client_messages += 1
+    
+    # Conta richieste integrazione pendenti (in attesa di risposta cliente)
+    pending_integration_requests = 0
+    for tr in tax_returns:
+        for req in tr.get("richieste_integrazione", []):
+            if req.get("stato") == "pendente":
+                pending_integration_requests += 1
+    
+    return {
+        "total": total,
+        "new_submissions": new_submissions,  # Dichiarazioni inviate non ancora visualizzate
+        "unread_client_messages": unread_client_messages,
+        "pending_integration_requests": pending_integration_requests,
+        "by_status": stats_by_status,
+        "has_new_activity": new_submissions > 0 or unread_client_messages > 0
+    }
+
+
+@router.put("/tax-returns/{tax_return_id}/mark-viewed")
+async def mark_tax_return_viewed(
+    tax_return_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Segna una dichiarazione come visualizzata dall'admin.
+    Rimuove il badge "nuova" dalla dashboard.
+    """
+    db = get_db()
+    
+    result = await db.tax_returns.update_one(
+        {"id": tax_return_id},
+        {"$set": {
+            "viewed_by_admin": True,
+            "viewed_by_admin_at": datetime.now(timezone.utc).isoformat(),
+            "viewed_by_admin_id": user["id"]
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    return {"message": "Dichiarazione segnata come visualizzata"}
