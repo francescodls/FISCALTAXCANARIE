@@ -18,6 +18,7 @@ import {
   Euro, Mail, Bell, CreditCard
 } from 'lucide-react';
 import { toast } from 'sonner';
+import DocumentPreview from './DocumentPreview';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -1535,68 +1536,14 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Preview Documento */}
-      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="w-5 h-5 text-teal-600" />
-              Anteprima Documento
-            </DialogTitle>
-            <DialogDescription>
-              {previewDoc?.file_name || previewDoc?.nombre}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex-1 overflow-auto min-h-[400px] max-h-[60vh] bg-slate-100 rounded-lg p-2">
-            {previewDoc?.is_previewable && previewDoc?.data_url ? (
-              previewDoc.mime_type === 'application/pdf' ? (
-                <iframe 
-                  src={previewDoc.data_url}
-                  className="w-full h-[55vh] rounded border"
-                  title="PDF Preview"
-                />
-              ) : previewDoc.mime_type?.startsWith('image/') ? (
-                <img 
-                  src={previewDoc.data_url}
-                  alt={previewDoc.file_name}
-                  className="max-w-full max-h-[55vh] mx-auto rounded shadow"
-                />
-              ) : (
-                <div className="text-center py-12 text-slate-500">
-                  <FileText className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-                  <p>Anteprima non disponibile per questo tipo di file</p>
-                  <p className="text-sm mt-2">Tipo: {previewDoc.mime_type}</p>
-                </div>
-              )
-            ) : (
-              <div className="text-center py-12 text-slate-500">
-                <FileText className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-                <p>Anteprima non disponibile</p>
-                <p className="text-sm mt-2">Scarica il documento per visualizzarlo</p>
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPreviewDialog(false)}>
-              Chiudi
-            </Button>
-            {previewDoc && (
-              <Button 
-                onClick={() => {
-                  downloadDocument(previewDoc);
-                  setShowPreviewDialog(false);
-                }}
-                className="bg-teal-500 hover:bg-teal-600"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Scarica
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Document Preview usando il componente dedicato */}
+      <DocumentPreview
+        isOpen={showPreviewDialog}
+        onClose={() => setShowPreviewDialog(false)}
+        document={previewDoc}
+        previewUrl={previewDoc?.data_url}
+        onDownload={previewDoc ? () => downloadDocument(previewDoc) : null}
+      />
     </div>
   );
 };

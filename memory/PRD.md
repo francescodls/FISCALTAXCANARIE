@@ -1556,6 +1556,8 @@ DELETE /api/clients/{client_id}/fees/{fee_id}
 ```
 
 ## Account Predefiniti
+- **Super Admin**: francesco@fiscaltaxcanarie.com / Lanzarote1
+- **Super Admin**: bruno@fiscaltaxcanarie.com / Lanzarote1
 - **Commercialista**: info@fiscaltaxcanarie.com / Triana48+
 
 ## Integrazioni
@@ -1565,21 +1567,103 @@ DELETE /api/clients/{client_id}/fees/{fee_id}
 - **Backblaze B2**: Storage cloud file
 
 ## Ruoli Utente
+- **super_admin**: Pieni poteri, gestione team admin
+- **admin**: Stesse funzioni commercialista senza elimina/invita admin
 - **commercialista**: Accesso completo, gestione clienti/documenti/consulenti/dipendenti/onorari
 - **cliente**: Accesso ai propri documenti, chatbot, scadenze, gestione dipendenti
 - **consulente_lavoro**: Dashboard limitata, clienti assegnati, buste paga
 
+---
+
+## Fase 70 (5 Aprile 2026) - COMPLETATA ✅
+
+**Fix Gestione Documenti Admin - Preview, Categorie e Upload Diretto**
+
+**Richiesta Utente (PIVOT):** Risolvere 3 problemi critici nella gestione documenti del pannello admin:
+1. Fix crash e layout errato anteprima documenti (documenti tagliati/bloccati)
+2. Catalogazione documenti con categorie custom anche per singolo cliente
+3. Caricamento documenti diretto nella cartella del cliente specifico
+
+**Backend Implementato:**
+
+**1. Categorie Specifiche per Cliente (NUOVO):**
+- ✅ `GET /api/clients/{client_id}/folder-categories` - Restituisce categorie globali + specifiche del cliente
+- ✅ `POST /api/clients/{client_id}/folder-categories` - Crea categoria visibile solo per quel cliente
+- ✅ `DELETE /api/clients/{client_id}/folder-categories/{category_id}` - Elimina categoria specifica
+- ✅ Collection MongoDB: `client_folder_categories` per separare categorie globali da quelle per cliente
+- ✅ Campo `is_client_specific: true` per identificare categorie personalizzate
+
+**2. Upload Diretto in Cartella Cliente (NUOVO):**
+- ✅ `POST /api/clients/{client_id}/documents/upload` - Upload contestuale con:
+  - Selezione categoria cartella
+  - Anno documento
+  - Titolo personalizzato (opzionale)
+  - Descrizione/note (opzionale)
+- ✅ Validazione file (estensione, MIME type, dimensione)
+- ✅ Sanitizzazione filename
+- ✅ Storage su B2 Cloud o MongoDB fallback
+- ✅ Log attività `documento_caricato_diretto`
+
+**3. Modello Pydantic Aggiornato:**
+- ✅ `ClientFolderCategoryCreate` - Per categorie specifiche cliente
+
+**Frontend Implementato:**
+
+**1. DocumentPreview.jsx - Refactoring Completo:**
+- ✅ Gestione timeout 15 secondi con fallback
+- ✅ Stato di loading con spinner animato
+- ✅ Stato di errore con pulsanti retry/download
+- ✅ Pulsante fullscreen (espandi/riduci)
+- ✅ Pulsante "Apri in nuova scheda"
+- ✅ Supporto PDF, immagini e file testo
+- ✅ Fallback per file non visualizzabili con opzione download
+- ✅ Layout responsive senza elementi tagliati
+- ✅ data-testid per testing automatico
+
+**2. DocumentFolderBrowser.jsx - Nuove Funzionalità:**
+- ✅ Pulsante "Carica Documento" (solo admin) → Dialog upload diretto
+- ✅ Pulsante "Nuova Categoria" (solo admin) → Dialog creazione
+- ✅ Checkbox "Solo per questo cliente" nel dialog categoria
+- ✅ Dialog upload con:
+  - Drag & drop file area
+  - Selezione categoria con indicatore "Specifico" per categorie cliente
+  - Campo anno documento
+  - Titolo e note opzionali
+- ✅ Badge "Specifico" per categorie personalizzate nella lista
+- ✅ Caricamento categorie da endpoint specifico cliente
+
+**3. DeclarationDetailView.jsx - Integrazione DocumentPreview:**
+- ✅ Sostituito dialog inline con componente DocumentPreview
+- ✅ Gestione consistente anteprima documenti dichiarazioni
+
+**Test Eseguiti (iteration_36.json):**
+- ✅ Backend: 100% (9/9 test passati)
+- ✅ Frontend: 100% - Tutte le funzionalità verificate
+- ✅ API categorie globali: ✓
+- ✅ API categorie cliente: ✓
+- ✅ API upload diretto: ✓
+- ✅ UI pulsanti admin: ✓
+- ✅ Dialog upload/categoria: ✓
+- ✅ Preview documenti: ✓
+
+**File Modificati:**
+- `/app/frontend/src/components/DocumentPreview.jsx` (Riscritto)
+- `/app/frontend/src/components/DocumentFolderBrowser.jsx` (Esteso)
+- `/app/frontend/src/components/DeclarationDetailView.jsx` (Aggiornato)
+- `/app/backend/server.py` (Nuove API linee 1990-2250)
+
+---
+
 ## Next Tasks (P0-P1)
-1. **P1**: Continuare refactoring `server.py` (ORA 5245 righe, ridotto da 6019):
-   - ✅ COMPLETATO: Rimosso codice duplicato Tickets e Fees (774 righe rimosse)
-   - Creare router per: Deadlines, Documents, Employees, Consulenti, Clients, Auth
-2. **P1**: Refactoring `ClientDetail.jsx` (>2300 righe) in sotto-componenti
-3. **P1**: Refactoring `CommercialDashboard.jsx` (>1900 righe) in sotto-componenti
-4. **P2**: Completare traduzione testi UI usando `t()` function (IT/EN/ES)
+1. **P1**: Riprendere build e pubblicazione App Mobile (Expo SDK 53 pronto, Play Store/App Store)
+2. **P1**: Continuare refactoring `server.py` in routes separate
+3. **P1**: Refactoring `ClientDetail.jsx` (>2300 righe) in sotto-componenti
+4. **P2**: Build App Desktop Windows
+5. **P2**: Integrazione Firma Digitale qualificata (Namirial/Aruba)
+6. **P2**: Integrazione Dropbox/Google Drive per sync documenti
 
 ## Future Tasks (P2-P3)
-- P2: Integrazione Dropbox (in attesa risposta utente)
-- P2: App desktop (Electron) o mobile (React Native/Expo)
+- P2: App desktop (Electron) - Mac pronto, Windows da buildare
 - P2: Migrazione file esistenti da MongoDB a Backblaze B2
 - P3: WhatsApp Business Integration
 - P3: Promemoria automatici schedulati (cron job)
