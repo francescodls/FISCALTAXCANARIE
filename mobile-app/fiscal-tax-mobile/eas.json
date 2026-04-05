@@ -11,7 +11,8 @@
         "simulator": true
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
       }
     },
     "preview": {
@@ -26,10 +27,14 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
       },
       "ios": {
         "autoIncrement": "buildNumber"
+      },
+      "env": {
+        "EXPO_PUBLIC_TARGET_SDK_VERSION": "35"
       }
     }
   },

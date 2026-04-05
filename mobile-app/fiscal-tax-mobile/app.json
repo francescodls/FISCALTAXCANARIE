@@ -31,7 +31,9 @@
         "backgroundColor": "#0d9488"
       },
       "package": "com.fiscaltaxcanarie.clientapp",
-      "versionCode": 1,
+      "versionCode": 2,
+      "targetSdkVersion": 35,
+      "compileSdkVersion": 35,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
