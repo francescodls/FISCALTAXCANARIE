@@ -712,14 +712,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             checked={formData.datos_personales.residente_canarias || false}
             onCheckedChange={(c) => handleFieldChange('datos_personales', 'residente_canarias', c)}
             disabled={!isEditable}
           />
-          <Label>Residente nelle Isole Canarie</Label>
-        </div>
+          <span>Residente nelle Isole Canarie</span>
+        </label>
       </div>
       <SectionDocuments sectionId="datos_personales" sectionName="Dati Personali" />
     </div>
@@ -727,14 +727,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderFamilyData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.situacion_familiar.tiene_conyuge || false}
           onCheckedChange={(c) => handleFieldChange('situacion_familiar', 'tiene_conyuge', c)}
           disabled={!isEditable}
         />
-        <Label>Ho un coniuge/partner</Label>
-      </div>
+        <span>Ho un coniuge/partner</span>
+      </label>
 
       {formData.situacion_familiar.tiene_conyuge && (
         <Card className="bg-slate-50">
@@ -783,30 +783,30 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="flex items-center gap-2">
+        <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             checked={formData.situacion_familiar.discapacidad_contribuyente || false}
             onCheckedChange={(c) => handleFieldChange('situacion_familiar', 'discapacidad_contribuyente', c)}
             disabled={!isEditable}
           />
-          <Label>Ho una disabilità riconosciuta</Label>
-        </div>
-        <div className="flex items-center gap-2">
+          <span>Ho una disabilità riconosciuta</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             checked={formData.situacion_familiar.familia_numerosa || false}
             onCheckedChange={(c) => handleFieldChange('situacion_familiar', 'familia_numerosa', c)}
             disabled={!isEditable}
           />
-          <Label>Famiglia numerosa</Label>
-        </div>
-        <div className="flex items-center gap-2">
+          <span>Famiglia numerosa</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer">
           <Checkbox
             checked={formData.situacion_familiar.familia_monoparental || false}
             onCheckedChange={(c) => handleFieldChange('situacion_familiar', 'familia_monoparental', c)}
             disabled={!isEditable}
           />
-          <Label>Famiglia monoparentale</Label>
-        </div>
+          <span>Famiglia monoparentale</span>
+        </label>
       </div>
 
       <div>
@@ -824,14 +824,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderEmploymentData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.rentas_trabajo.tiene_rentas_trabajo || false}
           onCheckedChange={(c) => handleFieldChange('rentas_trabajo', 'tiene_rentas_trabajo', c)}
           disabled={!isEditable}
         />
-        <Label>Ho percepito redditi da lavoro dipendente</Label>
-      </div>
+        <span>Ho percepito redditi da lavoro dipendente</span>
+      </label>
 
       {formData.rentas_trabajo.tiene_rentas_trabajo && (
         <>
@@ -847,14 +847,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.rentas_trabajo.tiene_desempleo || false}
                 onCheckedChange={(c) => handleFieldChange('rentas_trabajo', 'tiene_desempleo', c)}
                 disabled={!isEditable}
               />
-              <Label>Ho percepito disoccupazione</Label>
-            </div>
+              <span>Ho percepito disoccupazione</span>
+            </label>
             {formData.rentas_trabajo.tiene_desempleo && (
               <div>
                 <Label>Importo disoccupazione (€)</Label>
@@ -868,14 +868,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.rentas_trabajo.tiene_pension || false}
                 onCheckedChange={(c) => handleFieldChange('rentas_trabajo', 'tiene_pension', c)}
                 disabled={!isEditable}
               />
-              <Label>Ho percepito pensione</Label>
-            </div>
+              <span>Ho percepito pensione</span>
+            </label>
             {formData.rentas_trabajo.tiene_pension && (
               <div>
                 <Label>Importo pensione (€)</Label>
@@ -907,14 +907,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderSelfEmploymentData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.autonomo.es_autonomo || false}
           onCheckedChange={(c) => handleFieldChange('autonomo', 'es_autonomo', c)}
           disabled={!isEditable}
         />
-        <Label>Sono lavoratore autonomo</Label>
-      </div>
+        <span>Sono lavoratore autonomo</span>
+      </label>
 
       {formData.autonomo.es_autonomo && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -998,14 +998,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderPropertiesData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.inmuebles.tiene_inmuebles || false}
           onCheckedChange={(c) => handleFieldChange('inmuebles', 'tiene_inmuebles', c)}
           disabled={!isEditable}
         />
-        <Label>Possiedo immobili</Label>
-      </div>
+        <span>Possiedo immobili</span>
+      </label>
 
       {formData.inmuebles.tiene_inmuebles && (
         <div className="space-y-4">
@@ -1096,14 +1096,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderRentalsReceivedData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.alquileres_cobrados.tiene_alquileres || false}
           onCheckedChange={(c) => handleFieldChange('alquileres_cobrados', 'tiene_alquileres', c)}
           disabled={!isEditable}
         />
-        <Label>Percepisco canoni di locazione</Label>
-      </div>
+        <span>Percepisco canoni di locazione</span>
+      </label>
 
       {formData.alquileres_cobrados.tiene_alquileres && (
         <div className="space-y-4">
@@ -1235,14 +1235,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderRentPaidData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.alquiler_pagado.paga_alquiler || false}
           onCheckedChange={(c) => handleFieldChange('alquiler_pagado', 'paga_alquiler', c)}
           disabled={!isEditable}
         />
-        <Label>Pago un affitto per la mia abitazione principale</Label>
-      </div>
+        <span>Pago un affitto per la mia abitazione principale</span>
+      </label>
 
       {formData.alquiler_pagado.paga_alquiler && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1307,14 +1307,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderInvestmentsData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.inversiones.tiene_inversiones || false}
           onCheckedChange={(c) => handleFieldChange('inversiones', 'tiene_inversiones', c)}
           disabled={!isEditable}
         />
-        <Label>Ho investimenti finanziari</Label>
-      </div>
+        <span>Ho investimenti finanziari</span>
+      </label>
 
       {formData.inversiones.tiene_inversiones && (
         <div className="space-y-4">
@@ -1415,14 +1415,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderCryptoData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.criptomonedas.tiene_criptomonedas || false}
           onCheckedChange={(c) => handleFieldChange('criptomonedas', 'tiene_criptomonedas', c)}
           disabled={!isEditable}
         />
-        <Label>Ho operato con criptovalute</Label>
-      </div>
+        <span>Ho operato con criptovalute</span>
+      </label>
 
       {formData.criptomonedas.tiene_criptomonedas && (
         <div className="space-y-4">
@@ -1458,38 +1458,38 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
           <h4 className="font-medium mt-4">Tipologia operazioni</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.criptomonedas.ha_comprado || false}
                 onCheckedChange={(c) => handleFieldChange('criptomonedas', 'ha_comprado', c)}
                 disabled={!isEditable}
               />
-              <Label>Acquisti</Label>
-            </div>
-            <div className="flex items-center gap-2">
+              <span>Acquisti</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.criptomonedas.ha_vendido || false}
                 onCheckedChange={(c) => handleFieldChange('criptomonedas', 'ha_vendido', c)}
                 disabled={!isEditable}
               />
-              <Label>Vendite</Label>
-            </div>
-            <div className="flex items-center gap-2">
+              <span>Vendite</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.criptomonedas.ha_permutado || false}
                 onCheckedChange={(c) => handleFieldChange('criptomonedas', 'ha_permutado', c)}
                 disabled={!isEditable}
               />
-              <Label>Permute</Label>
-            </div>
-            <div className="flex items-center gap-2">
+              <span>Permute</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.criptomonedas.tiene_staking || false}
                 onCheckedChange={(c) => handleFieldChange('criptomonedas', 'tiene_staking', c)}
                 disabled={!isEditable}
               />
-              <Label>Staking/Reward</Label>
-            </div>
+              <span>Staking/Reward</span>
+            </label>
           </div>
 
           {formData.criptomonedas.tiene_staking && (
@@ -1533,50 +1533,50 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderCapitalGainsData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.ganancias_patrimoniales.tiene_ganancias_patrimoniales || false}
           onCheckedChange={(c) => handleFieldChange('ganancias_patrimoniales', 'tiene_ganancias_patrimoniales', c)}
           disabled={!isEditable}
         />
-        <Label>Ho avuto plusvalenze o minusvalenze patrimoniali</Label>
-      </div>
+        <span>Ho avuto plusvalenze o minusvalenze patrimoniali</span>
+      </label>
 
       {formData.ganancias_patrimoniales.tiene_ganancias_patrimoniales && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.ganancias_patrimoniales.vendita_immobili || false}
                 onCheckedChange={(c) => handleFieldChange('ganancias_patrimoniales', 'vendita_immobili', c)}
                 disabled={!isEditable}
               />
-              <Label>Vendita di immobili</Label>
-            </div>
-            <div className="flex items-center gap-2">
+              <span>Vendita di immobili</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.ganancias_patrimoniales.vendita_azioni || false}
                 onCheckedChange={(c) => handleFieldChange('ganancias_patrimoniales', 'vendita_azioni', c)}
                 disabled={!isEditable}
               />
-              <Label>Vendita azioni/fondi</Label>
-            </div>
-            <div className="flex items-center gap-2">
+              <span>Vendita azioni/fondi</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.ganancias_patrimoniales.indennizzi || false}
                 onCheckedChange={(c) => handleFieldChange('ganancias_patrimoniales', 'indennizzi', c)}
                 disabled={!isEditable}
               />
-              <Label>Indennizzi ricevuti</Label>
-            </div>
-            <div className="flex items-center gap-2">
+              <span>Indennizzi ricevuti</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={formData.ganancias_patrimoniales.aiuti_pubblici || false}
                 onCheckedChange={(c) => handleFieldChange('ganancias_patrimoniales', 'aiuti_pubblici', c)}
                 disabled={!isEditable}
               />
-              <Label>Aiuti pubblici</Label>
-            </div>
+              <span>Aiuti pubblici</span>
+            </label>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -1639,14 +1639,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderDeductionsData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.deducciones.tiene_deducciones || false}
           onCheckedChange={(c) => handleFieldChange('deducciones', 'tiene_deducciones', c)}
           disabled={!isEditable}
         />
-        <Label>Ho spese deducibili</Label>
-      </div>
+        <span>Ho spese deducibili</span>
+      </label>
 
       {formData.deducciones.tiene_deducciones && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1736,14 +1736,14 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
 
   const renderCanaryDeductionsData = () => (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 mb-4">
+      <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <Checkbox
           checked={formData.deducciones_canarias.tiene_deducciones_canarias || false}
           onCheckedChange={(c) => handleFieldChange('deducciones_canarias', 'tiene_deducciones_canarias', c)}
           disabled={!isEditable}
         />
-        <Label>Ho diritto a deduzioni regionali canarie</Label>
-      </div>
+        <span>Ho diritto a deduzioni regionali canarie</span>
+      </label>
 
       {formData.deducciones_canarias.tiene_deducciones_canarias && (
         <div className="space-y-4">
@@ -2254,10 +2254,11 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
             <h1 className="text-xl font-bold text-slate-900">
               Dichiarazione dei Redditi {taxReturn.anno_fiscale}
             </h1>
-            <p className="text-sm text-slate-500">
-              {taxReturn.tipo_dichiarazione === 'individual' ? 'Individuale' : 'Congiunta'} • 
-              <Badge className="ml-2" variant="outline">{taxReturn.stato}</Badge>
-            </p>
+            <div className="text-sm text-slate-500 flex items-center gap-1">
+              <span>{taxReturn.tipo_dichiarazione === 'individual' ? 'Individuale' : 'Congiunta'}</span>
+              <span>•</span>
+              <Badge variant="outline">{taxReturn.stato}</Badge>
+            </div>
           </div>
         </div>
         {(isEditable || isAdmin) && currentSectionData?.id !== 'documentos' && currentSectionData?.id !== 'notas' && currentSectionData?.id !== 'autorizacion' && (

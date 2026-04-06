@@ -5,6 +5,55 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 71 (6 Aprile 2026) - COMPLETATA ✅
+
+**Fix Bug Compilazione Dichiarazione dei Redditi - Campi Bloccati Lato Cliente**
+
+**Problema:** Quando il cliente compilava la dichiarazione dei redditi, i checkbox e altri campi interattivi risultavano non cliccabili. L'utente non riusciva a selezionare opzioni come "Possiedo immobili", "Ho spese deducibili", etc.
+
+**Causa Root:** I wrapper `<div>` contenenti checkbox e label non erano cliccabili. Il componente `<Label>` di Shadcn UI non era associato al `<Checkbox>` tramite `htmlFor`, quindi cliccando sul testo della label non si attivava il checkbox. Solo il piccolo quadratino del checkbox era cliccabile.
+
+**Soluzione:** Sostituiti tutti i pattern:
+```jsx
+// PRIMA (non cliccabile)
+<div className="flex items-center gap-2">
+  <Checkbox ... />
+  <Label>Testo</Label>
+</div>
+
+// DOPO (cliccabile)
+<label className="flex items-center gap-2 cursor-pointer">
+  <Checkbox ... />
+  <span>Testo</span>
+</label>
+```
+
+**File Modificato:**
+- ✅ `/app/frontend/src/components/TaxReturnForm.jsx`
+
+**Sezioni Corrette:**
+- ✅ Dati Personali (Residente Canarie)
+- ✅ Situazione Familiare (Coniuge, Disabilità, Famiglia numerosa/monoparentale)
+- ✅ Redditi da Lavoro (Redditi dipendente, Disoccupazione, Pensione)
+- ✅ Autonomo (Lavoratore autonomo)
+- ✅ Immobili (Possiedo immobili)
+- ✅ Canoni Locazione (Percepisco canoni)
+- ✅ Affitto Pagato (Pago affitto)
+- ✅ Investimenti (Investimenti finanziari)
+- ✅ Criptomonete (Operazioni crypto, Acquisti, Vendite, Permute, Staking)
+- ✅ Plusvalenze (Plusvalenze patrimoniali, Vendita immobili/azioni, Indennizzi, Aiuti pubblici)
+- ✅ Spese Deducibili (Ho spese deducibili)
+- ✅ Deduzioni Canarie (Deduzioni regionali)
+
+**Altri Fix:**
+- ✅ Corretto errore HTML hydration: rimosso `<Badge>` dentro `<p>` (HTML invalido)
+
+**Test Eseguiti:**
+- ✅ Screenshot verifica click su "Possiedo immobili" → checkbox si attiva/disattiva correttamente
+- ✅ I campi dettaglio appaiono/scompaiono in base allo stato del checkbox
+
+---
+
 ### Fase 70 (6 Aprile 2026) - COMPLETATA ✅
 
 **Ripristino Sezione Notifiche Massive nel Pannello Admin**
