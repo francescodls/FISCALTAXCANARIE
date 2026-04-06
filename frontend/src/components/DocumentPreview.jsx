@@ -21,12 +21,20 @@ const DocumentPreview = ({
 
   // Carica il documento come blob quando si apre la preview
   useEffect(() => {
-    if (isOpen && document && token) {
+    if (isOpen && document) {
       setLoading(true);
       setError(false);
       setBlobUrl(null);
       
-      loadDocumentAsBlob();
+      // Se abbiamo già un previewUrl (data URL base64), usalo direttamente
+      if (previewUrl) {
+        convertDataUrlToBlob(previewUrl);
+      } else if (token) {
+        loadDocumentAsBlob();
+      } else {
+        setError(true);
+        setLoading(false);
+      }
     }
     
     return () => {
@@ -38,7 +46,37 @@ const DocumentPreview = ({
         URL.revokeObjectURL(blobUrl);
       }
     };
-  }, [isOpen, document?.id]);
+  }, [isOpen, document?.id, previewUrl]);
+
+  // Converte un data URL in blob URL
+  const convertDataUrlToBlob = async (dataUrl) => {
+    try {
+      // Estrai il mime type e i dati base64 dal data URL
+      const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!matches) {
+        throw new Error('Data URL non valido');
+      }
+      
+      const mimeType = matches[1];
+      const base64Data = matches[2];
+      
+      // Decodifica base64 e crea blob
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      setBlobUrl(url);
+      setLoading(false);
+    } catch (err) {
+      console.error("Errore conversione data URL:", err);
+      setError(true);
+      setLoading(false);
+    }
+  };
 
   const loadDocumentAsBlob = async () => {
     if (!document?.id) return;
@@ -84,7 +122,11 @@ const DocumentPreview = ({
   };
 
   const handleRetry = () => {
-    loadDocumentAsBlob();
+    if (previewUrl) {
+      convertDataUrlToBlob(previewUrl);
+    } else {
+      loadDocumentAsBlob();
+    }
   };
 
   const openInNewTab = () => {

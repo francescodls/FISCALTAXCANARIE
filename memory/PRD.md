@@ -5,6 +5,53 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 72 (6 Aprile 2026) - COMPLETATA ✅
+
+**Fix Preview Documenti nella Sezione Dichiarazioni Admin**
+
+**Problema:** L'admin non riusciva a previsualizzare i documenti nella sezione dichiarazioni. Il componente `DocumentPreview.jsx` cercava di caricare i documenti dall'endpoint `/api/documents/{id}` (per documenti generali) invece che dall'endpoint corretto `/api/declarations/tax-returns/{id}/documents/{doc_id}/preview`.
+
+**Causa Root:** Il componente `DocumentPreview` non utilizzava la prop `previewUrl` che conteneva già i dati del documento in formato data URL (base64), ma faceva una chiamata API autonoma all'endpoint sbagliato.
+
+**Soluzione:** Modificato `DocumentPreview.jsx` per:
+1. Verificare prima se `previewUrl` è fornito (data URL dal chiamante)
+2. Se presente, convertire il data URL in blob URL per la visualizzazione
+3. Se non presente, fare fallback alla chiamata API originale
+
+**File Modificato:**
+- ✅ `/app/frontend/src/components/DocumentPreview.jsx`
+
+**Modifiche:**
+```javascript
+// Aggiunta funzione per convertire data URL in blob
+const convertDataUrlToBlob = async (dataUrl) => {
+  const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  const mimeType = matches[1];
+  const base64Data = matches[2];
+  // Decodifica e crea blob...
+}
+
+// useEffect modificato per usare previewUrl se disponibile
+useEffect(() => {
+  if (isOpen && document) {
+    if (previewUrl) {
+      convertDataUrlToBlob(previewUrl);  // Usa i dati già disponibili
+    } else if (token) {
+      loadDocumentAsBlob();  // Fallback alla chiamata API
+    }
+  }
+}, [isOpen, document?.id, previewUrl]);
+```
+
+**Test Eseguiti:**
+- ✅ Upload documento di test via API
+- ✅ Verifica endpoint preview backend → Restituisce correttamente `data_url`
+- ✅ Click su icona Eye → Dialog preview si apre correttamente
+- ✅ Documento riconosciuto con nome, tipo e icona corretti
+- ✅ Pulsanti Scarica, Espandi, Apri in nuova scheda visibili
+
+---
+
 ### Fase 71 (6 Aprile 2026) - COMPLETATA ✅
 
 **Fix Bug Compilazione Dichiarazione dei Redditi - Campi Bloccati Lato Cliente**
