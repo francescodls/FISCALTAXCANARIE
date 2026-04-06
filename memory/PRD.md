@@ -5,6 +5,68 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 70 (6 Aprile 2026) - COMPLETATA ✅
+
+**Ripristino Sezione Notifiche Massive nel Pannello Admin**
+
+**Problema:** La sezione "Notifiche" per l'invio di comunicazioni massive ai clienti era sparita dal pannello amministratore.
+
+**Soluzione:** Aggiunto il TabsTrigger mancante nella TabsList di `CommercialDashboard.jsx` per rendere visibile il tab "Notifiche" che puntava già al componente `NotificationsManagement`.
+
+**Modifiche:**
+- ✅ `/app/frontend/src/pages/CommercialDashboard.jsx` - Aggiunto TabsTrigger per "notifications"
+
+**Funzionalità Ripristinate e Verificate:**
+
+**1. Tab "Notifiche" nel menu admin:**
+- ✅ Icona Send con etichetta "Notifiche"
+- ✅ Badge con conteggio notifiche programmate
+
+**2. Destinatari Multipli:**
+- ✅ Tutti i clienti (con contatore)
+- ✅ Per categoria (Società, Autonomi, Persone Fisiche, Case Vacanza)
+- ✅ Clienti specifici (con ricerca e selezione)
+
+**3. Contenuto Notifica:**
+- ✅ Tipo di notifica (6 tipi predefiniti + custom)
+- ✅ Oggetto
+- ✅ Testo personalizzato con supporto paragrafi
+
+**4. Template/Modelli:**
+- ✅ Salva come template
+- ✅ Carica template esistente
+- ✅ Gestione template (visualizza, elimina)
+
+**5. Personalizzazione Grafica:**
+- ✅ Colore Primario, Secondario, Accento
+- ✅ 8 colori predefiniti a scelta rapida
+- ✅ Upload logo (max 2MB)
+- ✅ Intestazione e Footer personalizzabili
+- ✅ Anteprima email
+
+**6. Opzioni di Invio:**
+- ✅ Invia Email (via Brevo)
+- ✅ Notifica In-App
+- ✅ Programmazione invio
+
+**7. Tipi di Notifica Predefiniti:**
+- Notifica Generale
+- Notifica Informativa
+- Notifica di Scadenza
+- Notifica Documentale
+- Notifica Amministrativa
+- Notifica Urgente
+
+**8. Storico:**
+- ✅ Lista notifiche inviate con stato
+- ✅ Notifiche programmate con possibilità di annullamento
+
+**Test Eseguiti:**
+- ✅ Screenshots verificati per tutti i sottotab (Crea, Tipi, Template, Grafica, Storico)
+- ✅ Selezione destinatari per categoria verificata
+
+---
+
 ### Fase 69 (2 Aprile 2026) - COMPLETATA ✅
 
 **Privacy e Trattamento Dati - Implementazione Completa**

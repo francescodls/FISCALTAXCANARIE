@@ -659,6 +659,17 @@ const CommercialDashboard = () => {
               {t("dashboard.stats")}
             </TabsTrigger>
             <TabsTrigger 
+              value="notifications" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-notifications"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Notifiche
+              {scheduledNotifications.length > 0 && (
+                <Badge className="ml-2 bg-amber-500 text-white text-xs">{scheduledNotifications.length}</Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger 
               value="consulenti" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-consulenti"
