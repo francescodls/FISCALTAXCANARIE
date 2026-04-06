@@ -87,8 +87,22 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
   const signatureRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const isAdmin = user?.role === 'commercialista';
-  const isEditable = !isAdmin && ['bozza', 'documentazione_incompleta'].includes(taxReturn.stato);
+  // Determina se l'utente è un admin (commercialista, admin, super_admin)
+  const isAdmin = ['commercialista', 'admin', 'super_admin'].includes(user?.role);
+  
+  // Il cliente può editare se: non è admin E lo stato lo permette
+  // Stati editabili: bozza, documentazione_incompleta
+  // Se stato non definito, assumiamo che sia una nuova dichiarazione (editabile)
+  const currentStatus = taxReturn?.stato || 'bozza';
+  const isEditable = !isAdmin && ['bozza', 'documentazione_incompleta'].includes(currentStatus);
+  
+  // Debug log per capire lo stato
+  useEffect(() => {
+    console.log('TaxReturnForm - User role:', user?.role);
+    console.log('TaxReturnForm - isAdmin:', isAdmin);
+    console.log('TaxReturnForm - stato:', currentStatus);
+    console.log('TaxReturnForm - isEditable:', isEditable);
+  }, [user?.role, currentStatus]);
 
   useEffect(() => {
     fetchAuthText();

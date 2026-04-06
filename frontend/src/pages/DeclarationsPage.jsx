@@ -98,18 +98,27 @@ const DeclarationsPage = () => {
         })
       });
       
-      const data = await res.json();
+      // Clone per gestire errori
+      const resClone = res.clone();
       
       if (!res.ok) {
-        throw new Error(data.detail || 'Errore creazione pratica');
+        try {
+          const errorData = await resClone.json();
+          throw new Error(errorData.detail || `Errore HTTP ${res.status}`);
+        } catch {
+          throw new Error(`Errore HTTP ${res.status}`);
+        }
       }
+      
+      const data = await res.json();
       
       toast.success('Pratica creata con successo');
       setSelectedReturn(data);
       setShowForm(true);
       fetchTaxReturns();
     } catch (error) {
-      toast.error(error.message);
+      console.error('createNewReturn error:', error);
+      toast.error(error.message || 'Errore creazione pratica');
     }
   };
 
@@ -119,11 +128,19 @@ const DeclarationsPage = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      const data = await res.json();
+      // Clone response per poter leggere il body in caso di errore
+      const resClone = res.clone();
       
       if (!res.ok) {
-        throw new Error(data.detail || 'Errore caricamento pratica');
+        try {
+          const errorData = await resClone.json();
+          throw new Error(errorData.detail || `Errore HTTP ${res.status}`);
+        } catch {
+          throw new Error(`Errore HTTP ${res.status}`);
+        }
       }
+      
+      const data = await res.json();
       
       setSelectedReturn(data);
       if (isAdmin) {
@@ -132,6 +149,7 @@ const DeclarationsPage = () => {
         setShowForm(true);
       }
     } catch (error) {
+      console.error('openReturn error:', error);
       toast.error(error.message || 'Errore caricamento pratica');
     }
   };

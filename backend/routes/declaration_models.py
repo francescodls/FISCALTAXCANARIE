@@ -2,7 +2,7 @@
 Modelli Pydantic per il sistema Dichiarazioni
 """
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
 from datetime import date
 
 
@@ -363,7 +363,15 @@ class TaxReturnResponse(BaseModel):
     anno_fiscale: int
     tipo_dichiarazione: str
     stato: str  # bozza, inviata, documentazione_incompleta, in_revisione, pronta, presentata, archiviata
-    secciones_habilitadas: TaxReturnSectionsEnabled
+    secciones_habilitadas: Optional[TaxReturnSectionsEnabled] = None  # Made optional with default
+    
+    # Validator per fornire default se mancante
+    @model_validator(mode='before')
+    @classmethod
+    def set_default_sections(cls, data):
+        if isinstance(data, dict) and 'secciones_habilitadas' not in data:
+            data['secciones_habilitadas'] = TaxReturnSectionsEnabled().model_dump()
+        return data
     
     # Assignment info (admin che ha preso in carico)
     assigned_to_id: Optional[str] = None
