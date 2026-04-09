@@ -5,6 +5,42 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 73 (9 Aprile 2026) - COMPLETATA ✅
+
+**Fix Bug Critico: Upload Documenti Bloccava Accesso Dichiarazione**
+
+**Problema:** Dopo il caricamento di documenti nella dichiarazione, sia il cliente che l'amministratore non riuscivano più ad accedere alla pratica. L'errore "Failed to fetch" appariva perché la risposta API conteneva i dati binari (base64) dei file caricati, rendendo la response troppo grande e causando timeout o errori di parsing.
+
+**Causa Root:** 
+- L'endpoint `GET /api/declarations/tax-returns/{id}` restituiva l'intero oggetto dichiarazione incluso il campo `file_data` (stringa base64 del documento) all'interno dell'array `documentos`
+- Per file anche di pochi MB, la risposta JSON diventava enorme (es. 5MB di PDF = ~6.7MB di JSON base64)
+- Il browser/client non riusciva a gestire risposte così grandi
+
+**Soluzione:**
+1. **Rimosso `file_data` dal modello Pydantic `TaxReturnDocument`** - I dati binari non sono più inclusi nella serializzazione del documento
+2. **Aggiunto cleanup nel backend** - L'endpoint GET rimuove esplicitamente `file_data` dai documenti prima di restituire la risposta
+3. **I dati binari sono accessibili solo tramite endpoint dedicati** - `/preview` e `/download` per recuperare il contenuto del file
+
+**File Modificati:**
+- ✅ `/app/backend/routes/declaration_models.py` - Rimosso `file_data` da `TaxReturnDocument`
+- ✅ `/app/backend/routes/declarations.py` - Aggiunto cleanup `file_data` in `get_tax_return()`
+
+**Prima del fix:**
+- Response size: ~6.7MB+ per dichiarazione con 1 PDF
+- Errore "Failed to fetch" su client e admin
+
+**Dopo il fix:**
+- Response size: ~2KB per dichiarazione (indipendente dalla dimensione dei file)
+- Accesso immediato e fluido sia per cliente che admin
+
+**Test Eseguiti:**
+- ✅ API test: response size ridotta da MB a KB
+- ✅ Screenshot cliente: accesso dichiarazione 2024 funzionante
+- ✅ Screenshot admin: accesso e tab Documenti funzionanti
+- ✅ Preview e download documenti: ancora funzionanti (usano endpoint dedicati)
+
+---
+
 ### Fase 72 (6 Aprile 2026) - COMPLETATA ✅
 
 **Fix Preview Documenti nella Sezione Dichiarazioni Admin**

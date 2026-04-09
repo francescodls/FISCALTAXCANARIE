@@ -301,6 +301,13 @@ async def get_tax_return(tax_return_id: str, user: dict = Depends(get_current_us
     tax_return["client_name"] = client.get("full_name") if client else None
     tax_return["client_email"] = client.get("email") if client else None
     
+    # IMPORTANTE: Rimuovi file_data dai documenti per evitare risposte enormi
+    # I dati binari vengono recuperati solo tramite l'endpoint di preview/download
+    if "documentos" in tax_return and tax_return["documentos"]:
+        for doc in tax_return["documentos"]:
+            if "file_data" in doc:
+                del doc["file_data"]
+    
     return TaxReturnResponse(**tax_return)
 
 

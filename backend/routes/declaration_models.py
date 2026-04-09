@@ -265,7 +265,7 @@ class TaxReturnCanaryDeductions(BaseModel):
 
 
 class TaxReturnDocument(BaseModel):
-    """Documento allegato"""
+    """Documento allegato - per risposta API (senza file_data)"""
     id: str
     categoria: str  # certificado_fiscal, nomina, bancario, contrato, factura, crypto, catastral, discapacidad, familiar, otro
     nombre: str
@@ -273,6 +273,9 @@ class TaxReturnDocument(BaseModel):
     file_path: Optional[str] = None
     seccion: Optional[str] = None  # A quale sezione appartiene
     uploaded_at: str
+    
+    # file_data è intenzionalmente ESCLUSO da questo modello
+    # I dati binari vengono recuperati solo tramite endpoint preview/download
 
 
 class TaxReturnClientNote(BaseModel):
