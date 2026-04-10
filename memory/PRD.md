@@ -5,6 +5,47 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 77 (10 Aprile 2026) - COMPLETATA ✅
+
+**Fix Definitivo Errore "postMessage - Request object could not be cloned" per Giovanna Staiano**
+
+**Problema:** Quando l'admin provava ad aprire la dichiarazione di Giovanna Staiano, appariva l'errore "Failed to execute 'postMessage' on 'Window': Request object could not be cloned".
+
+**Causa Root Identificata:** Il componente `DeclarationDetailView.jsx` non aveva la sanitizzazione dei dati in ingresso. La prop `declaration` veniva usata direttamente per inizializzare lo state (`declaration.conversazione`), potenzialmente contenendo riferimenti non serializzabili.
+
+**Correzioni Applicate:**
+
+1. **`DeclarationDetailView.jsx`:**
+   - Aggiunto `useMemo` all'import
+   - Aggiunta sanitizzazione con `JSON.parse(JSON.stringify(rawDeclaration))` all'inizio del componente
+   - Rinominata prop in `rawDeclaration` per chiarezza
+
+2. **`DeclarationsPage.jsx`:**
+   - Rimosso uso di `res.clone()` che poteva causare problemi
+   - Lettura risposta come testo prima del parsing JSON
+   - Migliorata gestione errori con conversione esplicita a stringa
+
+**Codice Aggiunto:**
+```javascript
+const DeclarationDetailView = ({ declaration: rawDeclaration, ... }) => {
+  const declaration = useMemo(() => {
+    try {
+      return JSON.parse(JSON.stringify(rawDeclaration));
+    } catch (e) {
+      console.error('Errore sanitizzazione declaration:', e);
+      return rawDeclaration || {};
+    }
+  }, [rawDeclaration]);
+  // ...
+}
+```
+
+**Test:**
+- ✅ Screenshot accesso dichiarazione admin - Nessun errore
+- ✅ Console log puliti - Nessun errore postMessage
+
+---
+
 ### Fase 76 (10 Aprile 2026) - COMPLETATA ✅
 
 **Verifica Completa e Stabilizzazione Applicazione**

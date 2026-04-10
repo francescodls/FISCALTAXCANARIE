@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -30,9 +30,19 @@ const TAX_TYPES = [
   { value: "IVA_22", label: "IVA 22%", rate: 0.22 },
 ];
 
-const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) => {
+const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBack, onUpdate }) => {
+  // Sanitizza i dati in ingresso per evitare problemi di serializzazione
+  const declaration = useMemo(() => {
+    try {
+      return JSON.parse(JSON.stringify(rawDeclaration));
+    } catch (e) {
+      console.error('Errore sanitizzazione declaration:', e);
+      return rawDeclaration || {};
+    }
+  }, [rawDeclaration]);
+  
   const [activeTab, setActiveTab] = useState('overview');
-  const [messages, setMessages] = useState(declaration.conversazione || []);
+  const [messages, setMessages] = useState(declaration?.conversazione || []);
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const [assigningPratica, setAssigningPratica] = useState(false);

@@ -129,22 +129,25 @@ const DeclarationsPage = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      // Clone response per poter leggere il body in caso di errore
-      const resClone = res.clone();
-      
       if (!res.ok) {
+        // Leggi l'errore come testo prima
+        let errorMessage = `Errore HTTP ${res.status}`;
         try {
-          const errorData = await resClone.json();
-          throw new Error(errorData.detail || `Errore HTTP ${res.status}`);
+          const errorText = await res.text();
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorMessage;
         } catch {
-          throw new Error(`Errore HTTP ${res.status}`);
+          // Ignora errori di parsing
         }
+        toast.error(String(errorMessage));
+        return;
       }
       
-      const data = await res.json();
+      // Leggi come testo e poi parse per evitare problemi di serializzazione
+      const responseText = await res.text();
+      const data = JSON.parse(responseText);
       
-      // Sanitizza i dati per evitare problemi di serializzazione
-      // Questo previene errori "Request object could not be cloned"
+      // Sanitizza ulteriormente i dati
       const sanitizedData = JSON.parse(JSON.stringify(data));
       
       setSelectedReturn(sanitizedData);
@@ -155,7 +158,9 @@ const DeclarationsPage = () => {
       }
     } catch (error) {
       console.error('openReturn error:', error);
-      toast.error(error.message || 'Errore caricamento pratica');
+      // Assicurati che il toast riceva sempre una stringa
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      toast.error(errorMsg || 'Errore caricamento pratica');
     }
   };
 
