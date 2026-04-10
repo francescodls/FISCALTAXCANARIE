@@ -4,24 +4,25 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
   Home,
+  Calendar,
   FileText,
-  Bell,
-  User,
   MessageSquare,
+  User,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { COLORS } from '../config/constants';
-import { View, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Image, Text } from 'react-native';
 
 // Screens
 import { LoginScreen } from '../screens/LoginScreen';
 import { HomeScreen } from '../screens/HomeScreen';
+import { CalendarScreen } from '../screens/CalendarScreen';
 import { DocumentsScreen } from '../screens/DocumentsScreen';
-import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { CommunicationsScreen } from '../screens/CommunicationsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { DeclarationsScreen } from '../screens/DeclarationsScreen';
 import { DeclarationDetailScreen } from '../screens/DeclarationDetailScreen';
-import { ChatScreen } from '../screens/ChatScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
 
 const Stack = createNativeStackNavigator();
@@ -33,17 +34,18 @@ const MainTabs = () => {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textLight,
+        tabBarInactiveTintColor: '#94a3b8',
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
+          backgroundColor: '#ffffff',
+          borderTopColor: '#e2e8f0',
+          borderTopWidth: 1,
           paddingTop: 8,
           paddingBottom: 8,
           height: 70,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.05,
+          shadowRadius: 12,
           elevation: 10,
         },
         tabBarLabelStyle: {
@@ -51,14 +53,25 @@ const MainTabs = () => {
           fontWeight: '600',
           marginTop: 4,
         },
+        tabBarIconStyle: {
+          marginBottom: -2,
+        },
       }}
     >
       <Tab.Screen
-        name="Home"
+        name="HomeTab"
         component={HomeScreen}
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <Home size={22} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Scadenze"
+        component={CalendarScreen}
+        options={{
+          tabBarLabel: 'Scadenze',
+          tabBarIcon: ({ color, size }) => <Calendar size={22} color={color} />,
         }}
       />
       <Tab.Screen
@@ -66,23 +79,15 @@ const MainTabs = () => {
         component={DocumentsScreen}
         options={{
           tabBarLabel: 'Documenti',
-          tabBarIcon: ({ color, size }) => <FileText size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <FileText size={22} color={color} />,
         }}
       />
       <Tab.Screen
-        name="Chat"
-        component={ChatScreen}
+        name="Comunicazioni"
+        component={CommunicationsScreen}
         options={{
           tabBarLabel: 'Messaggi',
-          tabBarIcon: ({ color, size }) => <MessageSquare size={size} color={color} />,
-        }}
-      />
-      <Tab.Screen
-        name="Notifiche"
-        component={NotificationsScreen}
-        options={{
-          tabBarLabel: 'Notifiche',
-          tabBarIcon: ({ color, size }) => <Bell size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <MessageSquare size={22} color={color} />,
         }}
       />
       <Tab.Screen
@@ -90,7 +95,7 @@ const MainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profilo',
-          tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <User size={22} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -104,6 +109,7 @@ const LoadingScreen = () => (
       style={styles.loadingLogo}
       resizeMode="contain"
     />
+    <Text style={styles.loadingBrand}>Fiscal Tax Canarie</Text>
     <ActivityIndicator size="large" color={COLORS.primary} style={styles.loadingSpinner} />
   </View>
 );
@@ -120,7 +126,7 @@ export const AppNavigator = () => {
       <Stack.Navigator 
         screenOptions={{ 
           headerShown: false,
-          contentStyle: { backgroundColor: COLORS.background },
+          contentStyle: { backgroundColor: '#f8f9fb' },
           animation: 'slide_from_right',
         }}
       >
@@ -129,10 +135,15 @@ export const AppNavigator = () => {
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Dichiarazioni" component={DeclarationsScreen} />
             <Stack.Screen name="DeclarationDetail" component={DeclarationDetailScreen} />
+            <Stack.Screen name="Notifiche" component={NotificationsScreen} />
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />
           </>
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen 
+            name="Login" 
+            component={LoginScreen}
+            options={{ animation: 'fade' }}
+          />
         )}
       </Stack.Navigator>
     </NavigationContainer>
@@ -144,14 +155,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: '#ffffff',
   },
   loadingLogo: {
-    width: 200,
+    width: 80,
     height: 80,
+    marginBottom: 16,
+  },
+  loadingBrand: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
     marginBottom: 24,
   },
   loadingSpinner: {
-    marginTop: 16,
+    marginTop: 8,
   },
 });

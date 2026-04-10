@@ -7,26 +7,29 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  TextInput,
   Alert,
-  Image,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import * as DocumentPicker from 'expo-document-picker';
 import {
+  Search,
   FileText,
-  Upload,
-  Folder,
-  Image as ImageIcon,
   File,
-  ChevronRight,
-  Eye,
+  Image as ImageIcon,
   Download,
-  Plus,
+  Share,
+  Eye,
+  Filter,
+  ChevronDown,
+  X,
+  Folder,
+  Calendar,
+  Clock,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { COLORS, SPACING, RADIUS } from '../config/constants';
 
 interface Document {
   _id: string;
@@ -35,42 +38,42 @@ interface Document {
   file_type: string;
   file_size?: number;
   category?: string;
+  year?: string;
+  practice?: string;
   created_at: string;
-  preview_url?: string;
+  download_url?: string;
 }
 
-interface Category {
-  _id: string;
-  name: string;
-  icon?: string;
-  count?: number;
-}
+const CATEGORIES = [
+  { id: 'all', label: 'Tutti', icon: Folder },
+  { id: 'fiscali', label: 'Fiscali', icon: FileText },
+  { id: 'modelli', label: 'Modelli', icon: File },
+  { id: 'ricevute', label: 'Ricevute', icon: FileText },
+  { id: 'societa', label: 'Società', icon: Folder },
+  { id: 'comunicazioni', label: 'Comunicazioni', icon: FileText },
+];
 
 export const DocumentsScreen: React.FC = () => {
   const { token } = useAuth();
-  const navigation = useNavigation<any>();
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'category'>('date');
 
   useEffect(() => {
     if (token) {
       apiService.setToken(token);
-      loadData();
+      loadDocuments();
     }
   }, [token]);
 
-  const loadData = async () => {
+  const loadDocuments = async () => {
     try {
-      const [docs, cats] = await Promise.all([
-        apiService.getDocuments(),
-        apiService.getDocumentFolders().catch(() => []),
-      ]);
-      setDocuments(docs);
-      setCategories(cats);
+      const data = await apiService.getDocuments();
+      setDocuments(data);
     } catch (error) {
       console.error('Error loading documents:', error);
     } finally {
@@ -80,42 +83,9 @@ export const DocumentsScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadData();
+    await loadDocuments();
     setRefreshing(false);
   }, []);
-
-  const uploadDocument = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) return;
-
-      setUploading(true);
-      const file = result.assets[0];
-      
-      // Create form data
-      const formData = new FormData();
-      formData.append('file', {
-        uri: file.uri,
-        name: file.name,
-        type: file.mimeType || 'application/octet-stream',
-      } as any);
-
-      // TODO: Implement actual upload API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      Alert.alert('Successo', 'Documento caricato con successo');
-      await loadData();
-    } catch (error) {
-      console.error('Error uploading document:', error);
-      Alert.alert('Errore', 'Impossibile caricare il documento');
-    } finally {
-      setUploading(false);
-    }
-  };
 
   const getFileIcon = (fileType: string) => {
     if (fileType?.includes('image')) {
@@ -147,75 +117,105 @@ export const DocumentsScreen: React.FC = () => {
     }
   };
 
-  const renderDocument = ({ item }: { item: Document }) => {
-    const { icon: FileIcon, color } = getFileIcon(item.file_type);
-    const isImage = item.file_type?.includes('image');
+  const filteredDocuments = documents
+    .filter(doc => {
+      const matchesSearch = doc.file_name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || doc.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'date') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      } else if (sortBy === 'name') {
+        return a.file_name.localeCompare(b.file_name);
+      }
+      return 0;
+    });
 
-    return (
-      <TouchableOpacity
-        style={styles.documentCard}
-        onPress={() => {
-          // TODO: Open document preview
-          Alert.alert('Anteprima', `Apertura di ${item.file_name}`);
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={[styles.documentIcon, { backgroundColor: color + '15' }]}>
-          {isImage && item.preview_url ? (
-            <Image source={{ uri: item.preview_url }} style={styles.documentPreview} />
-          ) : (
-            <FileIcon size={28} color={color} />
-          )}
-        </View>
-        <View style={styles.documentInfo}>
-          <Text style={styles.documentName} numberOfLines={1}>
-            {item.file_name}
-          </Text>
-          <View style={styles.documentMeta}>
-            <Text style={styles.documentDate}>{formatDate(item.created_at)}</Text>
-            {item.file_size && (
-              <>
-                <Text style={styles.metaSeparator}>•</Text>
-                <Text style={styles.documentSize}>{formatFileSize(item.file_size)}</Text>
-              </>
-            )}
-          </View>
-          {item.category && (
-            <View style={styles.categoryBadge}>
-              <Folder size={12} color={COLORS.primary} />
-              <Text style={styles.categoryText}>{item.category}</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.documentActions}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Eye size={18} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+  const handlePreview = (doc: Document) => {
+    Alert.alert(
+      'Anteprima',
+      `Visualizzazione di "${doc.file_name}"`,
+      [
+        { text: 'Chiudi', style: 'cancel' },
+        { 
+          text: 'Scarica', 
+          onPress: () => handleDownload(doc),
+        },
+      ]
     );
   };
 
-  const renderCategory = ({ item }: { item: Category }) => (
-    <TouchableOpacity
-      style={styles.categoryCard}
-      onPress={() => {
-        // TODO: Filter by category
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.categoryIcon}>
-        <Folder size={24} color={COLORS.primary} />
-      </View>
-      <Text style={styles.categoryName}>{item.name}</Text>
-      {item.count !== undefined && (
-        <View style={styles.categoryCount}>
-          <Text style={styles.categoryCountText}>{item.count}</Text>
+  const handleDownload = (doc: Document) => {
+    if (doc.download_url) {
+      Linking.openURL(doc.download_url);
+    } else {
+      Alert.alert('Download', `Download di "${doc.file_name}" avviato`);
+    }
+  };
+
+  const handleShare = (doc: Document) => {
+    Alert.alert('Condividi', `Condivisione di "${doc.file_name}"`);
+  };
+
+  const renderDocument = ({ item }: { item: Document }) => {
+    const { icon: FileIcon, color } = getFileIcon(item.file_type);
+
+    return (
+      <View style={styles.documentCard}>
+        <TouchableOpacity
+          style={styles.documentMain}
+          onPress={() => handlePreview(item)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.documentIcon, { backgroundColor: color + '15' }]}>
+            <FileIcon size={24} color={color} />
+          </View>
+          <View style={styles.documentInfo}>
+            <Text style={styles.documentName} numberOfLines={1}>
+              {item.file_name}
+            </Text>
+            <View style={styles.documentMeta}>
+              <Calendar size={12} color={COLORS.textLight} />
+              <Text style={styles.documentDate}>{formatDate(item.created_at)}</Text>
+              {item.file_size && (
+                <>
+                  <Text style={styles.metaSeparator}>•</Text>
+                  <Text style={styles.documentSize}>{formatFileSize(item.file_size)}</Text>
+                </>
+              )}
+            </View>
+            {item.category && (
+              <View style={styles.categoryBadge}>
+                <Text style={styles.categoryBadgeText}>{item.category}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+        
+        <View style={styles.documentActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handlePreview(item)}
+          >
+            <Eye size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleDownload(item)}
+          >
+            <Download size={18} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleShare(item)}
+          >
+            <Share size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
         </View>
-      )}
-      <ChevronRight size={18} color={COLORS.textLight} />
-    </TouchableOpacity>
-  );
+      </View>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -224,21 +224,19 @@ export const DocumentsScreen: React.FC = () => {
       </View>
       <Text style={styles.emptyTitle}>Nessun documento</Text>
       <Text style={styles.emptyText}>
-        Carica i tuoi documenti per condividerli con il commercialista
+        {searchQuery
+          ? 'Nessun documento corrisponde alla tua ricerca'
+          : 'I documenti caricati dal tuo commercialista appariranno qui'}
       </Text>
-      <TouchableOpacity style={styles.emptyButton} onPress={uploadDocument}>
-        <Upload size={20} color="#ffffff" />
-        <Text style={styles.emptyButtonText}>Carica documento</Text>
-      </TouchableOpacity>
+      <Text style={styles.emptyHint}>
+        Questa sezione è di sola consultazione
+      </Text>
     </View>
   );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Documenti</Text>
-        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -250,43 +248,90 @@ export const DocumentsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Documenti</Text>
-          <Text style={styles.headerSubtitle}>
-            {documents.length} document{documents.length !== 1 ? 'i' : 'o'}
-          </Text>
+        <Text style={styles.headerTitle}>Documenti</Text>
+        <Text style={styles.headerSubtitle}>
+          {documents.length} document{documents.length !== 1 ? 'i' : 'o'}
+        </Text>
+      </View>
+
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <Search size={20} color={COLORS.textSecondary} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Cerca documenti..."
+            placeholderTextColor={COLORS.textLight}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
         </View>
         <TouchableOpacity
-          style={[styles.uploadButton, uploading && styles.uploadButtonDisabled]}
-          onPress={uploadDocument}
-          disabled={uploading}
+          style={[styles.filterButton, showFilters && styles.filterButtonActive]}
+          onPress={() => setShowFilters(!showFilters)}
         >
-          {uploading ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <Plus size={22} color="#ffffff" />
-          )}
+          <Filter size={20} color={showFilters ? '#ffffff' : COLORS.textSecondary} />
         </TouchableOpacity>
       </View>
 
-      {/* Categories */}
-      {categories.length > 0 && (
-        <View style={styles.categoriesSection}>
-          <Text style={styles.sectionTitle}>Cartelle</Text>
-          <FlatList
-            data={categories}
-            renderItem={renderCategory}
-            keyExtractor={(item) => item._id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesList}
-          />
+      {/* Category Filters */}
+      {showFilters && (
+        <View style={styles.filtersContainer}>
+          <Text style={styles.filtersLabel}>Categoria</Text>
+          <View style={styles.categoryFilters}>
+            {CATEGORIES.map((cat) => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categoryFilter,
+                  selectedCategory === cat.id && styles.categoryFilterActive,
+                ]}
+                onPress={() => setSelectedCategory(cat.id)}
+              >
+                <Text
+                  style={[
+                    styles.categoryFilterText,
+                    selectedCategory === cat.id && styles.categoryFilterTextActive,
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[styles.filtersLabel, { marginTop: 16 }]}>Ordina per</Text>
+          <View style={styles.sortOptions}>
+            <TouchableOpacity
+              style={[styles.sortOption, sortBy === 'date' && styles.sortOptionActive]}
+              onPress={() => setSortBy('date')}
+            >
+              <Clock size={14} color={sortBy === 'date' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.sortOptionText, sortBy === 'date' && styles.sortOptionTextActive]}>
+                Data
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
+              onPress={() => setSortBy('name')}
+            >
+              <FileText size={14} color={sortBy === 'name' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
+                Nome
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
       {/* Documents List */}
       <FlatList
-        data={documents}
+        data={filteredDocuments}
         renderItem={renderDocument}
         keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContent}
@@ -295,33 +340,18 @@ export const DocumentsScreen: React.FC = () => {
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={COLORS.primary}
-            colors={[COLORS.primary]}
           />
         }
         ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          documents.length > 0 ? (
-            <Text style={styles.sectionTitle}>Tutti i documenti</Text>
-          ) : null
-        }
       />
 
-      {/* Upload FAB */}
-      {documents.length > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={uploadDocument}
-          disabled={uploading}
-          activeOpacity={0.8}
-        >
-          {uploading ? (
-            <ActivityIndicator size="small" color="#ffffff" />
-          ) : (
-            <Upload size={24} color="#ffffff" />
-          )}
-        </TouchableOpacity>
-      )}
+      {/* Info Banner */}
+      <View style={styles.infoBanner}>
+        <Text style={styles.infoBannerText}>
+          📄 I documenti sono caricati dal tuo commercialista
+        </Text>
+      </View>
     </SafeAreaView>
   );
 };
@@ -329,174 +359,212 @@ export const DocumentsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-  },
-  uploadButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOWS.md,
-  },
-  uploadButtonDisabled: {
-    backgroundColor: COLORS.textLight,
+    backgroundColor: '#f8f9fb',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  categoriesSection: {
-    paddingTop: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+  header: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: '#ffffff',
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
     color: COLORS.text,
-    paddingHorizontal: SPACING.md,
-    marginBottom: SPACING.sm,
+    letterSpacing: -0.5,
   },
-  categoriesList: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.md,
-    gap: SPACING.sm,
+  headerSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 4,
   },
-  categoryCard: {
+  searchContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    gap: 12,
+  },
+  searchInputContainer: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    marginRight: SPACING.sm,
-    ...SHADOWS.sm,
+    backgroundColor: '#f8f9fb',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    gap: 10,
   },
-  categoryIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary + '15',
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  filterButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#f8f9fb',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.sm,
   },
-  categoryName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginRight: SPACING.sm,
+  filterButtonActive: {
+    backgroundColor: COLORS.primary,
   },
-  categoryCount: {
-    backgroundColor: COLORS.primary + '20',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    marginRight: SPACING.xs,
+  filtersContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  categoryCountText: {
+  filtersLabel: {
     fontSize: 12,
     fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  categoryFilters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryFilter: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fb',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  categoryFilterActive: {
+    backgroundColor: COLORS.primary + '15',
+    borderColor: COLORS.primary,
+  },
+  categoryFilterText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  categoryFilterTextActive: {
     color: COLORS.primary,
+    fontWeight: '600',
   },
-  listContent: {
-    padding: SPACING.md,
-    paddingBottom: 100,
+  sortOptions: {
+    flexDirection: 'row',
+    gap: 10,
   },
-  documentCard: {
+  sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    ...SHADOWS.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f8f9fb',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 6,
   },
-  documentIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.sm,
+  sortOptionActive: {
+    backgroundColor: COLORS.primary + '15',
+    borderColor: COLORS.primary,
+  },
+  sortOptionText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  sortOptionTextActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 24,
+    paddingBottom: 140,
+  },
+  documentCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     overflow: 'hidden',
   },
-  documentPreview: {
-    width: '100%',
-    height: '100%',
-    borderRadius: RADIUS.md,
+  documentMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 14,
+  },
+  documentIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   documentInfo: {
     flex: 1,
-    marginRight: SPACING.sm,
   },
   documentName: {
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.text,
+    marginBottom: 4,
   },
   documentMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 4,
   },
   documentDate: {
     fontSize: 12,
     color: COLORS.textSecondary,
+    marginLeft: 2,
   },
   metaSeparator: {
     fontSize: 12,
     color: COLORS.textLight,
-    marginHorizontal: 6,
+    marginHorizontal: 4,
   },
   documentSize: {
     fontSize: 12,
     color: COLORS.textSecondary,
   },
   categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
     marginTop: 6,
-    gap: 4,
   },
-  categoryText: {
-    fontSize: 12,
-    color: COLORS.primary,
+  categoryBadgeText: {
+    fontSize: 11,
     fontWeight: '500',
+    color: COLORS.textSecondary,
   },
   documentActions: {
     flexDirection: 'row',
-    gap: SPACING.xs,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    gap: 8,
   },
   actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.background,
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#f8f9fb',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -504,54 +572,50 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: SPACING.xxl * 2,
+    paddingVertical: 60,
   },
   emptyIcon: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.textLight + '20',
+    backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: 16,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: SPACING.xs,
+    marginBottom: 8,
   },
   emptyText: {
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: SPACING.md,
-    paddingHorizontal: SPACING.lg,
+    marginBottom: 12,
+    paddingHorizontal: 32,
   },
-  emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.full,
-    gap: SPACING.xs,
+  emptyHint: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    fontStyle: 'italic',
   },
-  emptyButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  fab: {
+  infoBanner: {
     position: 'absolute',
-    bottom: SPACING.lg,
-    right: SPACING.md,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOWS.lg,
+    bottom: 90,
+    left: 24,
+    right: 24,
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+  },
+  infoBannerText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });

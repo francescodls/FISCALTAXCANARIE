@@ -1,35 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Linking,
+  Switch,
   Alert,
+  Image,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as LocalAuthentication from 'expo-local-authentication';
 import {
   User,
   Mail,
   Phone,
-  Building,
-  LogOut,
-  ChevronRight,
+  MapPin,
   Shield,
   Bell,
+  Globe,
+  ChevronRight,
+  LogOut,
+  Fingerprint,
+  Smartphone,
+  Clock,
+  Lock,
   HelpCircle,
   FileText,
-  ExternalLink,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
-import { Card } from '../components/Card';
-import { Badge } from '../components/Badge';
-import { Button } from '../components/Button';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { COLORS, SPACING, RADIUS } from '../config/constants';
+
+interface UserProfile {
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  fiscal_code?: string;
+  client_type?: string;
+}
 
 export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
+  const [profile, setProfile] = useState<UserProfile>({});
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [language, setLanguage] = useState('it');
+  const [lastAccess, setLastAccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkBiometricAvailability();
+    loadProfile();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    const compatible = await LocalAuthentication.hasHardwareAsync();
+    const enrolled = await LocalAuthentication.isEnrolledAsync();
+    setBiometricAvailable(compatible && enrolled);
+  };
+
+  const loadProfile = () => {
+    if (user) {
+      setProfile({
+        full_name: user.full_name || user.email?.split('@')[0],
+        email: user.email,
+        phone: user.phone || '',
+        address: user.address || '',
+        fiscal_code: user.fiscal_code || '',
+        client_type: user.role === 'admin' ? 'Amministratore' : 'Cliente',
+      });
+      setLastAccess(new Date().toLocaleString('it-IT'));
+    }
+  };
+
+  const handleBiometricToggle = async (value: boolean) => {
+    if (value) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Conferma la tua identità',
+        cancelLabel: 'Annulla',
+        disableDeviceFallback: false,
+      });
+      
+      if (result.success) {
+        setBiometricEnabled(true);
+        Alert.alert('Successo', 'Accesso biometrico attivato');
+      }
+    } else {
+      setBiometricEnabled(false);
+      Alert.alert('Info', 'Accesso biometrico disattivato');
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -37,145 +99,259 @@ export const ProfileScreen: React.FC = () => {
       'Sei sicuro di voler uscire?',
       [
         { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Esci',
-          style: 'destructive',
-          onPress: logout,
+        { text: 'Esci', style: 'destructive', onPress: logout },
+      ]
+    );
+  };
+
+  const handleLogoutAllDevices = () => {
+    Alert.alert(
+      'Disconnetti tutti i dispositivi',
+      'Verrai disconnesso da tutti i dispositivi. Dovrai effettuare nuovamente il login.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        { 
+          text: 'Conferma', 
+          style: 'destructive', 
+          onPress: () => {
+            Alert.alert('Successo', 'Disconnesso da tutti i dispositivi');
+            logout();
+          },
         },
       ]
     );
   };
 
-  const MenuItem = ({
+  const SettingItem = ({
     icon: Icon,
     title,
     subtitle,
     onPress,
-    showChevron = true,
+    rightElement,
     color = COLORS.text,
   }: {
     icon: any;
     title: string;
     subtitle?: string;
-    onPress: () => void;
-    showChevron?: boolean;
+    onPress?: () => void;
+    rightElement?: React.ReactNode;
     color?: string;
   }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.menuIcon, { backgroundColor: color + '15' }]}>
+    <TouchableOpacity
+      style={styles.settingItem}
+      onPress={onPress}
+      disabled={!onPress && !rightElement}
+      activeOpacity={onPress ? 0.7 : 1}
+    >
+      <View style={[styles.settingIcon, { backgroundColor: color + '15' }]}>
         <Icon size={20} color={color} />
       </View>
-      <View style={styles.menuContent}>
-        <Text style={[styles.menuTitle, { color }]}>{title}</Text>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
+      <View style={styles.settingContent}>
+        <Text style={[styles.settingTitle, { color }]}>{title}</Text>
+        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
       </View>
-      {showChevron && <ChevronRight size={20} color={COLORS.textLight} />}
+      {rightElement || (onPress && <ChevronRight size={20} color={COLORS.textLight} />)}
     </TouchableOpacity>
   );
 
-  const getTipoClienteLabel = (tipo: string) => {
-    const labels: Record<string, string> = {
-      autonomo: 'Lavoratore Autonomo',
-      societa: 'Società',
-      pensionato: 'Pensionato',
-      dipendente: 'Dipendente',
-    };
-    return labels[tipo?.toLowerCase()] || tipo || 'Non specificato';
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView
+      <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Profilo */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.full_name?.charAt(0)?.toUpperCase() || 'U'}
-            </Text>
-          </View>
-          <Text style={styles.userName}>{user?.full_name || 'Utente'}</Text>
-          <Badge
-            text={getTipoClienteLabel(user?.tipo_cliente || '')}
-            variant="outline"
-          />
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Profilo</Text>
         </View>
 
-        {/* Info Card */}
-        <Card style={styles.infoCard}>
-          <View style={styles.infoRow}>
-            <Mail size={18} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>{user?.email}</Text>
-          </View>
-          {user?.phone && (
-            <View style={styles.infoRow}>
-              <Phone size={18} color={COLORS.textSecondary} />
-              <Text style={styles.infoText}>{user.phone}</Text>
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {profile.full_name?.charAt(0)?.toUpperCase() || 'U'}
+              </Text>
             </View>
-          )}
-        </Card>
-
-        {/* Menu Items */}
-        <View style={styles.menuSection}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <Card style={styles.menuCard}>
-            <MenuItem
-              icon={Shield}
-              title="Privacy e Dati"
-              subtitle="Gestisci consensi e diritti"
-              onPress={() => Linking.openURL('https://fiscaltaxcanarie.com/privacy-policy/')}
-            />
-            <View style={styles.menuDivider} />
-            <MenuItem
-              icon={Bell}
-              title="Notifiche Push"
-              subtitle="Attive"
-              onPress={() => Alert.alert('Notifiche', 'Le notifiche push sono attive')}
-            />
-          </Card>
+          </View>
+          <Text style={styles.profileName}>{profile.full_name || 'Utente'}</Text>
+          <Text style={styles.profileEmail}>{profile.email}</Text>
+          <View style={styles.profileBadge}>
+            <Text style={styles.profileBadgeText}>{profile.client_type}</Text>
+          </View>
         </View>
 
-        <View style={styles.menuSection}>
+        {/* Account Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informazioni Account</Text>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon={Mail}
+              title="Email"
+              subtitle={profile.email}
+            />
+            {profile.phone && (
+              <SettingItem
+                icon={Phone}
+                title="Telefono"
+                subtitle={profile.phone}
+              />
+            )}
+            {profile.fiscal_code && (
+              <SettingItem
+                icon={FileText}
+                title="Codice Fiscale"
+                subtitle={profile.fiscal_code}
+              />
+            )}
+          </View>
+        </View>
+
+        {/* Security */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sicurezza</Text>
+          <View style={styles.sectionCard}>
+            {biometricAvailable && (
+              <SettingItem
+                icon={Fingerprint}
+                title={Platform.OS === 'ios' ? 'Face ID / Touch ID' : 'Impronta digitale'}
+                subtitle="Accedi rapidamente con la biometria"
+                rightElement={
+                  <Switch
+                    value={biometricEnabled}
+                    onValueChange={handleBiometricToggle}
+                    trackColor={{ false: '#e2e8f0', true: COLORS.primary + '50' }}
+                    thumbColor={biometricEnabled ? COLORS.primary : '#f4f4f5'}
+                  />
+                }
+              />
+            )}
+            <SettingItem
+              icon={Lock}
+              title="Cambia password"
+              onPress={() => Alert.alert('Info', 'Funzionalità in arrivo')}
+            />
+            <SettingItem
+              icon={Clock}
+              title="Ultimo accesso"
+              subtitle={lastAccess || 'Non disponibile'}
+            />
+            <SettingItem
+              icon={Smartphone}
+              title="Gestisci dispositivi"
+              subtitle="Visualizza i dispositivi connessi"
+              onPress={() => Alert.alert('Info', 'Funzionalità in arrivo')}
+            />
+          </View>
+        </View>
+
+        {/* Notifications */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifiche</Text>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon={Bell}
+              title="Notifiche push"
+              subtitle="Ricevi avvisi su scadenze e aggiornamenti"
+              rightElement={
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={setNotificationsEnabled}
+                  trackColor={{ false: '#e2e8f0', true: COLORS.primary + '50' }}
+                  thumbColor={notificationsEnabled ? COLORS.primary : '#f4f4f5'}
+                />
+              }
+            />
+            <SettingItem
+              icon={Mail}
+              title="Email di notifica"
+              subtitle="Scadenze, documenti, comunicazioni"
+              onPress={() => Alert.alert('Info', 'Funzionalità in arrivo')}
+            />
+          </View>
+        </View>
+
+        {/* Language */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lingua</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.languageOptions}>
+              {[
+                { code: 'it', label: 'Italiano', flag: '🇮🇹' },
+                { code: 'es', label: 'Español', flag: '🇪🇸' },
+                { code: 'en', label: 'English', flag: '🇬🇧' },
+              ].map((lang) => (
+                <TouchableOpacity
+                  key={lang.code}
+                  style={[
+                    styles.languageOption,
+                    language === lang.code && styles.languageOptionActive,
+                  ]}
+                  onPress={() => setLanguage(lang.code)}
+                >
+                  <Text style={styles.languageFlag}>{lang.flag}</Text>
+                  <Text
+                    style={[
+                      styles.languageLabel,
+                      language === lang.code && styles.languageLabelActive,
+                    ]}
+                  >
+                    {lang.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* Support */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Supporto</Text>
-          <Card style={styles.menuCard}>
-            <MenuItem
+          <View style={styles.sectionCard}>
+            <SettingItem
               icon={HelpCircle}
-              title="Assistenza"
-              subtitle="Contatta il supporto"
-              onPress={() => Linking.openURL('mailto:info@fiscaltaxcanarie.com')}
+              title="Centro assistenza"
+              onPress={() => Alert.alert('Info', 'Apri centro assistenza')}
             />
-            <View style={styles.menuDivider} />
-            <MenuItem
+            <SettingItem
+              icon={Shield}
+              title="Privacy e consensi"
+              onPress={() => Alert.alert('Info', 'Gestisci privacy')}
+            />
+            <SettingItem
               icon={FileText}
-              title="Privacy Policy"
-              onPress={() => Linking.openURL('https://fiscaltaxcanarie.com/privacy-policy/')}
+              title="Termini e condizioni"
+              onPress={() => Alert.alert('Info', 'Visualizza termini')}
             />
-            <View style={styles.menuDivider} />
-            <MenuItem
-              icon={ExternalLink}
-              title="Sito Web"
-              onPress={() => Linking.openURL('https://fiscaltaxcanarie.com')}
-            />
-          </Card>
+          </View>
         </View>
 
         {/* Logout */}
-        <View style={styles.logoutSection}>
-          <Button
-            title="Esci"
-            variant="outline"
-            onPress={handleLogout}
-            icon={<LogOut size={18} color={COLORS.error} />}
-            style={styles.logoutButton}
-            textStyle={{ color: COLORS.error }}
-          />
+        <View style={styles.section}>
+          <View style={styles.sectionCard}>
+            <SettingItem
+              icon={Smartphone}
+              title="Disconnetti tutti i dispositivi"
+              color={COLORS.warning}
+              onPress={handleLogoutAllDevices}
+            />
+            <SettingItem
+              icon={LogOut}
+              title="Esci"
+              color={COLORS.error}
+              onPress={handleLogout}
+            />
+          </View>
         </View>
 
-        {/* Version */}
-        <Text style={styles.version}>Fiscal Tax Canarie v1.0.0</Text>
+        {/* App Version */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>Fiscal Tax Canarie v1.0.0</Text>
+          <Text style={styles.copyrightText}>© 2026 Fiscal Tax Canarie S.L.</Text>
+        </View>
+
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -184,18 +360,34 @@ export const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#f8f9fb',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: SPACING.md,
-    paddingBottom: SPACING.xxl,
+    paddingHorizontal: 24,
   },
-  profileHeader: {
+  header: {
+    paddingVertical: 16,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: -0.5,
+  },
+  profileCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 24,
+  },
+  avatarContainer: {
+    marginBottom: 16,
   },
   avatar: {
     width: 80,
@@ -204,88 +396,125 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.md,
-    ...SHADOWS.md,
   },
   avatarText: {
     fontSize: 32,
     fontWeight: '700',
     color: '#ffffff',
   },
-  userName: {
-    fontSize: 24,
+  profileName: {
+    fontSize: 22,
     fontWeight: '700',
     color: COLORS.text,
-    marginBottom: SPACING.sm,
+    marginBottom: 4,
   },
-  infoCard: {
-    marginBottom: SPACING.lg,
+  profileEmail: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 12,
   },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    gap: SPACING.md,
+  profileBadge: {
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  infoText: {
-    fontSize: 15,
-    color: COLORS.text,
-  },
-  menuSection: {
-    marginBottom: SPACING.lg,
-  },
-  sectionTitle: {
+  profileBadgeText: {
     fontSize: 13,
     fontWeight: '600',
+    color: COLORS.primary,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
     color: COLORS.textSecondary,
+    marginBottom: 12,
+    marginLeft: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.xs,
   },
-  menuCard: {
-    padding: 0,
+  sectionCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
   },
-  menuItem: {
+  settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.md,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
-  menuIcon: {
+  settingIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
+    marginRight: 14,
   },
-  menuContent: {
+  settingContent: {
     flex: 1,
   },
-  menuTitle: {
-    fontSize: 16,
-    fontWeight: '500',
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
   },
-  menuSubtitle: {
+  settingSubtitle: {
     fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  menuDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginLeft: 68,
+  languageOptions: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 10,
   },
-  logoutSection: {
-    marginTop: SPACING.md,
+  languageOption: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8f9fb',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: 6,
   },
-  logoutButton: {
-    borderColor: COLORS.error,
+  languageOptionActive: {
+    backgroundColor: COLORS.primary + '15',
+    borderColor: COLORS.primary,
   },
-  version: {
-    textAlign: 'center',
+  languageFlag: {
+    fontSize: 18,
+  },
+  languageLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  languageLabelActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  versionText: {
+    fontSize: 13,
+    color: COLORS.textLight,
+  },
+  copyrightText: {
     fontSize: 12,
     color: COLORS.textLight,
-    marginTop: SPACING.lg,
+    marginTop: 4,
   },
 });
