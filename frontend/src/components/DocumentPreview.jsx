@@ -89,28 +89,50 @@ const DocumentPreview = ({
       
       const docData = response.data;
       
+      // Verifica se il documento ha dati validi
+      if (!docData) {
+        console.error("Documento non trovato o vuoto");
+        setError(true);
+        setLoading(false);
+        return;
+      }
+      
       if (docData.file_data) {
         // Decodifica base64 e crea blob
-        const byteCharacters = atob(docData.file_data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        try {
+          const byteCharacters = atob(docData.file_data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: docData.file_type || 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          setBlobUrl(url);
+          setLoading(false);
+        } catch (decodeError) {
+          console.error("Errore decodifica base64:", decodeError);
+          setError(true);
+          setLoading(false);
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: docData.file_type || 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        setBlobUrl(url);
-        setLoading(false);
       } else if (docData.storage_path) {
         // Se il file è su storage esterno, prova a caricarlo
-        const previewResponse = await axios.get(`${API}/documents/${document.id}/preview`, {
-          headers: { Authorization: `Bearer ${token}` },
-          responseType: 'blob'
-        });
-        const url = URL.createObjectURL(previewResponse.data);
-        setBlobUrl(url);
-        setLoading(false);
+        try {
+          const previewResponse = await axios.get(`${API}/documents/${document.id}/preview`, {
+            headers: { Authorization: `Bearer ${token}` },
+            responseType: 'blob'
+          });
+          const url = URL.createObjectURL(previewResponse.data);
+          setBlobUrl(url);
+          setLoading(false);
+        } catch (storageError) {
+          console.error("Errore caricamento da storage:", storageError);
+          setError(true);
+          setLoading(false);
+        }
       } else {
+        // Documento senza dati - mostra errore
+        console.error("Documento senza file_data né storage_path");
         setError(true);
         setLoading(false);
       }
