@@ -422,12 +422,14 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
       const data = await res.json();
       toast.success(data.message);
       
-      // Aggiorna la dichiarazione locale
+      // Aggiorna la dichiarazione locale con dati sanitizzati
       if (onUpdate) {
-        onUpdate({
+        const updatedData = {
           ...declaration,
           ...data.assigned_to
-        });
+        };
+        // Sanitizza per evitare problemi di serializzazione
+        onUpdate(JSON.parse(JSON.stringify(updatedData)));
       }
     } catch (error) {
       toast.error('Errore nell\'assegnazione della pratica');

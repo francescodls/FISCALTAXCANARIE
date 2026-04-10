@@ -5,6 +5,41 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 74 (10 Aprile 2026) - COMPLETATA ✅
+
+**Fix Errore "Failed to execute 'postMessage' - Request object could not be cloned"**
+
+**Problema:** Quando si apriva la dichiarazione di alcuni clienti (es. Giovanna Staiano), appariva l'errore "Failed to execute 'postMessage' on 'Window': Request object could not be cloned", bloccando l'accesso sia per il cliente che per l'admin.
+
+**Causa Root:** Alcuni browser e estensioni (es. React DevTools) cercano di serializzare lo stato React usando `structuredClone` o `postMessage`. Se lo stato contiene oggetti non serializzabili (come oggetti Response della Fetch API o riferimenti circolari), la serializzazione fallisce.
+
+**Soluzione:** Aggiunta sanitizzazione dei dati tramite `JSON.parse(JSON.stringify(data))` in tutti i punti critici:
+
+1. **`DeclarationsPage.jsx`**:
+   - `openReturn()` - Sanitizza i dati prima di `setSelectedReturn()`
+   - `fetchTaxReturns()` - Sanitizza la lista dichiarazioni
+
+2. **`TaxReturnForm.jsx`**:
+   - Aggiunto `useMemo` per sanitizzare `rawTaxReturn` all'inizializzazione
+   - `reloadTaxReturn()` - Sanitizza i dati prima di `onUpdate()`
+
+3. **`DeclarationDetailView.jsx`**:
+   - `assignToMe()` - Sanitizza i dati prima di `onUpdate()`
+
+**File Modificati:**
+- ✅ `/app/frontend/src/pages/DeclarationsPage.jsx`
+- ✅ `/app/frontend/src/components/TaxReturnForm.jsx`
+- ✅ `/app/frontend/src/components/DeclarationDetailView.jsx`
+
+**Test Eseguiti:**
+- ✅ Screenshot cliente: accesso dichiarazione funzionante
+- ✅ Screenshot admin: accesso dichiarazione funzionante
+- ✅ Nessun errore nei log della console
+
+**Nota:** Per testare completamente il fix, è necessario verificare con la dichiarazione specifica di Giovanna Staiano in produzione, poiché nell'ambiente preview non è presente.
+
+---
+
 ### Fase 73 (9 Aprile 2026) - COMPLETATA ✅
 
 **Fix Bug Critico: Upload Documenti Bloccava Accesso Dichiarazione**

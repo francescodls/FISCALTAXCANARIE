@@ -76,7 +76,8 @@ const DeclarationsPage = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setTaxReturns(data);
+      // Sanitizza i dati per evitare problemi di serializzazione
+      setTaxReturns(JSON.parse(JSON.stringify(data)));
     } catch (error) {
       console.error('Errore caricamento pratiche:', error);
     } finally {
@@ -142,7 +143,11 @@ const DeclarationsPage = () => {
       
       const data = await res.json();
       
-      setSelectedReturn(data);
+      // Sanitizza i dati per evitare problemi di serializzazione
+      // Questo previene errori "Request object could not be cloned"
+      const sanitizedData = JSON.parse(JSON.stringify(data));
+      
+      setSelectedReturn(sanitizedData);
       if (isAdmin) {
         setShowAdminDetail(true);
       } else {

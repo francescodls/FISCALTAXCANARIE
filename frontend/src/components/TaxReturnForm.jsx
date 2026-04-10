@@ -55,7 +55,17 @@ const DOC_CATEGORIES = [
   { value: 'otro', label: 'Altro' }
 ];
 
-const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
+const TaxReturnForm = ({ taxReturn: rawTaxReturn, token, user, onBack, onUpdate }) => {
+  // Sanitizza i dati in ingresso per evitare problemi di serializzazione
+  const taxReturn = React.useMemo(() => {
+    try {
+      return JSON.parse(JSON.stringify(rawTaxReturn));
+    } catch (e) {
+      console.error('Errore sanitizzazione taxReturn:', e);
+      return rawTaxReturn;
+    }
+  }, [rawTaxReturn]);
+  
   const [currentSection, setCurrentSection] = useState(0);
   const [formData, setFormData] = useState({
     secciones_habilitadas: taxReturn.secciones_habilitadas || {},
@@ -1979,10 +1989,12 @@ const TaxReturnForm = ({ taxReturn, token, user, onBack, onUpdate }) => {
       });
       const data = await res.json();
       if (res.ok && onUpdate) {
-        onUpdate(data);
-        setIntegrationRequests(data.richieste_integrazione || []);
-        setConversazione(data.conversazione || []);
-        setDocuments(data.documentos || []);
+        // Sanitizza i dati per evitare problemi di serializzazione
+        const sanitizedData = JSON.parse(JSON.stringify(data));
+        onUpdate(sanitizedData);
+        setIntegrationRequests(sanitizedData.richieste_integrazione || []);
+        setConversazione(sanitizedData.conversazione || []);
+        setDocuments(sanitizedData.documentos || []);
       }
     } catch (error) {
       console.error('Errore ricaricamento dati:', error);
