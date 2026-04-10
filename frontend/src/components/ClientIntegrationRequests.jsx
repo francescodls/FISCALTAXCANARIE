@@ -398,6 +398,55 @@ const ClientIntegrationRequests = ({ taxReturn, token, user, onUpdate }) => {
                             )}
                           </p>
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          
+                          {/* Allegati del messaggio */}
+                          {msg.attachments && msg.attachments.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-slate-200/50">
+                              <p className="text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+                                <Paperclip className="w-3 h-3" />
+                                Allegati:
+                              </p>
+                              <div className="space-y-1">
+                                {msg.attachments.map((att) => (
+                                  <a
+                                    key={att.id}
+                                    href={`${API_URL}/api/declarations/tax-returns/${taxReturn.id}/messages/${msg.id}/attachments/${att.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-xs text-teal-700 hover:text-teal-900 hover:underline"
+                                    onClick={async (e) => {
+                                      e.preventDefault();
+                                      try {
+                                        const res = await fetch(
+                                          `${API_URL}/api/declarations/tax-returns/${taxReturn.id}/messages/${msg.id}/attachments/${att.id}`,
+                                          { headers: { 'Authorization': `Bearer ${token}` } }
+                                        );
+                                        if (!res.ok) throw new Error();
+                                        const blob = await res.blob();
+                                        const url = URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = att.file_name;
+                                        a.click();
+                                        URL.revokeObjectURL(url);
+                                      } catch {
+                                        toast.error('Errore download allegato');
+                                      }
+                                    }}
+                                  >
+                                    {att.file_type === 'application/pdf' ? (
+                                      <FileText className="w-3 h-3" />
+                                    ) : (
+                                      <Eye className="w-3 h-3" />
+                                    )}
+                                    {att.file_name}
+                                    <Download className="w-3 h-3" />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
                           <p className="text-xs mt-1 opacity-50">
                             {new Date(msg.created_at).toLocaleString('it-IT')}
                           </p>

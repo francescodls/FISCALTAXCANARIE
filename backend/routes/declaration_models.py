@@ -487,6 +487,15 @@ class IntegrationRequestResponse(BaseModel):
 class DeclarationMessageCreate(BaseModel):
     """Creazione messaggio nella conversazione"""
     content: str
+    attachments: Optional[List[dict]] = None  # Lista di allegati: {file_name, file_type, file_data (base64)}
+
+
+class MessageAttachment(BaseModel):
+    """Allegato di un messaggio"""
+    id: str
+    file_name: str
+    file_type: str  # MIME type: application/pdf, image/jpeg, image/png
+    file_size: int  # dimensione in bytes
 
 
 class DeclarationMessage(BaseModel):
@@ -495,10 +504,14 @@ class DeclarationMessage(BaseModel):
     content: str
     sender_id: str
     sender_name: str
+    sender_first_name: Optional[str] = None
+    sender_last_name: Optional[str] = None
     sender_role: str  # "cliente" o "commercialista"
+    sender_profile_image: Optional[str] = None
     created_at: str
     read_by_admin: bool = False
     read_by_client: bool = False
+    attachments: Optional[List[MessageAttachment]] = None  # Allegati senza file_data
 
 
 # ==================== VISTA CLIENTI CON DICHIARAZIONI ====================

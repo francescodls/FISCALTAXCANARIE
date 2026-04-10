@@ -5,6 +5,61 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 75 (10 Aprile 2026) - COMPLETATA ✅
+
+**Estensione Sezione Comunicazioni con Allegati Documentali**
+
+**Requisito:** Permettere all'amministratore di allegare documenti (PDF, JPEG, PNG) ai messaggi nella sezione Comunicazioni delle dichiarazioni. Il cliente deve ricevere gli allegati sia in-app che via email.
+
+**Modifiche Backend:**
+
+1. **`declaration_models.py`**:
+   - Aggiunto `MessageAttachment` model con id, file_name, file_type, file_size
+   - Esteso `DeclarationMessageCreate` con campo `attachments` opzionale
+   - Aggiunto `attachments` a `DeclarationMessage` per la risposta
+
+2. **`declarations.py`**:
+   - Endpoint `POST /messages` ora supporta allegati (max 10MB, formati: PDF, JPEG, PNG)
+   - Salva `file_data` (base64) nel database con i messaggi
+   - Rimuove `file_data` dalle risposte API per performance
+   - Email di notifica al cliente include sezione allegati
+   - Nuovo endpoint `GET /messages/{message_id}/attachments/{attachment_id}` per download
+
+**Modifiche Frontend Admin (`DeclarationDetailView.jsx`):**
+
+- Aggiunto state per `messageAttachments` e `uploadingAttachment`
+- Pulsante 📎 per allegare file (PDF, JPEG, PNG fino a 10MB)
+- Preview allegati selezionati prima dell'invio
+- Possibilità di rimuovere allegati prima dell'invio
+- Visualizzazione allegati nei messaggi con icona download
+- Funzione `downloadMessageAttachment()` per download
+
+**Modifiche Frontend Cliente (`ClientIntegrationRequests.jsx`):**
+
+- Visualizzazione allegati nei messaggi ricevuti
+- Link cliccabili per download allegati
+- Icona 📄 per PDF, 👁 per immagini
+
+**Funzionalità Implementate:**
+
+| Funzionalità | Stato |
+|-------------|-------|
+| Upload allegati (PDF, JPEG, PNG) | ✅ |
+| Limite 10MB per file | ✅ |
+| Preview allegati prima invio | ✅ |
+| Rimozione allegati pre-invio | ✅ |
+| Salvataggio DB con base64 | ✅ |
+| Download allegati (admin/cliente) | ✅ |
+| Email notifica con sezione allegati | ✅ |
+| Visualizzazione in-app cliente | ✅ |
+
+**Test Eseguiti:**
+- ✅ API: Invio messaggio con allegato PDF
+- ✅ Screenshot Admin: Messaggi con allegati visibili e scaricabili
+- ✅ Screenshot Cliente: Messaggi con allegati da Fiscal Tax visibili
+
+---
+
 ### Fase 74 (10 Aprile 2026) - COMPLETATA ✅
 
 **Fix Errore "Failed to execute 'postMessage' - Request object could not be cloned"**

@@ -46,6 +46,11 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   });
   const [newDocRequest, setNewDocRequest] = useState('');
   const messagesEndRef = useRef(null);
+  const attachmentInputRef = useRef(null);
+  
+  // State per allegati messaggi
+  const [messageAttachments, setMessageAttachments] = useState([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   
   // State per onorario dichiarazione
   const [showFeeDialog, setShowFeeDialog] = useState(false);
@@ -214,38 +219,130 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && messageAttachments.length === 0) return;
     
     setSendingMessage(true);
     try {
+      const payload = { 
+        content: newMessage || '(Allegati)',
+        attachments: messageAttachments.length > 0 ? messageAttachments : null
+      };
+      
       const res = await fetch(`${API_URL}/api/declarations/tax-returns/${declaration.id}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ content: newMessage })
+        body: JSON.stringify(payload)
       });
       
       if (!res.ok) throw new Error('Errore invio messaggio');
       
-      // Aggiorna lista messaggi
-      setMessages([...messages, {
+      const data = await res.json();
+      
+      // Usa il messaggio restituito dal server (con allegati processati)
+      const sentMessage = data.sent_message || {
         id: Date.now().toString(),
         content: newMessage,
         sender_id: user.id,
         sender_name: user.full_name,
+        sender_first_name: user.first_name,
+        sender_last_name: user.last_name,
         sender_role: user.role,
+        sender_profile_image: user.profile_image,
         created_at: new Date().toISOString(),
         read_by_admin: isAdmin,
-        read_by_client: !isAdmin
-      }]);
+        read_by_client: !isAdmin,
+        attachments: messageAttachments.map((att, i) => ({
+          id: `temp-${i}`,
+          file_name: att.file_name,
+          file_type: att.file_type,
+          file_size: att.file_data ? att.file_data.length * 3 / 4 : 0
+        }))
+      };
+      
+      setMessages([...messages, sentMessage]);
       setNewMessage('');
-      toast.success('Messaggio inviato');
+      setMessageAttachments([]);
+      toast.success(messageAttachments.length > 0 ? 'Messaggio con allegati inviato' : 'Messaggio inviato');
     } catch (error) {
       toast.error('Errore invio messaggio');
     } finally {
       setSendingMessage(false);
+    }
+  };
+  
+  // Gestione allegati messaggi
+  const handleAttachmentSelect = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+    
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    setUploadingAttachment(true);
+    
+    try {
+      for (const file of files) {
+        // Verifica tipo
+        if (!allowedTypes.includes(file.type)) {
+          toast.error(`${file.name}: formato non supportato. Usa PDF, JPEG o PNG.`);
+          continue;
+        }
+        
+        // Verifica dimensione
+        if (file.size > maxSize) {
+          toast.error(`${file.name}: file troppo grande (max 10MB)`);
+          continue;
+        }
+        
+        // Converti in base64
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        setMessageAttachments(prev => [...prev, {
+          file_name: file.name,
+          file_type: file.type,
+          file_data: base64
+        }]);
+      }
+    } catch (error) {
+      toast.error('Errore caricamento file');
+    } finally {
+      setUploadingAttachment(false);
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+    }
+  };
+  
+  const removeAttachment = (index) => {
+    setMessageAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  const downloadMessageAttachment = async (messageId, attachment) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/api/declarations/tax-returns/${declaration.id}/messages/${messageId}/attachments/${attachment.id}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      if (!res.ok) throw new Error('Errore download');
+      
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.file_name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Errore download allegato');
     }
   };
 
@@ -1203,6 +1300,34 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
                               )}
                             </p>
                             <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                            
+                            {/* Allegati del messaggio */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-slate-200/50">
+                                <p className="text-xs font-medium text-slate-600 mb-1 flex items-center gap-1">
+                                  <Paperclip className="w-3 h-3" />
+                                  Allegati:
+                                </p>
+                                <div className="space-y-1">
+                                  {msg.attachments.map((att) => (
+                                    <button
+                                      key={att.id}
+                                      onClick={() => downloadMessageAttachment(msg.id, att)}
+                                      className="flex items-center gap-2 text-xs text-teal-700 hover:text-teal-900 hover:underline"
+                                    >
+                                      {att.file_type === 'application/pdf' ? (
+                                        <FileText className="w-3 h-3" />
+                                      ) : (
+                                        <Eye className="w-3 h-3" />
+                                      )}
+                                      {att.file_name}
+                                      <Download className="w-3 h-3" />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
                             <p className="text-xs mt-1 opacity-60">
                               {new Date(msg.created_at).toLocaleString('it-IT')}
                             </p>
@@ -1216,27 +1341,98 @@ const DeclarationDetailView = ({ declaration, token, user, onBack, onUpdate }) =
               )}
             </CardContent>
             <div className="p-4 border-t">
+              {/* Preview allegati selezionati */}
+              {messageAttachments.length > 0 && (
+                <div className="mb-3 p-2 bg-slate-50 rounded-lg">
+                  <p className="text-xs font-medium text-slate-600 mb-2 flex items-center gap-1">
+                    <Paperclip className="w-3 h-3" />
+                    Allegati da inviare ({messageAttachments.length}):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {messageAttachments.map((att, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center gap-1 bg-white border rounded px-2 py-1 text-xs"
+                      >
+                        {att.file_type === 'application/pdf' ? (
+                          <FileText className="w-3 h-3 text-red-500" />
+                        ) : (
+                          <Eye className="w-3 h-3 text-blue-500" />
+                        )}
+                        <span className="max-w-[150px] truncate">{att.file_name}</span>
+                        <button
+                          onClick={() => removeAttachment(index)}
+                          className="text-slate-400 hover:text-red-500"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               <div className="flex gap-2">
-                <Textarea
-                  placeholder="Scrivi un messaggio..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1 min-h-[60px]"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                />
+                <div className="flex-1 flex gap-2">
+                  <Textarea
+                    placeholder="Scrivi un messaggio..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="flex-1 min-h-[60px]"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
+                  />
+                </div>
+                
+                {/* Pulsante Allegati (solo admin) */}
+                {isAdmin && (
+                  <>
+                    <input
+                      ref={attachmentInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                      onChange={handleAttachmentSelect}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => attachmentInputRef.current?.click()}
+                      disabled={uploadingAttachment}
+                      className="self-end"
+                      title="Allega documento (PDF, JPEG, PNG)"
+                    >
+                      {uploadingAttachment ? (
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Paperclip className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </>
+                )}
+                
                 <Button 
                   onClick={sendMessage} 
-                  disabled={sendingMessage || !newMessage.trim()}
+                  disabled={sendingMessage || (!newMessage.trim() && messageAttachments.length === 0)}
                   className="self-end"
                 >
-                  <Send className="w-4 h-4" />
+                  {sendingMessage ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
                 </Button>
               </div>
+              
+              {isAdmin && (
+                <p className="text-xs text-slate-500 mt-2">
+                  Puoi allegare PDF, JPEG o PNG (max 10MB). Il cliente riceverà anche un'email.
+                </p>
+              )}
             </div>
           </Card>
         </TabsContent>

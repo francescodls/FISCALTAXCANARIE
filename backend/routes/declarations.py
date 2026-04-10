@@ -308,6 +308,14 @@ async def get_tax_return(tax_return_id: str, user: dict = Depends(get_current_us
             if "file_data" in doc:
                 del doc["file_data"]
     
+    # Rimuovi file_data dagli allegati dei messaggi nella conversazione
+    if "conversazione" in tax_return and tax_return["conversazione"]:
+        for msg in tax_return["conversazione"]:
+            if msg.get("attachments"):
+                for att in msg["attachments"]:
+                    if "file_data" in att:
+                        del att["file_data"]
+    
     return TaxReturnResponse(**tax_return)
 
 
@@ -1343,7 +1351,7 @@ async def add_declaration_message(
     data: DeclarationMessageCreate,
     user: dict = Depends(get_current_user)
 ):
-    """Aggiunge un messaggio alla conversazione della dichiarazione"""
+    """Aggiunge un messaggio alla conversazione della dichiarazione con supporto allegati"""
     db = get_db()
     
     tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
@@ -1359,6 +1367,48 @@ async def add_declaration_message(
     # Determina se è admin (commercialista, admin, super_admin)
     is_admin = user["role"] in ["commercialista", "admin", "super_admin"]
     
+    # Processa allegati se presenti
+    processed_attachments = []
+    attachments_for_db = []  # Con file_data per il DB
+    
+    if data.attachments:
+        # Verifica formati consentiti
+        allowed_types = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+        
+        for att in data.attachments:
+            if att.get('file_type') not in allowed_types:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Formato file non supportato: {att.get('file_type')}. Formati consentiti: PDF, JPEG, PNG"
+                )
+            
+            # Calcola dimensione file da base64
+            file_data = att.get('file_data', '')
+            file_size = len(file_data) * 3 // 4 if file_data else 0
+            
+            # Limite dimensione: 10MB per allegato
+            if file_size > 10 * 1024 * 1024:
+                raise HTTPException(status_code=400, detail=f"File {att.get('file_name')} troppo grande (max 10MB)")
+            
+            att_id = str(uuid.uuid4())
+            
+            # Allegato per la risposta (senza file_data)
+            processed_attachments.append({
+                "id": att_id,
+                "file_name": att.get('file_name'),
+                "file_type": att.get('file_type'),
+                "file_size": file_size
+            })
+            
+            # Allegato per il DB (con file_data)
+            attachments_for_db.append({
+                "id": att_id,
+                "file_name": att.get('file_name'),
+                "file_type": att.get('file_type'),
+                "file_size": file_size,
+                "file_data": file_data
+            })
+    
     message = {
         "id": str(uuid.uuid4()),
         "content": data.content,
@@ -1370,7 +1420,8 @@ async def add_declaration_message(
         "sender_profile_image": user.get("profile_image"),
         "created_at": now,
         "read_by_admin": is_admin,
-        "read_by_client": user["role"] == "cliente"
+        "read_by_client": user["role"] == "cliente",
+        "attachments": attachments_for_db if attachments_for_db else None
     }
     
     await db.tax_returns.update_one(
@@ -1390,6 +1441,25 @@ async def add_declaration_message(
             client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
             admin_display_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('full_name', 'Fiscal Tax Canarie')
             if client and client.get("email"):
+                # Prepara sezione allegati per email
+                attachments_html = ""
+                if processed_attachments:
+                    attachments_html = """
+                    <div style="margin-top: 15px; padding: 10px; background-color: #f8fafc; border-radius: 8px;">
+                        <p style="font-weight: 600; color: #334155; margin-bottom: 8px;">📎 Allegati:</p>
+                        <ul style="margin: 0; padding-left: 20px;">
+                    """
+                    for att in processed_attachments:
+                        file_icon = "📄" if att['file_type'] == 'application/pdf' else "🖼️"
+                        attachments_html += f"<li>{file_icon} {att['file_name']}</li>"
+                    attachments_html += """
+                        </ul>
+                        <p style="font-size: 12px; color: #64748b; margin-top: 8px;">
+                            Accedi alla piattaforma per visualizzare e scaricare gli allegati.
+                        </p>
+                    </div>
+                    """
+                
                 await send_generic_email(
                     client["email"],
                     f"[Fiscal Tax] Nuovo messaggio da {admin_display_name} - Dichiarazione {tax_return['anno_fiscale']}",
@@ -1400,18 +1470,82 @@ async def add_declaration_message(
                     <blockquote style="border-left: 3px solid #0d9488; padding-left: 15px; color: #555;">
                         {data.content}
                     </blockquote>
+                    {attachments_html}
                     <p>Accedi alla piattaforma per rispondere.</p>
                     <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
                     """
                 )
         else:
             # Notifica all'admin (il cliente ha risposto)
-            # Potresti inviare email all'admin qui se necessario
             pass
     except Exception as e:
         pass  # Non bloccare se email fallisce
     
-    return {"message": "Messaggio inviato", "message_id": message["id"]}
+    # Prepara risposta senza file_data
+    response_message = {
+        **message,
+        "attachments": processed_attachments if processed_attachments else None
+    }
+    
+    return {"message": "Messaggio inviato", "message_id": message["id"], "sent_message": response_message}
+
+
+
+@router.get("/tax-returns/{tax_return_id}/messages/{message_id}/attachments/{attachment_id}")
+async def get_message_attachment(
+    tax_return_id: str,
+    message_id: str,
+    attachment_id: str,
+    user: dict = Depends(get_current_user)
+):
+    """Scarica un allegato di un messaggio"""
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Trova il messaggio
+    message = None
+    for msg in tax_return.get("conversazione", []):
+        if msg.get("id") == message_id:
+            message = msg
+            break
+    
+    if not message:
+        raise HTTPException(status_code=404, detail="Messaggio non trovato")
+    
+    # Trova l'allegato
+    attachment = None
+    for att in message.get("attachments", []):
+        if att.get("id") == attachment_id:
+            attachment = att
+            break
+    
+    if not attachment or not attachment.get("file_data"):
+        raise HTTPException(status_code=404, detail="Allegato non trovato")
+    
+    # Decodifica base64
+    import base64
+    try:
+        file_data = base64.b64decode(attachment["file_data"])
+    except Exception:
+        raise HTTPException(status_code=500, detail="Errore decodifica file")
+    
+    from fastapi.responses import Response
+    
+    return Response(
+        content=file_data,
+        media_type=attachment["file_type"],
+        headers={
+            "Content-Disposition": f'attachment; filename="{attachment["file_name"]}"'
+        }
+    )
+
 
 
 @router.put("/tax-returns/{tax_return_id}/messages/mark-read")
