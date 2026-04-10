@@ -227,10 +227,11 @@ export const CalendarScreen: React.FC = () => {
                 key={index}
                 style={[
                   styles.dayCell,
-                  day && isToday(day) && styles.dayCellToday,
+                  day && isToday(day) ? styles.dayCellToday : undefined,
                   selectedDate && day === selectedDate.getDate() &&
-                    currentMonth.getMonth() === selectedDate.getMonth() &&
-                    styles.dayCellSelected,
+                    currentMonth.getMonth() === selectedDate.getMonth()
+                    ? styles.dayCellSelected
+                    : undefined,
                 ]}
                 onPress={() => day && setSelectedDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day))}
                 disabled={!day}

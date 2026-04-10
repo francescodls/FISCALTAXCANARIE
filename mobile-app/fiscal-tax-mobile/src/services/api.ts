@@ -85,7 +85,7 @@ class ApiService {
     return this.request<any[]>('/api/tickets');
   }
 
-  async createTicket(data: { subject: string; message: string; priority?: string }) {
+  async createTicket(data: { subject: string; message: string; category?: string; priority?: string }) {
     return this.request('/api/tickets', {
       method: 'POST',
       body: JSON.stringify(data),

@@ -166,18 +166,19 @@ export const HomeScreen: React.FC = () => {
       setActionItems(actions.slice(0, 3));
 
       // Process deadlines
-      const processedDeadlines = deadlinesData.slice(0, 3).map((d: any, index: number) => {
+      const processedDeadlines: Deadline[] = deadlinesData.slice(0, 3).map((d: any, index: number) => {
         const deadlineDate = new Date(d.date || d.due_date);
         const today = new Date();
         const diffTime = deadlineDate.getTime() - today.getTime();
         const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const status: 'urgent' | 'warning' | 'normal' = daysLeft <= 3 ? 'urgent' : daysLeft <= 7 ? 'warning' : 'normal';
         
         return {
           id: d._id || `deadline-${index}`,
           title: d.title || d.name || 'Scadenza fiscale',
           date: deadlineDate.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }),
           daysLeft,
-          status: daysLeft <= 3 ? 'urgent' : daysLeft <= 7 ? 'warning' : 'normal',
+          status,
         };
       });
       setDeadlines(processedDeadlines);

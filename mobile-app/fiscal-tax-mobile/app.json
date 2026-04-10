@@ -18,11 +18,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fiscaltaxcanarie.clientapp",
-      "buildNumber": "1",
+      "buildNumber": "5",
       "infoPlist": {
         "NSCameraUsageDescription": "Questa app utilizza la fotocamera per scansionare documenti.",
         "NSPhotoLibraryUsageDescription": "Questa app accede alla galleria per caricare documenti.",
-        "NSDocumentsFolderUsageDescription": "Questa app accede ai file per caricare documenti."
+        "NSDocumentsFolderUsageDescription": "Questa app accede ai file per caricare documenti.",
+        "NSFaceIDUsageDescription": "Questa app utilizza Face ID per un accesso rapido e sicuro."
       }
     },
     "android": {
@@ -55,7 +56,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-document-picker"
+      "expo-document-picker",
+      "expo-local-authentication"
     ],
     "extra": {
       "eas": {

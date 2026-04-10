@@ -325,8 +325,8 @@ export const CommunicationsScreen: React.FC = () => {
 
       {/* Content */}
       <FlatList
-        data={activeTab === 'tickets' ? tickets : messages}
-        renderItem={activeTab === 'tickets' ? renderTicket : renderMessage}
+        data={activeTab === 'tickets' ? tickets : messages as any[]}
+        renderItem={activeTab === 'tickets' ? renderTicket as any : renderMessage as any}
         keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={

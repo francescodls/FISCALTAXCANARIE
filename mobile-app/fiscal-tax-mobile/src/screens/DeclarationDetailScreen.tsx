@@ -72,7 +72,7 @@ export const DeclarationDetailScreen: React.FC = () => {
   const loadDeclaration = async () => {
     try {
       const data = await apiService.getDeclarationDetails(id);
-      setDeclaration(data);
+      setDeclaration(data as DeclarationDetail);
     } catch (error) {
       console.error('Error loading declaration:', error);
     } finally {
