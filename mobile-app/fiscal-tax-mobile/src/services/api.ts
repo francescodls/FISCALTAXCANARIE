@@ -60,6 +60,13 @@ class ApiService {
     return this.request(`/api/declarations/tax-returns/${id}`);
   }
 
+  async sendDeclarationMessage(declarationId: string, text: string) {
+    return this.request(`/api/declarations/tax-returns/${declarationId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  }
+
   // Notifiche
   async getNotifications() {
     return this.request<any[]>('/api/notifications');

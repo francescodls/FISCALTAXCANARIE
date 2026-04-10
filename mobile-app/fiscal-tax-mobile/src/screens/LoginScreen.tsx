@@ -57,11 +57,12 @@ export const LoginScreen: React.FC = () => {
           {/* Logo e Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <View style={styles.logoCircle}>
-                <Text style={styles.logoText}>FT</Text>
-              </View>
+              <Image
+                source={require('../../assets/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
             </View>
-            <Text style={styles.title}>Fiscal Tax Canarie</Text>
             <Text style={styles.subtitle}>Area Clienti</Text>
           </View>
 
@@ -164,33 +165,14 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: SPACING.md,
   },
-  logoCircle: {
-    width: 80,
+  logo: {
+    width: 220,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#ffffff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textSecondary,
+    fontWeight: '500',
   },
   form: {
     marginBottom: SPACING.xl,

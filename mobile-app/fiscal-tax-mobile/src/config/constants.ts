@@ -1,22 +1,25 @@
 // Configurazione API - Produzione
 export const API_URL = 'https://app.fiscaltaxcanarie.com';
 
-// Colori del brand - coerenti con la web app
+// Colori del brand - Fiscal Tax Canarie
 export const COLORS = {
-  primary: '#0d9488',      // Teal-600
-  primaryDark: '#0f766e',  // Teal-700
-  primaryLight: '#14b8a6', // Teal-500
-  secondary: '#64748b',    // Slate-500
-  background: '#f8fafc',   // Slate-50
+  primary: '#3caca4',      // Teal corporativo
+  primaryDark: '#2d9a93',  // Teal scuro
+  primaryLight: '#4dbdb5', // Teal chiaro
+  secondary: '#1a1a2e',    // Blu scuro
+  background: '#f8fafc',   // Sfondo chiaro
   surface: '#ffffff',
-  text: '#0f172a',         // Slate-900
-  textSecondary: '#64748b', // Slate-500
-  textLight: '#94a3b8',    // Slate-400
-  border: '#e2e8f0',       // Slate-200
-  success: '#10b981',      // Emerald-500
-  warning: '#f59e0b',      // Amber-500
-  error: '#ef4444',        // Red-500
-  info: '#3b82f6',         // Blue-500
+  surfaceAlt: '#f1f5f9',   // Sfondo alternativo
+  text: '#1a1a2e',         // Testo principale
+  textSecondary: '#64748b', // Testo secondario
+  textLight: '#94a3b8',    // Testo leggero
+  border: '#e2e8f0',       // Bordi
+  success: '#10b981',      // Verde successo
+  warning: '#f59e0b',      // Arancione warning
+  error: '#ef4444',        // Rosso errore
+  info: '#3b82f6',         // Blu info
+  accent: '#8b5cf6',       // Viola accento
+  gold: '#d4af37',         // Oro per premium
 };
 
 // Tipografia

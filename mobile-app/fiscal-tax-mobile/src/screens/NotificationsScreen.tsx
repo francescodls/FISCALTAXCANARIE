@@ -6,18 +6,27 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Bell, Check, CheckCheck, Trash2 } from 'lucide-react-native';
-import { apiService } from '../services/api';
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  AlertCircle,
+  Info,
+  Calendar,
+  Euro,
+  FileText,
+  MessageSquare,
+} from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
-import { Button } from '../components/Button';
+import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
-import { formatDistanceToNow } from 'date-fns';
-import { it } from 'date-fns/locale';
 
 interface Notification {
-  id: string;
+  _id: string;
+  id?: string;
   title: string;
   message: string;
   type: string;
@@ -30,6 +39,7 @@ export const NotificationsScreen: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'unread'>('all');
 
   useEffect(() => {
     if (token) {
@@ -58,119 +68,176 @@ export const NotificationsScreen: React.FC = () => {
   const markAsRead = async (id: string) => {
     try {
       await apiService.markNotificationRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      setNotifications(prev =>
+        prev.map(n => (n._id === id || n.id === id) ? { ...n, read: true } : n)
       );
     } catch (error) {
-      console.error('Error marking notification read:', error);
+      console.error('Error marking notification as read:', error);
     }
   };
 
   const markAllAsRead = async () => {
     try {
       await apiService.markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     } catch (error) {
-      console.error('Error marking all read:', error);
+      console.error('Error marking all notifications as read:', error);
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'success':
-        return COLORS.success;
-      case 'warning':
-        return COLORS.warning;
-      case 'error':
-        return COLORS.error;
-      case 'privacy':
-        return '#8b5cf6';
-      default:
-        return COLORS.primary;
-    }
+  const getNotificationIcon = (type: string) => {
+    const icons: Record<string, { icon: any; color: string }> = {
+      'deadline': { icon: Calendar, color: COLORS.warning },
+      'payment': { icon: Euro, color: COLORS.success },
+      'document': { icon: FileText, color: COLORS.info },
+      'message': { icon: MessageSquare, color: COLORS.primary },
+      'alert': { icon: AlertCircle, color: COLORS.error },
+      'info': { icon: Info, color: COLORS.info },
+    };
+    return icons[type] || icons['info'];
   };
 
-  const formatTime = (dateString: string) => {
+  const formatDate = (dateString: string) => {
     try {
-      return formatDistanceToNow(new Date(dateString), {
-        addSuffix: true,
-        locale: it,
-      });
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffMinutes = Math.floor(diffTime / (1000 * 60));
+      const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffMinutes < 1) return 'Adesso';
+      if (diffMinutes < 60) return `${diffMinutes} min fa`;
+      if (diffHours < 24) return `${diffHours} ore fa`;
+      if (diffDays === 1) return 'Ieri';
+      if (diffDays < 7) return `${diffDays} giorni fa`;
+      return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
     } catch {
       return '';
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const filteredNotifications = filter === 'unread'
+    ? notifications.filter(n => !n.read)
+    : notifications;
 
-  const renderNotification = ({ item }: { item: Notification }) => (
-    <TouchableOpacity
-      style={[styles.notificationItem, !item.read && styles.notificationUnread]}
-      onPress={() => !item.read && markAsRead(item.id)}
-      activeOpacity={0.7}
-    >
-      <View
-        style={[
-          styles.notificationIndicator,
-          { backgroundColor: getTypeColor(item.type) },
-          item.read && styles.notificationIndicatorRead,
-        ]}
-      />
-      <View style={styles.notificationContent}>
-        <View style={styles.notificationHeader}>
-          <Text style={styles.notificationTitle} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.notificationTime}>{formatTime(item.created_at)}</Text>
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const renderNotification = ({ item }: { item: Notification }) => {
+    const { icon: Icon, color } = getNotificationIcon(item.type);
+
+    return (
+      <TouchableOpacity
+        style={[styles.notificationCard, !item.read && styles.notificationUnread]}
+        onPress={() => {
+          if (!item.read) {
+            markAsRead(item._id || item.id!);
+          }
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.notificationIcon, { backgroundColor: color + '15' }]}>
+          <Icon size={22} color={color} />
         </View>
-        <Text style={styles.notificationMessage} numberOfLines={3}>
-          {item.message}
-        </Text>
+        <View style={styles.notificationContent}>
+          <View style={styles.notificationHeader}>
+            <Text style={[styles.notificationTitle, !item.read && styles.notificationTitleUnread]}>
+              {item.title}
+            </Text>
+            <Text style={styles.notificationTime}>{formatDate(item.created_at)}</Text>
+          </View>
+          <Text style={styles.notificationMessage} numberOfLines={2}>
+            {item.message}
+          </Text>
+        </View>
+        {!item.read && <View style={styles.unreadDot} />}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIcon}>
+        <Bell size={48} color={COLORS.textLight} />
       </View>
-      {!item.read && (
-        <View style={styles.unreadDot} />
-      )}
-    </TouchableOpacity>
+      <Text style={styles.emptyTitle}>
+        {filter === 'unread' ? 'Nessuna notifica da leggere' : 'Nessuna notifica'}
+      </Text>
+      <Text style={styles.emptyText}>
+        {filter === 'unread'
+          ? 'Sei al passo con tutte le tue notifiche!'
+          : 'Le notifiche appariranno qui quando ci saranno aggiornamenti'}
+      </Text>
+    </View>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Notifiche</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Notifiche</Text>
-          <Text style={styles.subtitle}>
-            {unreadCount > 0 ? `${unreadCount} non lette` : 'Tutto letto'}
+          <Text style={styles.headerTitle}>Notifiche</Text>
+          <Text style={styles.headerSubtitle}>
+            {unreadCount > 0 ? `${unreadCount} da leggere` : 'Tutto letto'}
           </Text>
         </View>
         {unreadCount > 0 && (
-          <Button
-            title="Leggi tutte"
-            variant="outline"
-            size="sm"
-            onPress={markAllAsRead}
-            icon={<CheckCheck size={16} color={COLORS.primary} />}
-          />
+          <TouchableOpacity style={styles.markAllButton} onPress={markAllAsRead}>
+            <CheckCheck size={18} color={COLORS.primary} />
+            <Text style={styles.markAllText}>Leggi tutte</Text>
+          </TouchableOpacity>
         )}
       </View>
 
+      {/* Filter Tabs */}
+      <View style={styles.filterTabs}>
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
+          onPress={() => setFilter('all')}
+        >
+          <Text style={[styles.filterTabText, filter === 'all' && styles.filterTabTextActive]}>
+            Tutte ({notifications.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterTab, filter === 'unread' && styles.filterTabActive]}
+          onPress={() => setFilter('unread')}
+        >
+          <Text style={[styles.filterTabText, filter === 'unread' && styles.filterTabTextActive]}>
+            Da leggere ({unreadCount})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Notifications List */}
       <FlatList
-        data={notifications}
+        data={filteredNotifications}
         renderItem={renderNotification}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
+        contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
           />
         }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Bell size={48} color={COLORS.textLight} />
-            <Text style={styles.emptyText}>Nessuna notifica</Text>
-          </View>
-        }
+        ListEmptyComponent={renderEmptyState}
+        showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>
   );
@@ -185,40 +252,90 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: SPACING.md,
-    paddingBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface,
   },
-  title: {
+  headerTitle: {
     fontSize: 28,
     fontWeight: '700',
     color: COLORS.text,
   },
-  subtitle: {
+  headerSubtitle: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    marginTop: 4,
   },
-  list: {
-    padding: SPACING.md,
-    gap: SPACING.sm,
-  },
-  notificationItem: {
+  markAllButton: {
     flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
+    gap: 4,
+  },
+  markAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  filterTabs: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm,
+    gap: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  filterTab: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.background,
+  },
+  filterTabActive: {
+    backgroundColor: COLORS.primary,
+  },
+  filterTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  filterTabTextActive: {
+    color: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContent: {
+    padding: SPACING.md,
+    paddingBottom: SPACING.xxl,
+  },
+  notificationCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     backgroundColor: COLORS.surface,
     borderRadius: RADIUS.lg,
     padding: SPACING.md,
+    marginBottom: SPACING.sm,
     ...SHADOWS.sm,
   },
   notificationUnread: {
     backgroundColor: COLORS.primary + '08',
+    borderWidth: 1,
+    borderColor: COLORS.primary + '20',
   },
-  notificationIndicator: {
-    width: 4,
-    borderRadius: 2,
-    marginRight: SPACING.md,
-  },
-  notificationIndicatorRead: {
-    opacity: 0.3,
+  notificationIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
   },
   notificationContent: {
     flex: 1,
@@ -226,15 +343,18 @@ const styles = StyleSheet.create({
   notificationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 4,
   },
   notificationTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
     color: COLORS.text,
     flex: 1,
     marginRight: SPACING.sm,
+  },
+  notificationTitleUnread: {
+    fontWeight: '600',
   },
   notificationTime: {
     fontSize: 12,
@@ -250,17 +370,34 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: COLORS.primary,
-    marginLeft: SPACING.sm,
-    alignSelf: 'center',
+    marginLeft: SPACING.xs,
+    marginTop: 4,
   },
   emptyState: {
-    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    paddingVertical: SPACING.xxl,
+    alignItems: 'center',
+    paddingVertical: SPACING.xxl * 2,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.textLight + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.textSecondary,
-    marginTop: SPACING.md,
+    textAlign: 'center',
+    paddingHorizontal: SPACING.lg,
   },
 });

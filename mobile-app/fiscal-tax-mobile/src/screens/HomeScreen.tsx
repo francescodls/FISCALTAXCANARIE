@@ -6,9 +6,12 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   FileText,
   Bell,
@@ -18,20 +21,38 @@ import {
   ChevronRight,
   User,
   Shield,
+  BookOpen,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  TrendingUp,
+  Folder,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { Card } from '../components/Card';
-import { Badge } from '../components/Badge';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface DashboardStats {
   documentsCount: number;
   declarationsCount: number;
+  declarationsInProgress: number;
+  declarationsCompleted: number;
   ticketsCount: number;
   notificationsCount: number;
   deadlinesCount: number;
   pendingFees: number;
+}
+
+interface RecentActivity {
+  id: string;
+  type: 'declaration' | 'document' | 'notification' | 'message';
+  title: string;
+  description: string;
+  date: string;
+  status?: string;
 }
 
 export const HomeScreen: React.FC = () => {
@@ -41,11 +62,14 @@ export const HomeScreen: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>({
     documentsCount: 0,
     declarationsCount: 0,
+    declarationsInProgress: 0,
+    declarationsCompleted: 0,
     ticketsCount: 0,
     notificationsCount: 0,
     deadlinesCount: 0,
     pendingFees: 0,
   });
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
 
   useEffect(() => {
@@ -57,12 +81,10 @@ export const HomeScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
-      // Carica notifiche
       const notifications = await apiService.getNotifications();
       const unread = notifications.filter((n: any) => !n.read);
       setRecentNotifications(unread.slice(0, 3));
-      
-      // Carica statistiche
+
       const [documents, declarations, tickets, deadlines, fees] = await Promise.all([
         apiService.getDocuments().catch(() => []),
         apiService.getDeclarations().catch(() => []),
@@ -71,17 +93,62 @@ export const HomeScreen: React.FC = () => {
         apiService.getFees().catch(() => []),
       ]);
 
+      const inProgress = declarations.filter((d: any) => 
+        d.stato === 'in_lavorazione' || d.stato === 'in_attesa'
+      ).length;
+      const completed = declarations.filter((d: any) => 
+        d.stato === 'completata' || d.stato === 'inviata'
+      ).length;
+
       setStats({
         documentsCount: documents.length,
         declarationsCount: declarations.length,
+        declarationsInProgress: inProgress,
+        declarationsCompleted: completed,
         ticketsCount: tickets.filter((t: any) => t.status !== 'closed').length,
         notificationsCount: unread.length,
         deadlinesCount: deadlines.filter((d: any) => d.status !== 'completed').length,
         pendingFees: fees.filter((f: any) => f.status !== 'paid').length,
       });
+
+      // Crea attività recenti
+      const activities: RecentActivity[] = [];
+      declarations.slice(0, 2).forEach((d: any) => {
+        activities.push({
+          id: d._id || d.id,
+          type: 'declaration',
+          title: `Dichiarazione ${d.tipo || 'IRPF'} ${d.anno || '2025'}`,
+          description: getStatusText(d.stato),
+          date: d.updated_at || d.created_at || new Date().toISOString(),
+          status: d.stato,
+        });
+      });
+      setRecentActivities(activities);
     } catch (error) {
       console.error('Error loading data:', error);
     }
+  };
+
+  const getStatusText = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'bozza': 'In bozza',
+      'in_attesa': 'In attesa di documenti',
+      'in_lavorazione': 'In lavorazione',
+      'completata': 'Completata',
+      'inviata': 'Inviata',
+    };
+    return statusMap[status] || status;
+  };
+
+  const getStatusColor = (status: string) => {
+    const colorMap: Record<string, string> = {
+      'bozza': COLORS.textLight,
+      'in_attesa': COLORS.warning,
+      'in_lavorazione': COLORS.info,
+      'completata': COLORS.success,
+      'inviata': COLORS.success,
+    };
+    return colorMap[status] || COLORS.textLight;
   };
 
   const onRefresh = useCallback(async () => {
@@ -90,27 +157,58 @@ export const HomeScreen: React.FC = () => {
     setRefreshing(false);
   }, []);
 
-  const QuickAction = ({
+  const QuickActionCard = ({
     icon: Icon,
     title,
+    subtitle,
     count,
     color,
     onPress,
+    gradient,
   }: {
     icon: any;
     title: string;
-    count: number;
+    subtitle?: string;
+    count?: number;
     color: string;
     onPress: () => void;
+    gradient?: string[];
   }) => (
-    <TouchableOpacity style={styles.quickAction} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.quickActionIcon, { backgroundColor: color + '20' }]}>
-        <Icon size={24} color={color} />
-      </View>
-      <Text style={styles.quickActionTitle}>{title}</Text>
-      {count > 0 && (
-        <View style={[styles.quickActionBadge, { backgroundColor: color }]}>
-          <Text style={styles.quickActionBadgeText}>{count}</Text>
+    <TouchableOpacity
+      style={styles.quickActionCard}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      {gradient ? (
+        <LinearGradient
+          colors={gradient as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.quickActionGradient}
+        >
+          <View style={styles.quickActionIconWhite}>
+            <Icon size={24} color="#ffffff" />
+          </View>
+          <Text style={styles.quickActionTitleWhite}>{title}</Text>
+          {subtitle && <Text style={styles.quickActionSubtitleWhite}>{subtitle}</Text>}
+          {count !== undefined && count > 0 && (
+            <View style={styles.quickActionCountBadge}>
+              <Text style={styles.quickActionCountText}>{count}</Text>
+            </View>
+          )}
+        </LinearGradient>
+      ) : (
+        <View style={styles.quickActionContent}>
+          <View style={[styles.quickActionIcon, { backgroundColor: color + '15' }]}>
+            <Icon size={22} color={color} />
+          </View>
+          <Text style={styles.quickActionTitle}>{title}</Text>
+          {subtitle && <Text style={styles.quickActionSubtitle}>{subtitle}</Text>}
+          {count !== undefined && count > 0 && (
+            <View style={[styles.quickActionBadge, { backgroundColor: color }]}>
+              <Text style={styles.quickActionBadgeText}>{count}</Text>
+            </View>
+          )}
         </View>
       )}
     </TouchableOpacity>
@@ -131,123 +229,193 @@ export const HomeScreen: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header con Logo */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Ciao,</Text>
-            <Text style={styles.userName}>{user?.full_name || 'Cliente'}</Text>
+          <View style={styles.headerLeft}>
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </View>
           <TouchableOpacity
             style={styles.profileButton}
-            onPress={() => navigation.navigate('Profile')}
+            onPress={() => navigation.navigate('Profilo')}
           >
-            <User size={24} color={COLORS.primary} />
+            <User size={22} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
 
-        {/* Quick Actions Grid */}
+        {/* Welcome Card */}
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.primaryDark]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.welcomeCard}
+        >
+          <View style={styles.welcomeContent}>
+            <Text style={styles.welcomeGreeting}>Benvenuto,</Text>
+            <Text style={styles.welcomeName}>{user?.full_name || 'Cliente'}</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Gestisci le tue pratiche fiscali in modo semplice
+            </Text>
+          </View>
+          <View style={styles.welcomeStats}>
+            <View style={styles.welcomeStat}>
+              <Text style={styles.welcomeStatNumber}>{stats.declarationsInProgress}</Text>
+              <Text style={styles.welcomeStatLabel}>In corso</Text>
+            </View>
+            <View style={styles.welcomeStatDivider} />
+            <View style={styles.welcomeStat}>
+              <Text style={styles.welcomeStatNumber}>{stats.declarationsCompleted}</Text>
+              <Text style={styles.welcomeStatLabel}>Completate</Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* Quick Actions */}
+        <Text style={styles.sectionTitle}>Accesso rapido</Text>
         <View style={styles.quickActionsGrid}>
-          <QuickAction
+          <QuickActionCard
             icon={FileText}
             title="Documenti"
-            count={stats.documentsCount}
+            subtitle={`${stats.documentsCount} file`}
             color={COLORS.primary}
             onPress={() => navigation.navigate('Documenti')}
           />
-          <QuickAction
+          <QuickActionCard
             icon={Calendar}
             title="Dichiarazioni"
-            count={stats.declarationsCount}
-            color="#8b5cf6"
+            subtitle={`${stats.declarationsCount} totali`}
+            color={COLORS.accent}
             onPress={() => navigation.navigate('Dichiarazioni')}
           />
-          <QuickAction
+          <QuickActionCard
             icon={Bell}
             title="Notifiche"
             count={stats.notificationsCount}
             color={COLORS.warning}
             onPress={() => navigation.navigate('Notifiche')}
           />
-          <QuickAction
+          <QuickActionCard
             icon={MessageSquare}
-            title="Ticket"
+            title="Messaggi"
             count={stats.ticketsCount}
             color={COLORS.info}
-            onPress={() => navigation.navigate('Ticket')}
+            onPress={() => navigation.navigate('Chat')}
           />
         </View>
 
-        {/* Notifiche Recenti */}
-        {recentNotifications.length > 0 && (
-          <Card
-            title="Notifiche recenti"
-            headerRight={
-              <TouchableOpacity onPress={() => navigation.navigate('Notifiche')}>
-                <Text style={styles.seeAll}>Vedi tutte</Text>
-              </TouchableOpacity>
-            }
-            style={styles.card}
-          >
-            {recentNotifications.map((notification, index) => (
-              <TouchableOpacity
-                key={notification.id || index}
-                style={[
-                  styles.notificationItem,
-                  index < recentNotifications.length - 1 && styles.notificationBorder,
-                ]}
-                onPress={() => navigation.navigate('Notifiche')}
-              >
-                <View style={styles.notificationDot} />
-                <View style={styles.notificationContent}>
-                  <Text style={styles.notificationTitle} numberOfLines={1}>
-                    {notification.title}
-                  </Text>
-                  <Text style={styles.notificationMessage} numberOfLines={2}>
-                    {notification.message}
-                  </Text>
-                </View>
-                <ChevronRight size={20} color={COLORS.textLight} />
-              </TouchableOpacity>
-            ))}
-          </Card>
-        )}
-
-        {/* Info Cards */}
-        <View style={styles.infoCardsRow}>
+        {/* Stato Pratiche */}
+        <Text style={styles.sectionTitle}>Stato pratiche</Text>
+        <View style={styles.statusCardsRow}>
           <TouchableOpacity
-            style={[styles.infoCard, { backgroundColor: COLORS.primary + '10' }]}
+            style={styles.statusCard}
             onPress={() => navigation.navigate('Scadenze')}
           >
-            <Calendar size={28} color={COLORS.primary} />
-            <Text style={styles.infoCardNumber}>{stats.deadlinesCount}</Text>
-            <Text style={styles.infoCardLabel}>Scadenze</Text>
+            <LinearGradient
+              colors={['#3caca4', '#2d9a93']}
+              style={styles.statusCardGradient}
+            >
+              <Clock size={24} color="#ffffff" />
+              <Text style={styles.statusCardNumber}>{stats.deadlinesCount}</Text>
+              <Text style={styles.statusCardLabel}>Scadenze</Text>
+            </LinearGradient>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.infoCard, { backgroundColor: '#f59e0b10' }]}
+            style={styles.statusCard}
             onPress={() => navigation.navigate('Onorari')}
           >
-            <Euro size={28} color={COLORS.warning} />
-            <Text style={styles.infoCardNumber}>{stats.pendingFees}</Text>
-            <Text style={styles.infoCardLabel}>Da pagare</Text>
+            <LinearGradient
+              colors={['#f59e0b', '#d97706']}
+              style={styles.statusCardGradient}
+            >
+              <Euro size={24} color="#ffffff" />
+              <Text style={styles.statusCardNumber}>{stats.pendingFees}</Text>
+              <Text style={styles.statusCardLabel}>Da pagare</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
+
+        {/* Attività Recenti */}
+        {recentActivities.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Attività recenti</Text>
+            <Card style={styles.activityCard}>
+              {recentActivities.map((activity, index) => (
+                <TouchableOpacity
+                  key={activity.id}
+                  style={[
+                    styles.activityItem,
+                    index < recentActivities.length - 1 && styles.activityBorder,
+                  ]}
+                  onPress={() => navigation.navigate('Dichiarazioni')}
+                >
+                  <View style={[styles.activityIcon, { backgroundColor: getStatusColor(activity.status || '') + '20' }]}>
+                    {activity.status === 'completata' || activity.status === 'inviata' ? (
+                      <CheckCircle size={20} color={COLORS.success} />
+                    ) : activity.status === 'in_lavorazione' ? (
+                      <TrendingUp size={20} color={COLORS.info} />
+                    ) : (
+                      <AlertCircle size={20} color={COLORS.warning} />
+                    )}
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle}>{activity.title}</Text>
+                    <Text style={[styles.activityStatus, { color: getStatusColor(activity.status || '') }]}>
+                      {activity.description}
+                    </Text>
+                  </View>
+                  <ChevronRight size={20} color={COLORS.textLight} />
+                </TouchableOpacity>
+              ))}
+            </Card>
+          </>
+        )}
+
+        {/* Guida ai Modelli */}
+        <Text style={styles.sectionTitle}>Risorse utili</Text>
+        <TouchableOpacity
+          style={styles.guideCard}
+          onPress={() => navigation.navigate('GuidaModelli')}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={['#1a1a2e', '#16213e']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.guideGradient}
+          >
+            <View style={styles.guideIconContainer}>
+              <BookOpen size={28} color={COLORS.primary} />
+            </View>
+            <View style={styles.guideContent}>
+              <Text style={styles.guideTitle}>Guida ai Modelli Fiscali</Text>
+              <Text style={styles.guideSubtitle}>
+                Scopri IRPF, IVA, Modello 720 e altro
+              </Text>
+            </View>
+            <ChevronRight size={24} color="#ffffff" />
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Privacy Banner */}
         <TouchableOpacity
           style={styles.privacyBanner}
           onPress={() => navigation.navigate('Privacy')}
         >
-          <View style={styles.privacyBannerIcon}>
+          <View style={styles.privacyIcon}>
             <Shield size={20} color={COLORS.primary} />
           </View>
-          <View style={styles.privacyBannerContent}>
-            <Text style={styles.privacyBannerTitle}>I tuoi dati sono protetti</Text>
-            <Text style={styles.privacyBannerText}>
-              Gestisci privacy e consensi
-            </Text>
+          <View style={styles.privacyContent}>
+            <Text style={styles.privacyTitle}>I tuoi dati sono protetti</Text>
+            <Text style={styles.privacyText}>Gestisci privacy e consensi</Text>
           </View>
           <ChevronRight size={20} color={COLORS.textLight} />
         </TouchableOpacity>
+
+        {/* Bottom Spacing */}
+        <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -263,62 +431,153 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: SPACING.md,
-    paddingBottom: SPACING.xxl,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
-  greeting: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: COLORS.text,
+  logo: {
+    width: 150,
+    height: 50,
   },
   profileButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: COLORS.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
+    ...SHADOWS.sm,
+  },
+  welcomeCard: {
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    ...SHADOWS.lg,
+  },
+  welcomeContent: {
+    marginBottom: SPACING.md,
+  },
+  welcomeGreeting: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  welcomeName: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  welcomeSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  welcomeStats: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+  },
+  welcomeStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  welcomeStatDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: SPACING.md,
+  },
+  welcomeStatNumber: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  welcomeStatLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    marginTop: SPACING.sm,
   },
   quickActionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: SPACING.sm,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
-  quickAction: {
-    width: '48%',
-    backgroundColor: COLORS.surface,
+  quickActionCard: {
+    width: (SCREEN_WIDTH - SPACING.md * 2 - SPACING.sm) / 2,
     borderRadius: RADIUS.lg,
-    padding: SPACING.md,
-    alignItems: 'center',
+    overflow: 'hidden',
     ...SHADOWS.sm,
   },
+  quickActionContent: {
+    backgroundColor: COLORS.surface,
+    padding: SPACING.md,
+    alignItems: 'center',
+    minHeight: 110,
+    justifyContent: 'center',
+  },
+  quickActionGradient: {
+    padding: SPACING.md,
+    alignItems: 'center',
+    minHeight: 110,
+    justifyContent: 'center',
+  },
   quickActionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.xs,
+  },
+  quickActionIconWhite: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
   },
   quickActionTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
+    textAlign: 'center',
+  },
+  quickActionTitleWhite: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  quickActionSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  quickActionSubtitleWhite: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
   quickActionBadge: {
     position: 'absolute',
-    top: SPACING.sm,
-    right: SPACING.sm,
+    top: SPACING.xs,
+    right: SPACING.xs,
     minWidth: 22,
     height: 22,
     borderRadius: 11,
@@ -328,68 +587,117 @@ const styles = StyleSheet.create({
   },
   quickActionBadgeText: {
     color: '#ffffff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
-  card: {
-    marginBottom: SPACING.md,
-  },
-  seeAll: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  notificationItem: {
-    flexDirection: 'row',
+  quickActionCountBadge: {
+    position: 'absolute',
+    top: SPACING.xs,
+    right: SPACING.xs,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#ffffff',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: 6,
   },
-  notificationBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+  quickActionCountText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: '700',
   },
-  notificationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primary,
-    marginRight: SPACING.sm,
-  },
-  notificationContent: {
-    flex: 1,
-    marginRight: SPACING.sm,
-  },
-  notificationTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  notificationMessage: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  infoCardsRow: {
+  statusCardsRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
-  infoCard: {
+  statusCard: {
     flex: 1,
     borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    ...SHADOWS.md,
+  },
+  statusCardGradient: {
     padding: SPACING.md,
     alignItems: 'center',
-    ...SHADOWS.sm,
+    minHeight: 100,
+    justifyContent: 'center',
   },
-  infoCardNumber: {
-    fontSize: 28,
+  statusCardNumber: {
+    fontSize: 32,
     fontWeight: '700',
-    color: COLORS.text,
-    marginTop: SPACING.sm,
+    color: '#ffffff',
+    marginTop: SPACING.xs,
   },
-  infoCardLabel: {
+  statusCardLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
+    color: 'rgba(255,255,255,0.9)',
+  },
+  activityCard: {
+    marginBottom: SPACING.md,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  activityBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  activityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  activityStatus: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  guideCard: {
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    marginBottom: SPACING.md,
+    ...SHADOWS.md,
+  },
+  guideGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.md,
+  },
+  guideIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(60,172,164,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  guideContent: {
+    flex: 1,
+  },
+  guideTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  guideSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
   },
   privacyBanner: {
     flexDirection: 'row',
@@ -401,7 +709,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary + '30',
     ...SHADOWS.sm,
   },
-  privacyBannerIcon: {
+  privacyIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -410,15 +718,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: SPACING.md,
   },
-  privacyBannerContent: {
+  privacyContent: {
     flex: 1,
   },
-  privacyBannerTitle: {
+  privacyTitle: {
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
   },
-  privacyBannerText: {
+  privacyText: {
     fontSize: 12,
     color: COLORS.textSecondary,
   },
