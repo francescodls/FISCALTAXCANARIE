@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   FileText,
@@ -80,7 +80,13 @@ interface ActivityItem {
   isNew?: boolean;
 }
 
-const DISMISSED_ACTIVITIES_KEY = 'dismissed_activities';
+interface ActivityState {
+  dismissed: string[];
+  viewed: string[];
+}
+
+// Generate storage key per user
+const getStorageKey = (userId?: string) => `activity_state_${userId || 'anonymous'}`;
 
 export const HomeScreen: React.FC = () => {
   const { user, token } = useAuth();
@@ -98,8 +104,138 @@ export const HomeScreen: React.FC = () => {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+  
+  // Use refs to always have current values in callbacks
+  const dismissedRef = useRef<Set<string>>(new Set());
+  const viewedRef = useRef<Set<string>>(new Set());
+  const [, forceUpdate] = useState(0);
+  
+  const storageKey = getStorageKey(user?.id || user?.email);
+
+  // Load activity state from storage
+  const loadActivityState = useCallback(async (): Promise<ActivityState> => {
+    try {
+      const stored = await SecureStore.getItemAsync(storageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          dismissed: parsed.dismissed || [],
+          viewed: parsed.viewed || [],
+        };
+      }
+    } catch (error) {
+      console.error('Error loading activity state:', error);
+    }
+    return { dismissed: [], viewed: [] };
+  }, [storageKey]);
+
+  // Save activity state to storage
+  const saveActivityState = useCallback(async (dismissed: string[], viewed: string[]) => {
+    try {
+      await SecureStore.setItemAsync(
+        storageKey,
+        JSON.stringify({ dismissed, viewed })
+      );
+    } catch (error) {
+      console.error('Error saving activity state:', error);
+    }
+  }, [storageKey]);
+
+  // Initialize on mount and user change
+  useEffect(() => {
+    const init = async () => {
+      const state = await loadActivityState();
+      dismissedRef.current = new Set(state.dismissed);
+      viewedRef.current = new Set(state.viewed);
+      forceUpdate(n => n + 1);
+    };
+    init();
+  }, [storageKey, loadActivityState]);
+
+  // Dismiss activity (hide with X)
+  const dismissActivity = useCallback(async (activityId: string) => {
+    // Update ref immediately
+    dismissedRef.current.add(activityId);
+    
+    // Update UI
+    setRecentActivity(prev => prev.filter(a => a.id !== activityId));
+    
+    // Persist to storage
+    await saveActivityState(
+      Array.from(dismissedRef.current),
+      Array.from(viewedRef.current)
+    );
+  }, [saveActivityState]);
+
+  // Mark single activity as viewed
+  const markAsViewed = useCallback(async (activityId: string) => {
+    // Update ref immediately
+    viewedRef.current.add(activityId);
+    
+    // Update UI - change isNew to false
+    setRecentActivity(prev => 
+      prev.map(a => a.id === activityId ? { ...a, isNew: false } : a)
+    );
+    
+    // Persist to storage
+    await saveActivityState(
+      Array.from(dismissedRef.current),
+      Array.from(viewedRef.current)
+    );
+  }, [saveActivityState]);
+
+  // Mark all visible as viewed
+  const markAllAsViewed = useCallback(async () => {
+    // Get all current activity IDs
+    const allIds = recentActivity.map(a => a.id);
+    
+    // Update ref
+    allIds.forEach(id => viewedRef.current.add(id));
+    
+    // Update UI
+    setRecentActivity(prev => prev.map(a => ({ ...a, isNew: false })));
+    
+    // Persist to storage
+    await saveActivityState(
+      Array.from(dismissedRef.current),
+      Array.from(viewedRef.current)
+    );
+  }, [recentActivity, saveActivityState]);
+
+  // Clear all viewed activities (hide them all)
+  const clearAllViewed = useCallback(() => {
+    Alert.alert(
+      t.home.clearActivityTitle,
+      t.home.clearActivityMessage,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: t.home.clear,
+          style: 'destructive',
+          onPress: async () => {
+            // Get IDs of viewed activities
+            const viewedActivityIds = recentActivity
+              .filter(a => viewedRef.current.has(a.id))
+              .map(a => a.id);
+            
+            // Add to dismissed
+            viewedActivityIds.forEach(id => dismissedRef.current.add(id));
+            
+            // Update UI
+            setRecentActivity(prev => 
+              prev.filter(a => !viewedRef.current.has(a.id))
+            );
+            
+            // Persist to storage
+            await saveActivityState(
+              Array.from(dismissedRef.current),
+              Array.from(viewedRef.current)
+            );
+          },
+        },
+      ]
+    );
+  }, [recentActivity, t, saveActivityState]);
 
   const getClientName = (): string => {
     if (user?.full_name && user.full_name.trim()) {
@@ -116,93 +252,14 @@ export const HomeScreen: React.FC = () => {
     return t.profile.title;
   };
 
-  useEffect(() => {
-    const loadDismissedActivities = async () => {
-      try {
-        const stored = await SecureStore.getItemAsync(DISMISSED_ACTIVITIES_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setDismissedIds(new Set(parsed.dismissed || []));
-          setViewedIds(new Set(parsed.viewed || []));
-        }
-      } catch (error) {
-        console.error('Error loading dismissed activities:', error);
-      }
-    };
-    loadDismissedActivities();
-  }, []);
-
-  const saveDismissedActivities = async (dismissed: Set<string>, viewed: Set<string>) => {
+  // Load data using current refs for dismissed/viewed state
+  const loadData = useCallback(async () => {
     try {
-      await SecureStore.setItemAsync(
-        DISMISSED_ACTIVITIES_KEY,
-        JSON.stringify({
-          dismissed: Array.from(dismissed),
-          viewed: Array.from(viewed),
-        })
-      );
-    } catch (error) {
-      console.error('Error saving dismissed activities:', error);
-    }
-  };
-
-  const dismissActivity = useCallback((activityId: string) => {
-    setDismissedIds(prev => {
-      const newSet = new Set(prev);
-      newSet.add(activityId);
-      saveDismissedActivities(newSet, viewedIds);
-      return newSet;
-    });
-    setRecentActivity(prev => prev.filter(a => a.id !== activityId));
-  }, [viewedIds]);
-
-  const markAsViewed = useCallback((activityId: string) => {
-    setViewedIds(prev => {
-      const newSet = new Set(prev);
-      newSet.add(activityId);
-      saveDismissedActivities(dismissedIds, newSet);
-      return newSet;
-    });
-  }, [dismissedIds]);
-
-  const clearAllViewed = useCallback(() => {
-    Alert.alert(
-      t.home.clearActivityTitle,
-      t.home.clearActivityMessage,
-      [
-        { text: t.common.cancel, style: 'cancel' },
-        {
-          text: t.home.clear,
-          style: 'destructive',
-          onPress: () => {
-            const viewedActivityIds = recentActivity.filter(a => viewedIds.has(a.id)).map(a => a.id);
-            const newDismissed = new Set([...dismissedIds, ...viewedActivityIds]);
-            setDismissedIds(newDismissed);
-            saveDismissedActivities(newDismissed, viewedIds);
-            setRecentActivity(prev => prev.filter(a => !viewedIds.has(a.id)));
-          },
-        },
-      ]
-    );
-  }, [recentActivity, viewedIds, dismissedIds, t]);
-
-  const markAllAsViewed = useCallback(() => {
-    const allIds = recentActivity.map(a => a.id);
-    const newViewed = new Set([...viewedIds, ...allIds]);
-    setViewedIds(newViewed);
-    saveDismissedActivities(dismissedIds, newViewed);
-    setRecentActivity(prev => prev.map(a => ({ ...a, isNew: false })));
-  }, [recentActivity, viewedIds, dismissedIds]);
-
-  useEffect(() => {
-    if (token) {
-      apiService.setToken(token);
-      loadData();
-    }
-  }, [token]);
-
-  const loadData = async () => {
-    try {
+      // First ensure we have latest state from storage
+      const state = await loadActivityState();
+      dismissedRef.current = new Set(state.dismissed);
+      viewedRef.current = new Set(state.viewed);
+      
       const [notifications, documents, declarations, tickets, deadlinesData] = await Promise.all([
         apiService.getNotifications().catch(() => []),
         apiService.getDocuments().catch(() => []),
@@ -242,7 +299,7 @@ export const HomeScreen: React.FC = () => {
         }).length,
       });
 
-      // Action items - using translations
+      // Action items
       const actions: ActionItem[] = [];
 
       if (openTickets.length > 0) {
@@ -292,43 +349,81 @@ export const HomeScreen: React.FC = () => {
       });
       setDeadlines(processedDeadlines);
 
+      // Build activity list - use refs for current dismissed/viewed state
+      const currentDismissed = dismissedRef.current;
+      const currentViewed = viewedRef.current;
+      
       const activity: ActivityItem[] = [];
-      declarations.slice(0, 2).forEach((d: any) => {
-        const actId = d._id || `decl-${Math.random().toString()}`;
-        if (!dismissedIds.has(actId)) {
-          activity.push({
-            id: actId,
-            type: 'declaration',
-            title: t.home.practiceUpdated.replace('{type}', d.tipo?.toUpperCase() || 'IRPF'),
-            timestamp: d.updated_at || d.created_at,
-            isNew: !viewedIds.has(actId),
-          });
+      
+      // Add declarations activities
+      declarations.slice(0, 3).forEach((d: any) => {
+        // Use stable ID based on _id, not random
+        const actId = d._id || d.id || `decl-${d.tipo}-${d.anno}`;
+        
+        // Skip if dismissed
+        if (currentDismissed.has(actId)) {
+          return;
         }
+        
+        activity.push({
+          id: actId,
+          type: 'declaration',
+          title: t.home.practiceUpdated.replace('{type}', d.tipo?.toUpperCase() || 'IRPF'),
+          timestamp: d.updated_at || d.created_at,
+          isNew: !currentViewed.has(actId),
+        });
       });
-      documents.slice(0, 2).forEach((d: any) => {
-        const actId = d._id || `doc-${Math.random().toString()}`;
-        if (!dismissedIds.has(actId)) {
-          activity.push({
-            id: actId,
-            type: 'document',
-            title: t.home.newDocument.replace('{name}', d.file_name || t.documents.title),
-            timestamp: d.created_at,
-            isNew: !viewedIds.has(actId),
-          });
+      
+      // Add document activities
+      documents.slice(0, 3).forEach((d: any) => {
+        // Use stable ID based on _id, not random
+        const actId = d._id || d.id || `doc-${d.file_name}`;
+        
+        // Skip if dismissed
+        if (currentDismissed.has(actId)) {
+          return;
         }
+        
+        activity.push({
+          id: actId,
+          type: 'document',
+          title: t.home.newDocument.replace('{name}', d.file_name || t.documents.title),
+          timestamp: d.created_at,
+          isNew: !currentViewed.has(actId),
+        });
       });
+      
+      // Sort by timestamp and take top 5
+      activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setRecentActivity(activity.slice(0, 5));
 
     } catch (error) {
       console.error('Error loading data:', error);
     }
-  };
+  }, [t, language, loadActivityState]);
+
+  // Initial load when token is available
+  useEffect(() => {
+    if (token) {
+      apiService.setToken(token);
+      loadData();
+    }
+  }, [token, loadData]);
+
+  // Reload when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (token) {
+        loadData();
+      }
+    }, [token, loadData])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
-  }, []);
+  }, [loadData]);
 
   const formatTimeAgo = (dateString: string) => {
     try {
@@ -378,6 +473,11 @@ export const HomeScreen: React.FC = () => {
     if (daysLeft === 1) return t.common.tomorrow;
     return t.home.inDays.replace('{days}', daysLeft.toString());
   };
+
+  // Check if there are any new activities
+  const hasNewActivities = recentActivity.some(a => a.isNew);
+  // Check if there are any viewed activities
+  const hasViewedActivities = recentActivity.some(a => viewedRef.current.has(a.id));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -607,13 +707,13 @@ export const HomeScreen: React.FC = () => {
             <View style={styles.activityHeader}>
               <Text style={styles.sectionTitle}>{t.home.recentActivity}</Text>
               <View style={styles.activityActions}>
-                {recentActivity.some(a => a.isNew) && (
+                {hasNewActivities && (
                   <TouchableOpacity style={styles.activityActionButton} onPress={markAllAsViewed}>
                     <Eye size={14} color={COLORS.primary} />
                     <Text style={styles.activityActionText}>{t.home.markAsRead}</Text>
                   </TouchableOpacity>
                 )}
-                {viewedIds.size > 0 && recentActivity.some(a => viewedIds.has(a.id)) && (
+                {hasViewedActivities && (
                   <TouchableOpacity style={styles.activityActionButton} onPress={clearAllViewed}>
                     <Trash2 size={14} color={COLORS.textSecondary} />
                     <Text style={[styles.activityActionText, { color: COLORS.textSecondary }]}>{t.home.clear}</Text>
@@ -625,7 +725,11 @@ export const HomeScreen: React.FC = () => {
               {recentActivity.map((activity, index) => (
                 <View key={activity.id} style={[styles.activityItem, index < recentActivity.length - 1 && styles.activityItemBorder]}>
                   <View style={[styles.activityDot, activity.isNew ? styles.activityDotNew : styles.activityDotViewed]} />
-                  <TouchableOpacity style={styles.activityContent} onPress={() => markAsViewed(activity.id)} activeOpacity={0.7}>
+                  <TouchableOpacity 
+                    style={styles.activityContent} 
+                    onPress={() => markAsViewed(activity.id)} 
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.activityTextContainer}>
                       <Text style={[styles.activityTitle, !activity.isNew && styles.activityTitleViewed]}>{activity.title}</Text>
                       <Text style={styles.activityTime}>{formatTimeAgo(activity.timestamp)}</Text>
@@ -636,7 +740,11 @@ export const HomeScreen: React.FC = () => {
                       </View>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.dismissButton} onPress={() => dismissActivity(activity.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <TouchableOpacity 
+                    style={styles.dismissButton} 
+                    onPress={() => dismissActivity(activity.id)} 
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
                     <X size={16} color={COLORS.textLight} />
                   </TouchableOpacity>
                 </View>

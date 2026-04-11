@@ -7,6 +7,62 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 88 (11 Aprile 2026) - COMPLETATA ✅
+
+**Fix Persistenza Attività Recenti:**
+
+**Problema risolto:**
+Le attività nascoste (X) o segnate come lette ricomparivano dopo:
+- Cambio sezione
+- Refresh della home
+- Riapertura app
+
+**Causa del bug:**
+1. `loadData()` usava `dismissedIds` dalla closure, ma al momento della chiamata iniziale era ancora un Set vuoto
+2. La chiave di storage non era legata all'utente, causando mix tra sessioni
+3. Gli ID delle attività usavano `Math.random()` invece di ID stabili
+
+**Correzioni implementate:**
+
+1. **Storage per utente:**
+   - Chiave storage dinamica: `activity_state_${userId || email}`
+   - Ogni utente ha il proprio stato separato
+
+2. **Refs invece di state per la logica:**
+   - `dismissedRef` e `viewedRef` usano `useRef`
+   - Sempre valori correnti nelle callback, nessun problema di closure
+
+3. **Caricamento stato prima dei dati:**
+   - `loadData()` ora carica prima lo stato da SecureStore
+   - Poi filtra le attività usando lo stato appena caricato
+
+4. **ID stabili per attività:**
+   - Declarations: `d._id || d.id || 'decl-${tipo}-${anno}'`
+   - Documents: `d._id || d.id || 'doc-${file_name}'`
+   - Niente più `Math.random()`
+
+5. **useFocusEffect per reload:**
+   - Quando la Home torna in focus, ricarica i dati
+   - Lo stato persistito viene sempre rispettato
+
+6. **Persistenza immediata:**
+   - `dismissActivity()` salva subito in SecureStore
+   - `markAsViewed()` salva subito in SecureStore
+   - UI e storage sempre sincronizzati
+
+**Comportamento corretto ora:**
+- ✅ Attività nascosta con X → non ricompare dopo refresh
+- ✅ Attività segnata come letta → resta letta
+- ✅ Stato persistente dopo chiusura/riapertura app
+- ✅ Stato separato per ogni utente autenticato
+
+**File modificato:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/HomeScreen.tsx` (riscritto)
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+
+
 ### Fase 87 (11 Aprile 2026) - COMPLETATA ✅
 
 **Sezione Profilo Completamente Funzionante:**
