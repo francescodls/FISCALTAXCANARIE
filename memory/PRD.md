@@ -7,6 +7,55 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 81 (11 Aprile 2026) - COMPLETATA ✅
+
+**Implementazione Ricerca e Assistente AI:**
+
+**Problema:** La lente di ingrandimento in homepage non funzionava - navigava a una route `Ricerca` inesistente.
+
+**Soluzione implementata:**
+
+1. **Creato `SearchScreen.tsx`** - Nuova schermata con due tab:
+   
+   **Tab "Documenti" (Ricerca):**
+   - Campo di ricerca con suggerimenti rapidi
+   - Ricerca semantica nei documenti del cliente
+   - Risultati con icona, titolo, categoria, data
+   - Empty state con suggerimento di usare l'AI
+   - Click su risultato → naviga a Documenti
+   
+   **Tab "Assistente AI":**
+   - Chatbot specializzato in fiscalità canaria/spagnola
+   - Domande rapide preimpostate (IGIC, ZEC, IRPF, Modello 720, etc.)
+   - Conversazione persistente con storico
+   - Contesto personalizzato: documenti cliente, scadenze, modelli tributari
+   - Disclaimer legale sulle risposte
+
+2. **Aggiornato `api.ts`** - Aggiunti metodi:
+   - `searchDocuments(query)` - ricerca semantica
+   - `sendChatMessage(message, conversationId)` - chat con AI
+   - `deleteConversation(conversationId)` - elimina conversazione
+
+3. **Aggiornato `AppNavigator.tsx`** - Registrata route `Ricerca`
+
+**Funzionalità AI:**
+- Usa GPT-4o-mini tramite Emergent LLM Key
+- Sistema personalizzato per Fiscal Tax Canarie
+- Conosce fiscalità canaria (IGIC, ZEC) e spagnola
+- Accesso ai documenti e scadenze del cliente autenticato
+- Storico conversazione salvato in MongoDB
+
+**File creati/modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/SearchScreen.tsx` (NUOVO)
+- `/app/mobile-app/fiscal-tax-mobile/src/services/api.ts`
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx`
+
+**Test effettuati:**
+- ✅ API `/api/chat` funziona correttamente
+- ✅ API `/api/documents/search` funziona
+- ✅ TypeScript compila senza errori
+
+
 ### Fase 80 (11 Aprile 2026) - COMPLETATA ✅
 
 **Fix Card Scadenza Imminente nella HomeScreen:**

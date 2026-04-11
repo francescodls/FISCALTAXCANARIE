@@ -144,6 +144,27 @@ class ApiService {
       body: JSON.stringify({ push_token: pushToken, platform }),
     });
   }
+
+  // Ricerca documenti
+  async searchDocuments(query: string) {
+    return this.request<any[]>(`/api/documents/search?q=${encodeURIComponent(query)}`);
+  }
+
+  // Chat AI Assistant
+  async sendChatMessage(message: string, conversationId?: string) {
+    return this.request<{ response: string; conversation_id: string; success: boolean }>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        message, 
+        conversation_id: conversationId 
+      }),
+    });
+  }
+
+  // Elimina conversazione
+  async deleteConversation(conversationId: string) {
+    return this.request(`/api/chat/${conversationId}`, { method: 'DELETE' });
+  }
 }
 
 export const apiService = new ApiService();
