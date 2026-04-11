@@ -172,6 +172,30 @@ class ApiService {
   async deleteConversation(conversationId: string) {
     return this.request(`/api/chat/${conversationId}`, { method: 'DELETE' });
   }
+
+  // Change password
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ 
+        current_password: currentPassword, 
+        new_password: newPassword 
+      }),
+    });
+  }
+
+  // Update email preferences
+  async updateEmailPreferences(preferences: Record<string, boolean>) {
+    return this.request('/api/profile/email-preferences', {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
+    });
+  }
+
+  // Disconnect all sessions
+  async disconnectAllSessions() {
+    return this.request('/api/auth/logout-all', { method: 'POST' });
+  }
 }
 
 export const apiService = new ApiService();

@@ -28,6 +28,13 @@ import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
 import { DeadlineDetailScreen } from '../screens/DeadlineDetailScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { TicketDetailScreen } from '../screens/TicketDetailScreen';
+// Profile Sub-screens
+import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
+import { ManageDevicesScreen } from '../screens/ManageDevicesScreen';
+import { EmailNotificationsScreen } from '../screens/EmailNotificationsScreen';
+import { HelpCenterScreen } from '../screens/HelpCenterScreen';
+import { PrivacyConsentScreen } from '../screens/PrivacyConsentScreen';
+import { TermsConditionsScreen } from '../screens/TermsConditionsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -146,6 +153,13 @@ export const AppNavigator = () => {
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />
             <Stack.Screen name="Ricerca" component={SearchScreen} />
             <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+            {/* Profile Sub-screens */}
+            <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+            <Stack.Screen name="ManageDevices" component={ManageDevicesScreen} />
+            <Stack.Screen name="EmailNotifications" component={EmailNotificationsScreen} />
+            <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
+            <Stack.Screen name="PrivacyConsent" component={PrivacyConsentScreen} />
+            <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
           </>
         ) : (
           <Stack.Screen 

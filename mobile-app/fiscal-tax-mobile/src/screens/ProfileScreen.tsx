@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,14 @@ import {
   Switch,
   Alert,
   Platform,
+  Linking,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import * as Notifications from 'expo-notifications';
+import * as SecureStore from 'expo-secure-store';
 import {
   User,
   Mail,
@@ -26,63 +31,146 @@ import {
   HelpCircle,
   FileText,
   Check,
+  Globe,
+  Settings,
+  Key,
+  BellRing,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { COLORS } from '../config/constants';
 import { Language } from '../i18n';
 
+const BIOMETRIC_KEY = 'biometric_enabled';
+const PUSH_ENABLED_KEY = 'push_notifications_enabled';
+
 export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const { t, language, setLanguage, languages } = useLanguage();
+  const navigation = useNavigation<any>();
+  
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [lastAccess, setLastAccess] = useState<string | null>(null);
+  const [biometricType, setBiometricType] = useState<string>('Biometric');
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [pushPermission, setPushPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastAccess, setLastAccess] = useState<string>('');
 
   useEffect(() => {
     checkBiometricAvailability();
+    loadBiometricSetting();
+    checkPushPermission();
+    loadPushSetting();
+    updateLastAccess();
+  }, []);
+
+  const updateLastAccess = () => {
     const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : 'it-IT';
-    setLastAccess(new Date().toLocaleString(locale));
-  }, [language]);
+    setLastAccess(new Date().toLocaleString(locale, { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }));
+  };
 
   const checkBiometricAvailability = async () => {
     const compatible = await LocalAuthentication.hasHardwareAsync();
     const enrolled = await LocalAuthentication.isEnrolledAsync();
+    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    
     setBiometricAvailable(compatible && enrolled);
-  };
-
-  const getProfileName = () => {
-    if (user?.full_name && user.full_name.trim()) return user.full_name;
-    if (user?.email) {
-      const emailName = user.email.split('@')[0];
-      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
+    
+    if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+      setBiometricType('Face ID');
+    } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+      setBiometricType('Touch ID');
     }
-    return t.profile.title;
   };
 
-  const getClientType = () => {
-    if (user?.role === 'admin') return 'Admin';
-    const tipo = user?.tipo_cliente;
-    if (tipo === 'autonomo') return t.profile.clientTypes.freelance;
-    if (tipo === 'empresa' || tipo === 'azienda') return t.profile.clientTypes.company;
-    return t.profile.clientTypes.individual;
+  const loadBiometricSetting = async () => {
+    try {
+      const stored = await SecureStore.getItemAsync(BIOMETRIC_KEY);
+      if (stored === 'true') {
+        setBiometricEnabled(true);
+      }
+    } catch (error) {
+      console.error('Error loading biometric setting:', error);
+    }
+  };
+
+  const checkPushPermission = async () => {
+    const { status } = await Notifications.getPermissionsAsync();
+    setPushPermission(status);
+  };
+
+  const loadPushSetting = async () => {
+    try {
+      const stored = await SecureStore.getItemAsync(PUSH_ENABLED_KEY);
+      setPushEnabled(stored !== 'false');
+    } catch (error) {
+      console.error('Error loading push setting:', error);
+    }
   };
 
   const handleBiometricToggle = async (value: boolean) => {
     if (value) {
+      // Verify biometric before enabling
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: t.common.confirm,
         cancelLabel: t.common.cancel,
         disableDeviceFallback: false,
       });
+      
       if (result.success) {
+        await SecureStore.setItemAsync(BIOMETRIC_KEY, 'true');
         setBiometricEnabled(true);
-        Alert.alert(t.common.success, 'Biometric enabled');
+        Alert.alert(t.common.success, t.profile.biometricEnabled);
       }
     } else {
+      await SecureStore.setItemAsync(BIOMETRIC_KEY, 'false');
       setBiometricEnabled(false);
+      Alert.alert(t.common.success, t.profile.biometricDisabled);
     }
+  };
+
+  const handlePushToggle = async (value: boolean) => {
+    if (value) {
+      if (pushPermission === 'denied') {
+        Alert.alert(
+          t.profile.pushNotifications,
+          t.profile.pushDenied,
+          [
+            { text: t.common.cancel, style: 'cancel' },
+            { text: t.profile.openSettings, onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+      
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') {
+        await SecureStore.setItemAsync(PUSH_ENABLED_KEY, 'true');
+        setPushEnabled(true);
+        setPushPermission('granted');
+        Alert.alert(t.common.success, t.profile.pushEnabled);
+      } else {
+        setPushPermission('denied');
+        Alert.alert(t.common.error, t.profile.pushDenied);
+      }
+    } else {
+      await SecureStore.setItemAsync(PUSH_ENABLED_KEY, 'false');
+      setPushEnabled(false);
+      Alert.alert(t.common.success, t.profile.pushDisabled);
+    }
+  };
+
+  const handleLanguageChange = async (lang: Language) => {
+    await setLanguage(lang);
+    updateLastAccess();
   };
 
   const handleLogout = () => {
@@ -96,8 +184,56 @@ export const ProfileScreen: React.FC = () => {
     );
   };
 
-  const handleLanguageChange = async (lang: Language) => {
-    await setLanguage(lang);
+  const handleDisconnectAll = () => {
+    Alert.alert(
+      t.profile.disconnectAll,
+      t.profile.disconnectAllConfirm,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        { 
+          text: t.profile.disconnectAll, 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              // In production, call API to invalidate all sessions
+              // await apiService.disconnectAllSessions();
+              logout();
+            } catch (error) {
+              logout();
+            }
+          }
+        },
+      ]
+    );
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await checkBiometricAvailability();
+    await checkPushPermission();
+    updateLastAccess();
+    setRefreshing(false);
+  }, []);
+
+  const getProfileName = () => {
+    if (user?.full_name && user.full_name.trim()) return user.full_name;
+    if (user?.email) {
+      const emailName = user.email.split('@')[0];
+      const cleanName = emailName.replace(/[._]/g, ' ');
+      return cleanName
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+    return t.profile.title;
+  };
+
+  const getClientType = () => {
+    if (user?.role === 'admin') return 'Admin';
+    const tipo = user?.tipo_cliente;
+    if (tipo === 'autonomo') return t.profile.clientTypes.freelance;
+    if (tipo === 'empresa' || tipo === 'azienda') return t.profile.clientTypes.company;
+    return t.profile.clientTypes.individual;
   };
 
   const SettingItem = ({
@@ -107,6 +243,7 @@ export const ProfileScreen: React.FC = () => {
     onPress,
     rightElement,
     color = COLORS.text,
+    showArrow = true,
   }: {
     icon: any;
     title: string;
@@ -114,6 +251,7 @@ export const ProfileScreen: React.FC = () => {
     onPress?: () => void;
     rightElement?: React.ReactNode;
     color?: string;
+    showArrow?: boolean;
   }) => (
     <TouchableOpacity
       style={styles.settingItem}
@@ -128,7 +266,7 @@ export const ProfileScreen: React.FC = () => {
         <Text style={[styles.settingTitle, { color }]}>{title}</Text>
         {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
       </View>
-      {rightElement || (onPress && <ChevronRight size={20} color={COLORS.textLight} />)}
+      {rightElement || (onPress && showArrow && <ChevronRight size={20} color={COLORS.textLight} />)}
     </TouchableOpacity>
   );
 
@@ -138,6 +276,9 @@ export const ProfileScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t.profile.title}</Text>
@@ -161,24 +302,26 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.profile.personalInfo}</Text>
           <View style={styles.sectionCard}>
-            <SettingItem icon={Mail} title={t.profile.email} subtitle={user?.email} />
+            <SettingItem icon={Mail} title={t.profile.email} subtitle={user?.email} showArrow={false} />
             {user?.phone && (
-              <SettingItem icon={Phone} title={t.profile.phone} subtitle={user.phone} />
+              <SettingItem icon={Phone} title={t.profile.phone} subtitle={user.phone} showArrow={false} />
             )}
             {user?.fiscal_code && (
-              <SettingItem icon={FileText} title={t.profile.fiscalCode} subtitle={user.fiscal_code} />
+              <SettingItem icon={FileText} title={t.profile.fiscalCode} subtitle={user.fiscal_code} showArrow={false} />
             )}
+            <SettingItem icon={Clock} title={t.profile.lastActive} subtitle={lastAccess} showArrow={false} />
           </View>
         </View>
 
         {/* Security */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.settings}</Text>
+          <Text style={styles.sectionTitle}>{t.profile.security}</Text>
           <View style={styles.sectionCard}>
-            {biometricAvailable && (
+            {biometricAvailable ? (
               <SettingItem
                 icon={Fingerprint}
-                title={Platform.OS === 'ios' ? 'Face ID / Touch ID' : 'Biometric'}
+                title={biometricType}
+                subtitle={t.profile.biometricDesc}
                 rightElement={
                   <Switch
                     value={biometricEnabled}
@@ -188,11 +331,24 @@ export const ProfileScreen: React.FC = () => {
                   />
                 }
               />
+            ) : (
+              <SettingItem
+                icon={Fingerprint}
+                title={t.profile.biometric}
+                subtitle={t.profile.biometricNotAvailable}
+                color={COLORS.textLight}
+                showArrow={false}
+              />
             )}
             <SettingItem
-              icon={Clock}
-              title={language === 'en' ? 'Last access' : language === 'es' ? 'Último acceso' : 'Ultimo accesso'}
-              subtitle={lastAccess || '-'}
+              icon={Lock}
+              title={t.profile.changePassword}
+              onPress={() => navigation.navigate('ChangePassword')}
+            />
+            <SettingItem
+              icon={Smartphone}
+              title={t.profile.manageDevices}
+              onPress={() => navigation.navigate('ManageDevices')}
             />
           </View>
         </View>
@@ -202,16 +358,22 @@ export const ProfileScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>{t.profile.notifications}</Text>
           <View style={styles.sectionCard}>
             <SettingItem
-              icon={Bell}
-              title={t.profile.notifications}
+              icon={BellRing}
+              title={t.profile.pushNotifications}
+              subtitle={pushPermission === 'denied' ? t.profile.pushDenied : undefined}
               rightElement={
                 <Switch
-                  value={notificationsEnabled}
-                  onValueChange={setNotificationsEnabled}
+                  value={pushEnabled && pushPermission !== 'denied'}
+                  onValueChange={handlePushToggle}
                   trackColor={{ false: '#e2e8f0', true: COLORS.primary + '50' }}
-                  thumbColor={notificationsEnabled ? COLORS.primary : '#f4f4f5'}
+                  thumbColor={pushEnabled && pushPermission !== 'denied' ? COLORS.primary : '#f4f4f5'}
                 />
               }
+            />
+            <SettingItem
+              icon={Mail}
+              title={t.profile.emailNotifications}
+              onPress={() => navigation.navigate('EmailNotifications')}
             />
           </View>
         </View>
@@ -252,20 +414,31 @@ export const ProfileScreen: React.FC = () => {
           <View style={styles.sectionCard}>
             <SettingItem
               icon={HelpCircle}
-              title={t.profile.help}
-              onPress={() => Alert.alert('Info', 'Coming soon')}
+              title={t.profile.helpCenter}
+              onPress={() => navigation.navigate('HelpCenter')}
             />
             <SettingItem
               icon={Shield}
-              title={t.profile.privacy}
-              onPress={() => Alert.alert('Info', 'Coming soon')}
+              title={t.profile.privacyConsent}
+              onPress={() => navigation.navigate('PrivacyConsent')}
+            />
+            <SettingItem
+              icon={FileText}
+              title={t.profile.termsConditions}
+              onPress={() => navigation.navigate('TermsConditions')}
             />
           </View>
         </View>
 
-        {/* Logout */}
+        {/* Logout & Disconnect */}
         <View style={styles.section}>
           <View style={styles.sectionCard}>
+            <SettingItem
+              icon={AlertCircle}
+              title={t.profile.disconnectAll}
+              color={COLORS.warning}
+              onPress={handleDisconnectAll}
+            />
             <SettingItem
               icon={LogOut}
               title={t.profile.logout}

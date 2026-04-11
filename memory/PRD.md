@@ -7,6 +7,100 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 87 (11 Aprile 2026) - COMPLETATA ✅
+
+**Sezione Profilo Completamente Funzionante:**
+
+**Problemi risolti:**
+- Voci cliccabili senza azione → ora tutte funzionanti
+- Toggle non collegati a logica reale → ora persistenti
+- Nome utente "Cliente" → ora dinamico da user.full_name
+- Schermate placeholder → ora sviluppate completamente
+
+**Nuove schermate create:**
+1. `ChangePasswordScreen.tsx` - Form cambio password con validazione
+2. `ManageDevicesScreen.tsx` - Lista dispositivi connessi con disconnect
+3. `EmailNotificationsScreen.tsx` - Preferenze email per categoria
+4. `HelpCenterScreen.tsx` - FAQ, contatti, guida, assistente AI
+5. `PrivacyConsentScreen.tsx` - Policy, consensi, gestione dati
+6. `TermsConditionsScreen.tsx` - Termini di servizio completi
+
+**Funzionalità implementate:**
+
+1. **Face ID / Touch ID:**
+   - Verifica disponibilità hardware
+   - Toggle attiva/disattiva con autenticazione
+   - Persistenza via SecureStore
+   - Gestione device non compatibile
+
+2. **Cambia password:**
+   - Form con password attuale, nuova, conferma
+   - Validazioni (lunghezza minima, match)
+   - Indicatore forza password
+   - Integrazione backend
+
+3. **Gestisci dispositivi:**
+   - Lista dispositivi con info (nome, OS, ultima attività)
+   - Badge "Dispositivo corrente"
+   - Disconnetti singolo/tutti
+   - Expo Device info
+
+4. **Notifiche push:**
+   - Toggle sincronizzato con permessi iOS
+   - Gestione permesso negato → link a Settings
+   - Persistenza preferenza
+
+5. **Email notifiche:**
+   - Toggle per: scadenze, documenti, ticket, pratiche, newsletter
+   - Persistenza locale + sync backend
+
+6. **Cambio lingua:**
+   - Integrato nel profilo (oltre che in home)
+   - Selezione visuale con bandierine
+   - Aggiornamento immediato UI
+
+7. **Centro assistenza:**
+   - FAQ, guida rapida
+   - Link ad assistente AI
+   - Contatti (tel, email)
+   - Orari ufficio
+
+8. **Privacy e consensi:**
+   - Link a policy (privacy, cookie, terms)
+   - Info titolare trattamento
+   - Toggle consenso marketing
+   - Info diritti utente
+
+9. **Termini e condizioni:**
+   - Sezioni legali complete
+   - Contatti legali
+   - Link versione online
+
+10. **Disconnetti tutti i dispositivi:**
+    - Conferma esplicita
+    - Logout e invalidazione sessioni
+
+**File creati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/ChangePasswordScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/ManageDevicesScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/EmailNotificationsScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/HelpCenterScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/PrivacyConsentScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/TermsConditionsScreen.tsx`
+
+**File modificati:**
+- `ProfileScreen.tsx` (riscritto completamente)
+- `AppNavigator.tsx` (aggiunte 6 nuove routes)
+- `api.ts` (aggiunti metodi changePassword, updateEmailPreferences)
+- `it.ts`, `es.ts`, `en.ts` (traduzioni profilo estese)
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+- ✅ Tutti i tap producono azione reale
+- ✅ Toggle persistenti
+- ✅ Nome profilo dinamico
+
+
 ### Fase 86 (11 Aprile 2026) - COMPLETATA ✅
 
 **Sistema i18n Completo per Mobile App:**
