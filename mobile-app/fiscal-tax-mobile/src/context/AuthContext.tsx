@@ -86,17 +86,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, error: data.detail || 'Credenziali non valide' };
       }
 
+      // Estrai i dati utente dalla risposta
+      const userData = data.user || data;
+      const accessToken = data.access_token;
+
       // Verifica che sia un cliente (non admin)
-      if (data.role === 'admin' || data.role === 'super_admin' || data.role === 'commercialista') {
+      if (userData.role === 'admin' || userData.role === 'super_admin' || userData.role === 'commercialista') {
         return { success: false, error: 'Questa app è riservata ai clienti. Usa la web app per accedere come amministratore.' };
       }
 
       // Salva token e dati utente
-      await SecureStore.setItemAsync('auth_token', data.access_token);
-      await SecureStore.setItemAsync('user_data', JSON.stringify(data));
+      await SecureStore.setItemAsync('auth_token', accessToken);
+      await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
 
-      setToken(data.access_token);
-      setUser(data);
+      setToken(accessToken);
+      setUser(userData);
 
       return { success: true };
     } catch (error) {
@@ -126,8 +130,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       if (response.ok) {
         const data = await response.json();
-        setUser(data);
-        await SecureStore.setItemAsync('user_data', JSON.stringify(data));
+        // /api/auth/me restituisce direttamente i dati utente, non un wrapper
+        const userData = data.user || data;
+        setUser(userData);
+        await SecureStore.setItemAsync('user_data', JSON.stringify(userData));
       }
     } catch (error) {
       console.error('Refresh user error:', error);
