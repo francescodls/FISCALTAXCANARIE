@@ -7,6 +7,50 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 82 (11 Aprile 2026) - COMPLETATA ✅
+
+**Gestione Attività Recenti - Rimozione Dinamica:**
+
+**Problema:** La sezione "Attività recenti" accumulava elementi all'infinito senza possibilità di gestirli, creando una lista disordinata.
+
+**Soluzione implementata:**
+
+1. **Stato delle attività:**
+   - Ogni attività ha uno stato: `isNew` (nuova) o visualizzata
+   - Badge "Nuovo" per attività non ancora viste
+   - Dot colorato (blu = nuova, grigio = visualizzata)
+
+2. **Azioni disponibili:**
+   - **Pulsante X** su ogni attività → nasconde immediatamente dall'elenco
+   - **"Segna lette"** → marca tutte come visualizzate
+   - **"Pulisci"** → nasconde tutte le attività già visualizzate (con conferma)
+   - **Tap sull'attività** → marca come visualizzata
+
+3. **Persistenza locale:**
+   - Le attività nascoste sono salvate in `SecureStore` con chiave `dismissed_activities`
+   - Le attività visualizzate sono tracciate separatamente
+   - Persistono tra sessioni, logout/login, riapertura app
+   - Associato al device (non al backend)
+
+4. **Filtro automatico:**
+   - Al caricamento dati, le attività già nascoste vengono filtrate
+   - La lista non mostra mai attività precedentemente rimosse
+   - Max 5 attività visibili contemporaneamente
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/HomeScreen.tsx`
+
+**Comportamento UX:**
+- Rimozione istantanea dall'UI (no reload necessario)
+- Hint sotto la lista: "Tocca per segnare come letta, X per nascondere"
+- La rimozione è solo lato client (i dati restano nel sistema)
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+- ✅ Persistenza locale funzionante
+- ✅ UI pulita e ordinata
+
+
 ### Fase 81 (11 Aprile 2026) - COMPLETATA ✅
 
 **Implementazione Ricerca e Assistente AI:**

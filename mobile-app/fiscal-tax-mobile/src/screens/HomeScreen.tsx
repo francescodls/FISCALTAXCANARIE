@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  Animated,
+  PanResponder,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -26,7 +29,12 @@ import {
   Search,
   Folder,
   ArrowRight,
+  X,
+  Trash2,
+  Eye,
+  CheckCheck,
 } from 'lucide-react-native';
+import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
@@ -71,7 +79,10 @@ interface ActivityItem {
   type: string;
   title: string;
   timestamp: string;
+  isNew?: boolean;
 }
+
+const DISMISSED_ACTIVITIES_KEY = 'dismissed_activities';
 
 export const HomeScreen: React.FC = () => {
   const { user, token } = useAuth();
@@ -88,6 +99,94 @@ export const HomeScreen: React.FC = () => {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
+
+  // Carica attività nascoste dal storage locale
+  useEffect(() => {
+    const loadDismissedActivities = async () => {
+      try {
+        const stored = await SecureStore.getItemAsync(DISMISSED_ACTIVITIES_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setDismissedIds(new Set(parsed.dismissed || []));
+          setViewedIds(new Set(parsed.viewed || []));
+        }
+      } catch (error) {
+        console.error('Error loading dismissed activities:', error);
+      }
+    };
+    loadDismissedActivities();
+  }, []);
+
+  // Salva attività nascoste
+  const saveDismissedActivities = async (dismissed: Set<string>, viewed: Set<string>) => {
+    try {
+      await SecureStore.setItemAsync(
+        DISMISSED_ACTIVITIES_KEY,
+        JSON.stringify({
+          dismissed: Array.from(dismissed),
+          viewed: Array.from(viewed),
+        })
+      );
+    } catch (error) {
+      console.error('Error saving dismissed activities:', error);
+    }
+  };
+
+  // Nascondi singola attività
+  const dismissActivity = useCallback((activityId: string) => {
+    setDismissedIds(prev => {
+      const newSet = new Set(prev);
+      newSet.add(activityId);
+      saveDismissedActivities(newSet, viewedIds);
+      return newSet;
+    });
+    // Rimuovi immediatamente dall'UI
+    setRecentActivity(prev => prev.filter(a => a.id !== activityId));
+  }, [viewedIds]);
+
+  // Segna come visualizzata
+  const markAsViewed = useCallback((activityId: string) => {
+    setViewedIds(prev => {
+      const newSet = new Set(prev);
+      newSet.add(activityId);
+      saveDismissedActivities(dismissedIds, newSet);
+      return newSet;
+    });
+  }, [dismissedIds]);
+
+  // Pulisci tutte le attività visualizzate
+  const clearAllViewed = useCallback(() => {
+    Alert.alert(
+      'Pulisci attività',
+      'Vuoi nascondere tutte le attività visualizzate?',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Pulisci',
+          style: 'destructive',
+          onPress: () => {
+            const viewedActivityIds = recentActivity.filter(a => viewedIds.has(a.id)).map(a => a.id);
+            const newDismissed = new Set([...dismissedIds, ...viewedActivityIds]);
+            setDismissedIds(newDismissed);
+            saveDismissedActivities(newDismissed, viewedIds);
+            setRecentActivity(prev => prev.filter(a => !viewedIds.has(a.id)));
+          },
+        },
+      ]
+    );
+  }, [recentActivity, viewedIds, dismissedIds]);
+
+  // Segna tutto come visualizzato
+  const markAllAsViewed = useCallback(() => {
+    const allIds = recentActivity.map(a => a.id);
+    const newViewed = new Set([...viewedIds, ...allIds]);
+    setViewedIds(newViewed);
+    saveDismissedActivities(dismissedIds, newViewed);
+    // Aggiorna lo stato delle attività
+    setRecentActivity(prev => prev.map(a => ({ ...a, isNew: false })));
+  }, [recentActivity, viewedIds, dismissedIds]);
 
   useEffect(() => {
     if (token) {
@@ -209,23 +308,31 @@ export const HomeScreen: React.FC = () => {
       });
       setDeadlines(processedDeadlines);
 
-      // Build recent activity
+      // Build recent activity (filtra quelle già nascoste)
       const activity: ActivityItem[] = [];
       declarations.slice(0, 2).forEach((d: any) => {
-        activity.push({
-          id: d._id || Math.random().toString(),
-          type: 'declaration',
-          title: `Pratica ${d.tipo?.toUpperCase() || 'IRPF'} aggiornata`,
-          timestamp: d.updated_at || d.created_at,
-        });
+        const actId = d._id || `decl-${Math.random().toString()}`;
+        if (!dismissedIds.has(actId)) {
+          activity.push({
+            id: actId,
+            type: 'declaration',
+            title: `Pratica ${d.tipo?.toUpperCase() || 'IRPF'} aggiornata`,
+            timestamp: d.updated_at || d.created_at,
+            isNew: !viewedIds.has(actId),
+          });
+        }
       });
       documents.slice(0, 2).forEach((d: any) => {
-        activity.push({
-          id: d._id || Math.random().toString(),
-          type: 'document',
-          title: `Nuovo documento: ${d.file_name || 'Documento'}`,
-          timestamp: d.created_at,
-        });
+        const actId = d._id || `doc-${Math.random().toString()}`;
+        if (!dismissedIds.has(actId)) {
+          activity.push({
+            id: actId,
+            type: 'document',
+            title: `Nuovo documento: ${d.file_name || 'Documento'}`,
+            timestamp: d.created_at,
+            isNew: !viewedIds.has(actId),
+          });
+        }
       });
       setRecentActivity(activity.slice(0, 5));
 
@@ -499,7 +606,29 @@ export const HomeScreen: React.FC = () => {
         {/* Attività Recente */}
         {recentActivity.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attività recente</Text>
+            <View style={styles.activityHeader}>
+              <Text style={styles.sectionTitle}>Attività recente</Text>
+              <View style={styles.activityActions}>
+                {recentActivity.some(a => a.isNew) && (
+                  <TouchableOpacity 
+                    style={styles.activityActionButton}
+                    onPress={markAllAsViewed}
+                  >
+                    <Eye size={14} color={COLORS.primary} />
+                    <Text style={styles.activityActionText}>Segna lette</Text>
+                  </TouchableOpacity>
+                )}
+                {viewedIds.size > 0 && recentActivity.some(a => viewedIds.has(a.id)) && (
+                  <TouchableOpacity 
+                    style={styles.activityActionButton}
+                    onPress={clearAllViewed}
+                  >
+                    <Trash2 size={14} color={COLORS.textSecondary} />
+                    <Text style={[styles.activityActionText, { color: COLORS.textSecondary }]}>Pulisci</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
             <View style={styles.activityContainer}>
               {recentActivity.map((activity, index) => (
                 <View
@@ -509,14 +638,50 @@ export const HomeScreen: React.FC = () => {
                     index < recentActivity.length - 1 && styles.activityItemBorder,
                   ]}
                 >
-                  <View style={styles.activityDot} />
-                  <View style={styles.activityContent}>
-                    <Text style={styles.activityTitle}>{activity.title}</Text>
-                    <Text style={styles.activityTime}>{formatTimeAgo(activity.timestamp)}</Text>
-                  </View>
+                  {/* Indicatore nuovo */}
+                  <View style={[
+                    styles.activityDot, 
+                    activity.isNew ? styles.activityDotNew : styles.activityDotViewed
+                  ]} />
+                  
+                  {/* Contenuto */}
+                  <TouchableOpacity 
+                    style={styles.activityContent}
+                    onPress={() => markAsViewed(activity.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.activityTextContainer}>
+                      <Text style={[
+                        styles.activityTitle,
+                        !activity.isNew && styles.activityTitleViewed
+                      ]}>
+                        {activity.title}
+                      </Text>
+                      <Text style={styles.activityTime}>{formatTimeAgo(activity.timestamp)}</Text>
+                    </View>
+                    {activity.isNew && (
+                      <View style={styles.newBadge}>
+                        <Text style={styles.newBadgeText}>Nuovo</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  
+                  {/* Pulsante rimuovi */}
+                  <TouchableOpacity 
+                    style={styles.dismissButton}
+                    onPress={() => dismissActivity(activity.id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={16} color={COLORS.textLight} />
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
+            
+            {/* Hint */}
+            <Text style={styles.activityHint}>
+              Tocca per segnare come letta, X per nascondere
+            </Text>
           </View>
         )}
 
@@ -757,6 +922,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#ffffff',
   },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activityActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  activityActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: COLORS.primary + '10',
+    borderRadius: 20,
+  },
+  activityActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
   activityContainer: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -775,12 +964,23 @@ const styles = StyleSheet.create({
     borderBottomColor: '#f1f5f9',
   },
   activityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  activityDotNew: {
     backgroundColor: COLORS.primary,
   },
+  activityDotViewed: {
+    backgroundColor: COLORS.textLight,
+    opacity: 0.5,
+  },
   activityContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activityTextContainer: {
     flex: 1,
   },
   activityTitle: {
@@ -788,9 +988,36 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: COLORS.text,
   },
+  activityTitleViewed: {
+    color: COLORS.textSecondary,
+  },
   activityTime: {
     fontSize: 12,
     color: COLORS.textLight,
     marginTop: 2,
+  },
+  newBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  dismissButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: COLORS.background,
+  },
+  activityHint: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
