@@ -85,6 +85,10 @@ class ApiService {
     return this.request<any[]>('/api/tickets');
   }
 
+  async getTicketDetails(ticketId: string) {
+    return this.request<any>(`/api/tickets/${ticketId}`);
+  }
+
   async createTicket(data: { subject: string; message: string; category?: string; priority?: string }) {
     return this.request('/api/tickets', {
       method: 'POST',

@@ -7,6 +7,43 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 85 (11 Aprile 2026) - COMPLETATA ✅
+
+**Fix Flusso "Nuovo Ticket" Mobile App:**
+
+**Problemi risolti:**
+1. Il form "Nuovo Ticket" inviava `message` ma il backend aspettava `content` → Ticket creato senza messaggio
+2. `TicketDetailScreen.tsx` creato ma MAI registrato in `AppNavigator.tsx` → navigazione non funzionante
+3. Mancava il metodo `getTicketDetails()` nel servizio API mobile
+
+**Implementazione:**
+
+1. **Backend/API fix (fase precedente):**
+   - Fix payload mapping: `message` → `content` in `api.ts`
+
+2. **Registrazione TicketDetailScreen:**
+   - Import aggiunto in `AppNavigator.tsx`
+   - Registrato come `<Stack.Screen name="TicketDetail" />`
+
+3. **Navigazione funzionante:**
+   - `CommunicationsScreen.tsx` ora naviga a `TicketDetail` al tap su ticket
+   - Rimosso Alert placeholder temporaneo
+
+4. **Servizio API completato:**
+   - Aggiunto `getTicketDetails(ticketId)` in `api.ts`
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori (`npx tsc --noEmit`)
+- ✅ API `POST /api/tickets` - Creazione ticket funzionante
+- ✅ API `GET /api/tickets/{id}` - Dettaglio ticket funzionante
+- ✅ API `POST /api/tickets/{id}/messages` - Invio messaggi funzionante
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/CommunicationsScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/services/api.ts`
+
+
 ### Fase 84 (11 Aprile 2026) - COMPLETATA ✅
 
 **Redesign e Fix Sezione Documenti:**

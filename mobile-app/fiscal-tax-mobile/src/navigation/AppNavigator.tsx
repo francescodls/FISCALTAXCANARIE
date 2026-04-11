@@ -26,6 +26,7 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
 import { DeadlineDetailScreen } from '../screens/DeadlineDetailScreen';
 import { SearchScreen } from '../screens/SearchScreen';
+import { TicketDetailScreen } from '../screens/TicketDetailScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -141,6 +142,7 @@ export const AppNavigator = () => {
             <Stack.Screen name="Notifiche" component={NotificationsScreen} />
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />
             <Stack.Screen name="Ricerca" component={SearchScreen} />
+            <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
           </>
         ) : (
           <Stack.Screen 

@@ -212,8 +212,7 @@ export const CommunicationsScreen: React.FC = () => {
       <TouchableOpacity
         style={styles.ticketCard}
         onPress={() => {
-          // TODO: Implementare TicketDetailScreen
-          Alert.alert('Ticket', `Ticket #${item._id || item.id}\n\n${item.subject}\n\nStato: ${statusConfig.text}`);
+          navigation.navigate('TicketDetail', { ticketId: item._id || item.id });
         }}
         activeOpacity={0.7}
       >
