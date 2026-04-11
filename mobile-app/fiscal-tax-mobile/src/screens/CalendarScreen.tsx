@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -17,13 +18,18 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
+  AlertCircle,
   List,
   Grid,
   Filter,
+  Bell,
+  ChevronDown,
+  Info,
+  ArrowRight,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import { COLORS, SPACING, RADIUS } from '../config/constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DAY_WIDTH = (SCREEN_WIDTH - 48 - 6 * 4) / 7;
@@ -34,9 +40,10 @@ interface Deadline {
   title: string;
   description?: string;
   date: string;
+  due_date?: string;
   category?: string;
-  status: 'pending' | 'completed' | 'overdue';
-  priority: 'high' | 'medium' | 'low';
+  status: string;
+  priority: string;
 }
 
 const MONTHS = [
@@ -46,15 +53,23 @@ const MONTHS = [
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
+const FILTERS = [
+  { key: 'all', label: 'Tutte' },
+  { key: 'urgent', label: 'Urgenti' },
+  { key: 'pending', label: 'In corso' },
+  { key: 'completed', label: 'Completate' },
+];
+
 export const CalendarScreen: React.FC = () => {
   const { token } = useAuth();
+  const navigation = useNavigation<any>();
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [filter, setFilter] = useState<string>('all');
 
   useEffect(() => {
     if (token) {
@@ -99,23 +114,16 @@ export const CalendarScreen: React.FC = () => {
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     
-    // Get the day of week (0-6, where 0 is Sunday)
     let startDayOfWeek = firstDay.getDay();
-    // Convert to Monday = 0
     startDayOfWeek = startDayOfWeek === 0 ? 6 : startDayOfWeek - 1;
     
     const days: (number | null)[] = [];
-    
-    // Add empty cells for days before the first day
     for (let i = 0; i < startDayOfWeek; i++) {
       days.push(null);
     }
-    
-    // Add the days
     for (let i = 1; i <= daysInMonth; i++) {
       days.push(i);
     }
-    
     return days;
   };
 
@@ -123,21 +131,86 @@ export const CalendarScreen: React.FC = () => {
     const year = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
     return deadlines.filter(d => {
-      const deadlineDate = new Date(d.date);
+      const deadlineDate = new Date(d.date || d.due_date || '');
       return deadlineDate.getDate() === day &&
              deadlineDate.getMonth() === month &&
              deadlineDate.getFullYear() === year;
     });
   };
 
+  const getSelectedDateDeadlines = () => {
+    if (!selectedDate) return [];
+    return deadlines.filter(d => {
+      const deadlineDate = new Date(d.date || d.due_date || '');
+      return deadlineDate.getDate() === selectedDate.getDate() &&
+             deadlineDate.getMonth() === selectedDate.getMonth() &&
+             deadlineDate.getFullYear() === selectedDate.getFullYear();
+    });
+  };
+
+  const getUpcomingDeadlines = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    
+    return deadlines
+      .filter(d => {
+        const deadlineDate = new Date(d.date || d.due_date || '');
+        deadlineDate.setHours(0, 0, 0, 0);
+        return deadlineDate >= today && deadlineDate <= nextWeek && d.status !== 'completed';
+      })
+      .sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
+  };
+
+  const getUrgentDeadlines = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return deadlines
+      .filter(d => {
+        const deadlineDate = new Date(d.date || d.due_date || '');
+        deadlineDate.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays <= 3 && diffDays >= 0 && d.status !== 'completed';
+      })
+      .sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
+  };
+
+  const getNextImportantDeadline = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const upcoming = deadlines
+      .filter(d => {
+        const deadlineDate = new Date(d.date || d.due_date || '');
+        deadlineDate.setHours(0, 0, 0, 0);
+        return deadlineDate >= today && d.status !== 'completed';
+      })
+      .sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
+    
+    return upcoming[0] || null;
+  };
+
   const getFilteredDeadlines = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     let filtered = deadlines;
-    if (filter === 'pending') {
-      filtered = deadlines.filter(d => d.status === 'pending');
+    
+    if (filter === 'urgent') {
+      filtered = deadlines.filter(d => {
+        const deadlineDate = new Date(d.date || d.due_date || '');
+        const diffDays = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return diffDays <= 3 && d.status !== 'completed';
+      });
+    } else if (filter === 'pending') {
+      filtered = deadlines.filter(d => d.status !== 'completed');
     } else if (filter === 'completed') {
       filtered = deadlines.filter(d => d.status === 'completed');
     }
-    return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    return filtered.sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
   };
 
   const formatDate = (dateString: string) => {
@@ -153,26 +226,45 @@ export const CalendarScreen: React.FC = () => {
     }
   };
 
-  const getStatusConfig = (deadline: Deadline) => {
+  const formatShortDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'short',
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  const getDaysUntil = (dateString: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const deadlineDate = new Date(deadline.date);
+    const deadlineDate = new Date(dateString);
     deadlineDate.setHours(0, 0, 0, 0);
-    const diffDays = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    return Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  };
 
-    if (deadline.status === 'completed') {
-      return { color: COLORS.success, icon: CheckCircle, text: 'Completata' };
+  const getStatusConfig = (deadline: Deadline) => {
+    const daysUntil = getDaysUntil(deadline.date || deadline.due_date || '');
+
+    if (deadline.status === 'completed' || deadline.status === 'completata') {
+      return { color: COLORS.success, bgColor: COLORS.success + '15', icon: CheckCircle, text: 'Completata', badge: 'completata' };
     }
-    if (diffDays < 0) {
-      return { color: COLORS.error, icon: AlertTriangle, text: 'Scaduta' };
+    if (daysUntil < 0) {
+      return { color: COLORS.error, bgColor: COLORS.error + '15', icon: AlertCircle, text: 'Scaduta', badge: 'scaduta' };
     }
-    if (diffDays <= 3) {
-      return { color: COLORS.error, icon: AlertTriangle, text: `Tra ${diffDays} giorni` };
+    if (daysUntil === 0) {
+      return { color: COLORS.error, bgColor: COLORS.error + '15', icon: AlertTriangle, text: 'Oggi!', badge: 'oggi' };
     }
-    if (diffDays <= 7) {
-      return { color: COLORS.warning, icon: Clock, text: `Tra ${diffDays} giorni` };
+    if (daysUntil <= 3) {
+      return { color: COLORS.error, bgColor: COLORS.error + '15', icon: AlertTriangle, text: `${daysUntil} giorni`, badge: 'urgente' };
     }
-    return { color: COLORS.primary, icon: Clock, text: `Tra ${diffDays} giorni` };
+    if (daysUntil <= 7) {
+      return { color: COLORS.warning, bgColor: COLORS.warning + '15', icon: Clock, text: `${daysUntil} giorni`, badge: 'imminente' };
+    }
+    return { color: COLORS.primary, bgColor: COLORS.primary + '15', icon: Clock, text: `${daysUntil} giorni`, badge: 'programmata' };
   };
 
   const isToday = (day: number) => {
@@ -182,194 +274,313 @@ export const CalendarScreen: React.FC = () => {
            currentMonth.getFullYear() === today.getFullYear();
   };
 
-  const renderCalendarView = () => {
-    const days = getDaysInMonth();
+  const navigateToDetail = (deadline: Deadline) => {
+    const daysUntil = getDaysUntil(deadline.date || deadline.due_date || '');
+    navigation.navigate('DeadlineDetail', {
+      id: deadline._id || deadline.id,
+      title: deadline.title,
+      description: deadline.description || '',
+      due_date: deadline.date || deadline.due_date,
+      category: deadline.category || 'fiscale',
+      status: deadline.status,
+      priority: deadline.priority,
+      daysLeft: daysUntil,
+    });
+  };
+
+  // Render Next Important Deadline Card
+  const renderNextDeadlineCard = () => {
+    const nextDeadline = getNextImportantDeadline();
+    if (!nextDeadline) return null;
+
+    const config = getStatusConfig(nextDeadline);
+    const StatusIcon = config.icon;
+    const daysUntil = getDaysUntil(nextDeadline.date || nextDeadline.due_date || '');
 
     return (
-      <View style={styles.calendarContainer}>
-        {/* Month Navigation */}
-        <View style={styles.monthNav}>
-          <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
-            <ChevronLeft size={24} color={COLORS.text} />
-          </TouchableOpacity>
-          <Text style={styles.monthTitle}>
-            {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+      <TouchableOpacity 
+        style={[styles.nextDeadlineCard, { borderLeftColor: config.color }]}
+        onPress={() => navigateToDetail(nextDeadline)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.nextDeadlineHeader}>
+          <View style={[styles.nextDeadlineBadge, { backgroundColor: config.bgColor }]}>
+            <StatusIcon size={14} color={config.color} />
+            <Text style={[styles.nextDeadlineBadgeText, { color: config.color }]}>
+              Prossima scadenza
+            </Text>
+          </View>
+          <View style={[styles.daysLeftBadge, { backgroundColor: config.color }]}>
+            <Text style={styles.daysLeftText}>
+              {daysUntil === 0 ? 'OGGI' : daysUntil < 0 ? 'SCADUTA' : `${daysUntil}g`}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.nextDeadlineTitle}>{nextDeadline.title}</Text>
+        <View style={styles.nextDeadlineFooter}>
+          <Text style={styles.nextDeadlineDate}>
+            <CalendarIcon size={14} color={COLORS.textSecondary} /> {formatDate(nextDeadline.date || nextDeadline.due_date || '')}
           </Text>
-          <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
-            <ChevronRight size={24} color={COLORS.text} />
-          </TouchableOpacity>
+          <View style={styles.viewDetailButton}>
+            <Text style={styles.viewDetailText}>Dettagli</Text>
+            <ArrowRight size={14} color={COLORS.primary} />
+          </View>
         </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {/* Day Headers */}
-        <View style={styles.dayHeaders}>
-          {DAYS.map((day) => (
-            <View key={day} style={styles.dayHeader}>
-              <Text style={styles.dayHeaderText}>{day}</Text>
-            </View>
-          ))}
+  // Render Deadline Card
+  const renderDeadlineCard = (deadline: Deadline, showDate: boolean = true) => {
+    const config = getStatusConfig(deadline);
+    const StatusIcon = config.icon;
+
+    return (
+      <TouchableOpacity
+        key={deadline._id || deadline.id}
+        style={styles.deadlineCard}
+        onPress={() => navigateToDetail(deadline)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.deadlineCardIcon, { backgroundColor: config.bgColor }]}>
+          <StatusIcon size={20} color={config.color} />
         </View>
+        <View style={styles.deadlineCardContent}>
+          <Text style={styles.deadlineCardTitle} numberOfLines={1}>{deadline.title}</Text>
+          {showDate && (
+            <Text style={styles.deadlineCardDate}>
+              {formatShortDate(deadline.date || deadline.due_date || '')}
+            </Text>
+          )}
+          {deadline.description && (
+            <Text style={styles.deadlineCardDescription} numberOfLines={1}>
+              {deadline.description}
+            </Text>
+          )}
+        </View>
+        <View style={styles.deadlineCardRight}>
+          <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
+            <Text style={[styles.statusBadgeText, { color: config.color }]}>
+              {config.badge}
+            </Text>
+          </View>
+          <ChevronRight size={18} color={COLORS.textLight} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
-        {/* Calendar Grid */}
-        <View style={styles.calendarGrid}>
-          {days.map((day, index) => {
-            const dayDeadlines = day ? getDeadlinesForDay(day) : [];
-            const hasUrgent = dayDeadlines.some(d => {
-              const config = getStatusConfig(d);
-              return config.color === COLORS.error;
-            });
-            const hasWarning = dayDeadlines.some(d => {
-              const config = getStatusConfig(d);
-              return config.color === COLORS.warning;
-            });
+  // Render Calendar View
+  const renderCalendarView = () => {
+    const days = getDaysInMonth();
+    const selectedDateDeadlines = getSelectedDateDeadlines();
+    const upcomingDeadlines = getUpcomingDeadlines();
+    const urgentDeadlines = getUrgentDeadlines();
 
-            return (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.dayCell,
-                  day && isToday(day) ? styles.dayCellToday : undefined,
-                  selectedDate && day === selectedDate.getDate() &&
-                    currentMonth.getMonth() === selectedDate.getMonth()
-                    ? styles.dayCellSelected
-                    : undefined,
-                ]}
-                onPress={() => day && setSelectedDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day))}
-                disabled={!day}
-              >
-                {day && (
-                  <>
-                    <Text style={[
-                      styles.dayNumber,
-                      isToday(day) && styles.dayNumberToday,
-                    ]}>
-                      {day}
-                    </Text>
-                    {dayDeadlines.length > 0 && (
-                      <View style={styles.deadlineIndicators}>
-                        {hasUrgent && <View style={[styles.indicator, { backgroundColor: COLORS.error }]} />}
-                        {hasWarning && !hasUrgent && <View style={[styles.indicator, { backgroundColor: COLORS.warning }]} />}
-                        {!hasUrgent && !hasWarning && <View style={[styles.indicator, { backgroundColor: COLORS.primary }]} />}
-                      </View>
-                    )}
-                  </>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+    return (
+      <>
+        {/* Next Important Deadline */}
+        {renderNextDeadlineCard()}
+
+        {/* Calendar */}
+        <View style={styles.calendarContainer}>
+          {/* Month Navigation */}
+          <View style={styles.monthNav}>
+            <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
+              <ChevronLeft size={24} color={COLORS.text} />
+            </TouchableOpacity>
+            <Text style={styles.monthTitle}>
+              {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+            </Text>
+            <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
+              <ChevronRight size={24} color={COLORS.text} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Day Headers */}
+          <View style={styles.dayHeaders}>
+            {DAYS.map((day) => (
+              <View key={day} style={styles.dayHeader}>
+                <Text style={styles.dayHeaderText}>{day}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Calendar Grid */}
+          <View style={styles.calendarGrid}>
+            {days.map((day, index) => {
+              const dayDeadlines = day ? getDeadlinesForDay(day) : [];
+              const hasUrgent = dayDeadlines.some(d => {
+                const config = getStatusConfig(d);
+                return config.color === COLORS.error;
+              });
+              const hasWarning = dayDeadlines.some(d => {
+                const config = getStatusConfig(d);
+                return config.color === COLORS.warning;
+              });
+              const isSelected = selectedDate && day === selectedDate.getDate() &&
+                currentMonth.getMonth() === selectedDate.getMonth() &&
+                currentMonth.getFullYear() === selectedDate.getFullYear();
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.dayCell,
+                    day && isToday(day) ? styles.dayCellToday : undefined,
+                    isSelected ? styles.dayCellSelected : undefined,
+                  ]}
+                  onPress={() => day && setSelectedDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day))}
+                  disabled={!day}
+                >
+                  {day && (
+                    <>
+                      <Text style={[
+                        styles.dayNumber,
+                        isToday(day) && styles.dayNumberToday,
+                        isSelected && styles.dayNumberSelected,
+                      ]}>
+                        {day}
+                      </Text>
+                      {dayDeadlines.length > 0 && (
+                        <View style={styles.deadlineIndicators}>
+                          <View style={[
+                            styles.indicator, 
+                            { backgroundColor: hasUrgent ? COLORS.error : hasWarning ? COLORS.warning : COLORS.primary }
+                          ]} />
+                          {dayDeadlines.length > 1 && (
+                            <Text style={styles.indicatorCount}>+{dayDeadlines.length - 1}</Text>
+                          )}
+                        </View>
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         {/* Selected Day Deadlines */}
         {selectedDate && (
-          <View style={styles.selectedDaySection}>
-            <Text style={styles.selectedDayTitle}>
-              {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
-            </Text>
-            {getDeadlinesForDay(selectedDate.getDate()).length > 0 ? (
-              getDeadlinesForDay(selectedDate.getDate()).map(deadline => {
-                const config = getStatusConfig(deadline);
-                const StatusIcon = config.icon;
-                return (
-                  <View key={deadline._id || deadline.id} style={styles.deadlineItem}>
-                    <View style={[styles.deadlineIconContainer, { backgroundColor: config.color + '15' }]}>
-                      <StatusIcon size={18} color={config.color} />
-                    </View>
-                    <View style={styles.deadlineContent}>
-                      <Text style={styles.deadlineTitle}>{deadline.title}</Text>
-                      <Text style={[styles.deadlineStatus, { color: config.color }]}>{config.text}</Text>
-                    </View>
-                  </View>
-                );
-              })
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <CalendarIcon size={18} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>
+                {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
+              </Text>
+              <Text style={styles.sectionCount}>
+                {selectedDateDeadlines.length} scadenz{selectedDateDeadlines.length !== 1 ? 'e' : 'a'}
+              </Text>
+            </View>
+            {selectedDateDeadlines.length > 0 ? (
+              selectedDateDeadlines.map(deadline => renderDeadlineCard(deadline, false))
             ) : (
-              <Text style={styles.noDeadlines}>Nessuna scadenza per questo giorno</Text>
+              <View style={styles.emptyState}>
+                <CalendarIcon size={32} color={COLORS.textLight} />
+                <Text style={styles.emptyStateText}>Nessuna scadenza per questo giorno</Text>
+              </View>
             )}
           </View>
         )}
-      </View>
+
+        {/* Urgent Deadlines */}
+        {urgentDeadlines.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <AlertTriangle size={18} color={COLORS.error} />
+              <Text style={[styles.sectionTitle, { color: COLORS.error }]}>Scadenze Urgenti</Text>
+              <View style={[styles.countBadge, { backgroundColor: COLORS.error }]}>
+                <Text style={styles.countBadgeText}>{urgentDeadlines.length}</Text>
+              </View>
+            </View>
+            {urgentDeadlines.slice(0, 3).map(deadline => renderDeadlineCard(deadline))}
+          </View>
+        )}
+
+        {/* Upcoming Deadlines */}
+        {upcomingDeadlines.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Clock size={18} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>Prossimi 7 giorni</Text>
+              <Text style={styles.sectionCount}>{upcomingDeadlines.length}</Text>
+            </View>
+            {upcomingDeadlines.slice(0, 5).map(deadline => renderDeadlineCard(deadline))}
+          </View>
+        )}
+
+        {/* Empty State for no deadlines at all */}
+        {deadlines.length === 0 && (
+          <View style={styles.emptyStateContainer}>
+            <CalendarIcon size={64} color={COLORS.textLight} />
+            <Text style={styles.emptyStateTitle}>Nessuna scadenza</Text>
+            <Text style={styles.emptyStateSubtitle}>
+              Non ci sono scadenze fiscali programmate per il momento
+            </Text>
+          </View>
+        )}
+      </>
     );
   };
 
+  // Render List View
   const renderListView = () => {
     const filteredDeadlines = getFilteredDeadlines();
 
     return (
-      <View style={styles.listContainer}>
+      <>
         {/* Filters */}
-        <View style={styles.filtersRow}>
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'all' && styles.filterButtonActive]}
-            onPress={() => setFilter('all')}
-          >
-            <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-              Tutte ({deadlines.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'pending' && styles.filterButtonActive]}
-            onPress={() => setFilter('pending')}
-          >
-            <Text style={[styles.filterText, filter === 'pending' && styles.filterTextActive]}>
-              In attesa ({deadlines.filter(d => d.status === 'pending').length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterButton, filter === 'completed' && styles.filterButtonActive]}
-            onPress={() => setFilter('completed')}
-          >
-            <Text style={[styles.filterText, filter === 'completed' && styles.filterTextActive]}>
-              Completate ({deadlines.filter(d => d.status === 'completed').length})
-            </Text>
-          </TouchableOpacity>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtersScroll}
+          contentContainerStyle={styles.filtersContainer}
+        >
+          {FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+              onPress={() => setFilter(f.key)}
+            >
+              <Text style={[styles.filterChipText, filter === f.key && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Results Count */}
+        <View style={styles.resultsHeader}>
+          <Text style={styles.resultsCount}>
+            {filteredDeadlines.length} scadenz{filteredDeadlines.length !== 1 ? 'e' : 'a'}
+          </Text>
         </View>
 
         {/* Deadlines List */}
         {filteredDeadlines.length > 0 ? (
-          filteredDeadlines.map(deadline => {
-            const config = getStatusConfig(deadline);
-            const StatusIcon = config.icon;
-            return (
-              <View key={deadline._id || deadline.id} style={styles.listDeadlineCard}>
-                <View style={[styles.priorityBar, { backgroundColor: config.color }]} />
-                <View style={styles.listDeadlineContent}>
-                  <View style={styles.listDeadlineHeader}>
-                    <View style={[styles.deadlineIconContainer, { backgroundColor: config.color + '15' }]}>
-                      <StatusIcon size={18} color={config.color} />
-                    </View>
-                    <View style={styles.listDeadlineInfo}>
-                      <Text style={styles.listDeadlineTitle}>{deadline.title}</Text>
-                      <Text style={styles.listDeadlineDate}>{formatDate(deadline.date)}</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: config.color + '15' }]}>
-                      <Text style={[styles.statusBadgeText, { color: config.color }]}>{config.text}</Text>
-                    </View>
-                  </View>
-                  {deadline.description && (
-                    <Text style={styles.listDeadlineDescription}>{deadline.description}</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })
+          <View style={styles.listContent}>
+            {filteredDeadlines.map(deadline => renderDeadlineCard(deadline))}
+          </View>
         ) : (
-          <View style={styles.emptyList}>
-            <CalendarIcon size={48} color={COLORS.textLight} />
-            <Text style={styles.emptyTitle}>Nessuna scadenza</Text>
-            <Text style={styles.emptyText}>
-              {filter === 'all'
-                ? 'Non hai scadenze fiscali registrate'
-                : filter === 'pending'
-                ? 'Nessuna scadenza in attesa'
-                : 'Nessuna scadenza completata'}
+          <View style={styles.emptyStateContainer}>
+            <Filter size={48} color={COLORS.textLight} />
+            <Text style={styles.emptyStateTitle}>Nessun risultato</Text>
+            <Text style={styles.emptyStateSubtitle}>
+              Nessuna scadenza corrisponde ai filtri selezionati
             </Text>
           </View>
         )}
-      </View>
+      </>
     );
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Scadenze</Text>
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -387,17 +598,18 @@ export const CalendarScreen: React.FC = () => {
             style={[styles.toggleButton, viewMode === 'calendar' && styles.toggleButtonActive]}
             onPress={() => setViewMode('calendar')}
           >
-            <Grid size={18} color={viewMode === 'calendar' ? '#ffffff' : COLORS.textSecondary} />
+            <Grid size={18} color={viewMode === 'calendar' ? '#fff' : COLORS.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
             onPress={() => setViewMode('list')}
           >
-            <List size={18} color={viewMode === 'list' ? '#ffffff' : COLORS.textSecondary} />
+            <List size={18} color={viewMode === 'list' ? '#fff' : COLORS.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Content */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -420,39 +632,33 @@ export const CalendarScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     color: COLORS.text,
-    letterSpacing: -0.5,
   },
   viewToggle: {
     flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 10,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
     padding: 4,
   },
   toggleButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: RADIUS.md,
   },
   toggleButtonActive: {
     backgroundColor: COLORS.primary,
@@ -461,28 +667,91 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 24,
+    padding: SPACING.md,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  // Next Deadline Card
+  nextDeadlineCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderLeftWidth: 4,
+    ...SHADOWS.sm,
+  },
+  nextDeadlineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  nextDeadlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    gap: 4,
+  },
+  nextDeadlineBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  daysLeftBadge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  daysLeftText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  nextDeadlineTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+  },
+  nextDeadlineFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  nextDeadlineDate: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  viewDetailButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewDetailText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  // Calendar
   calendarContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
   },
   monthNav: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: SPACING.md,
   },
   navButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fb',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: SPACING.xs,
   },
   monthTitle: {
     fontSize: 18,
@@ -491,7 +760,7 @@ const styles = StyleSheet.create({
   },
   dayHeaders: {
     flexDirection: 'row',
-    marginBottom: 10,
+    marginBottom: SPACING.sm,
   },
   dayHeader: {
     width: DAY_WIDTH,
@@ -514,7 +783,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 2,
     marginVertical: 2,
-    borderRadius: 10,
+    borderRadius: RADIUS.md,
   },
   dayCellToday: {
     backgroundColor: COLORS.primary + '15',
@@ -531,148 +800,170 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.primary,
   },
+  dayNumberSelected: {
+    color: '#fff',
+    fontWeight: '700',
+  },
   deadlineIndicators: {
     flexDirection: 'row',
-    gap: 2,
+    alignItems: 'center',
     marginTop: 2,
   },
   indicator: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  selectedDaySection: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+  indicatorCount: {
+    fontSize: 8,
+    color: COLORS.textSecondary,
+    marginLeft: 2,
   },
-  selectedDayTitle: {
+  // Sections
+  section: {
+    marginBottom: SPACING.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  sectionTitle: {
+    flex: 1,
     fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 12,
-  },
-  deadlineItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    gap: 12,
-  },
-  deadlineIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deadlineContent: {
-    flex: 1,
-  },
-  deadlineTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.text,
   },
-  deadlineStatus: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  noDeadlines: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    paddingVertical: 20,
-  },
-  listContainer: {
-    gap: 12,
-  },
-  filtersRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  filterButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  filterButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  filterText: {
+  sectionCount: {
     fontSize: 13,
-    fontWeight: '500',
     color: COLORS.textSecondary,
   },
-  filterTextActive: {
-    color: '#ffffff',
+  countBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
   },
-  listDeadlineCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
   },
-  priorityBar: {
-    height: 4,
-    width: '100%',
-  },
-  listDeadlineContent: {
-    padding: 16,
-  },
-  listDeadlineHeader: {
+  // Deadline Card
+  deadlineCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.sm,
   },
-  listDeadlineInfo: {
+  deadlineCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  deadlineCardContent: {
     flex: 1,
   },
-  listDeadlineTitle: {
+  deadlineCardTitle: {
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.text,
+    marginBottom: 2,
   },
-  listDeadlineDate: {
-    fontSize: 13,
+  deadlineCardDate: {
+    fontSize: 12,
     color: COLORS.textSecondary,
+  },
+  deadlineCardDescription: {
+    fontSize: 12,
+    color: COLORS.textLight,
     marginTop: 2,
   },
+  deadlineCardRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADIUS.full,
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
+    textTransform: 'uppercase',
   },
-  listDeadlineDescription: {
+  // Filters
+  filtersScroll: {
+    marginBottom: SPACING.sm,
+  },
+  filtersContainer: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  filterChip: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  filterChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  resultsHeader: {
+    marginBottom: SPACING.sm,
+  },
+  resultsCount: {
     fontSize: 13,
     color: COLORS.textSecondary,
-    marginTop: 12,
-    lineHeight: 18,
   },
-  emptyList: {
+  listContent: {
+    gap: 0,
+  },
+  // Empty States
+  emptyState: {
     alignItems: 'center',
-    paddingVertical: 60,
+    padding: SPACING.lg,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
   },
-  emptyTitle: {
+  emptyStateText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.sm,
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl * 2,
+  },
+  emptyStateTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: SPACING.md,
   },
-  emptyText: {
+  emptyStateSubtitle: {
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    marginTop: SPACING.xs,
+    paddingHorizontal: SPACING.xl,
   },
 });

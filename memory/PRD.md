@@ -7,6 +7,63 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 83 (11 Aprile 2026) - COMPLETATA ✅
+
+**Redesign Completo Sezione Scadenze:**
+
+**Problema:** La sezione Scadenze mostrava solo un calendario vuoto, senza valorizzare le scadenze create.
+
+**Soluzione implementata - Nuova CalendarScreen:**
+
+1. **Card "Prossima Scadenza Più Importante":**
+   - In alto, evidenzia la scadenza più vicina
+   - Badge con giorni rimanenti (OGGI, 3g, ecc.)
+   - Bordo colorato in base all'urgenza
+   - Click → apre DeadlineDetail
+
+2. **Calendario migliorato:**
+   - Indicatori colorati sui giorni con scadenze
+   - Contatore (+2, +3) se ci sono più scadenze nello stesso giorno
+   - Click su giorno → aggiorna lista sotto
+   - Selezione visiva chiara del giorno
+
+3. **Sezione "Giorno Selezionato":**
+   - Mostra tutte le scadenze del giorno cliccato
+   - Card con icona, titolo, descrizione, badge stato
+   - Empty state se nessuna scadenza
+
+4. **Sezione "Scadenze Urgenti":**
+   - Badge rosso con conteggio
+   - Mostra scadenze entro 3 giorni
+
+5. **Sezione "Prossimi 7 Giorni":**
+   - Lista delle scadenze imminenti
+
+6. **Vista Lista migliorata:**
+   - Filtri: Tutte, Urgenti, In corso, Completate
+   - Card informative con badge stato
+   - Ordinamento per data
+
+7. **Badge stato chiari:**
+   - `urgente` (rosso) - entro 3 giorni
+   - `imminente` (giallo) - entro 7 giorni
+   - `programmata` (blu) - oltre 7 giorni
+   - `completata` (verde)
+   - `scaduta` (rosso)
+   - `oggi` (rosso)
+
+8. **Empty states professionali:**
+   - Icone e messaggi per ogni caso
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/CalendarScreen.tsx` (riscritta completamente)
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+- ✅ Navigazione a DeadlineDetail funziona
+- ✅ UI ricca e dinamica
+
+
 ### Fase 82 (11 Aprile 2026) - COMPLETATA ✅
 
 **Gestione Attività Recenti - Rimozione Dinamica:**
