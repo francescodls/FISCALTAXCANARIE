@@ -12,6 +12,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -178,7 +179,10 @@ export const CommunicationsScreen: React.FC = () => {
     return (
       <TouchableOpacity
         style={styles.ticketCard}
-        onPress={() => navigation.navigate('TicketDetail', { id: item._id || item.id })}
+        onPress={() => {
+          // TODO: Implementare TicketDetailScreen
+          Alert.alert('Ticket', `Ticket #${item._id || item.id}\n\n${item.subject}\n\nStato: ${statusConfig.text}`);
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.ticketHeader}>

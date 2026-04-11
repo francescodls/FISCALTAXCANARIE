@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 interface Declaration {
   _id: string;
@@ -187,9 +188,7 @@ export const DeclarationsScreen: React.FC = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Dichiarazioni</Text>
-        </View>
+        <ScreenHeader title="Dichiarazioni" showHomeButton />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -199,12 +198,15 @@ export const DeclarationsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Dichiarazioni</Text>
-        <Text style={styles.headerSubtitle}>
-          {declarations.length} dichiarazion{declarations.length !== 1 ? 'i' : 'e'}
-        </Text>
-      </View>
+      <ScreenHeader 
+        title="Dichiarazioni" 
+        showHomeButton
+        rightComponent={
+          <Text style={styles.headerSubtitle}>
+            {declarations.length} dichiarazion{declarations.length !== 1 ? 'i' : 'e'}
+          </Text>
+        }
+      />
 
       <FlatList
         data={declarations}

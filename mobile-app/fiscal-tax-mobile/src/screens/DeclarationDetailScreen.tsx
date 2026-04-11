@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Paperclip,
   User,
+  Home,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
@@ -140,6 +141,18 @@ export const DeclarationDetailScreen: React.FC = () => {
     }
   };
 
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      (navigation as any).navigate('Main', { screen: 'HomeTab' });
+    }
+  };
+
+  const handleGoHome = () => {
+    (navigation as any).navigate('Main', { screen: 'HomeTab' });
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -173,7 +186,7 @@ export const DeclarationDetailScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -186,6 +199,9 @@ export const DeclarationDetailScreen: React.FC = () => {
             </Text>
           </View>
         </View>
+        <TouchableOpacity onPress={handleGoHome} style={styles.homeButton}>
+          <Home size={20} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -432,6 +448,12 @@ const styles = StyleSheet.create({
   backButton: {
     padding: SPACING.xs,
     marginRight: SPACING.sm,
+  },
+  homeButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.sm,
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: RADIUS.sm,
   },
   headerContent: {
     flex: 1,

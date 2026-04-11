@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { ScreenHeader } from '../components/ScreenHeader';
 
 interface Notification {
   _id: string;
@@ -174,9 +175,7 @@ export const NotificationsScreen: React.FC = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Notifiche</Text>
-        </View>
+        <ScreenHeader title="Notifiche" showHomeButton />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -187,19 +186,24 @@ export const NotificationsScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Notifiche</Text>
-          <Text style={styles.headerSubtitle}>
-            {unreadCount > 0 ? `${unreadCount} da leggere` : 'Tutto letto'}
-          </Text>
-        </View>
-        {unreadCount > 0 && (
-          <TouchableOpacity style={styles.markAllButton} onPress={markAllAsRead}>
-            <CheckCheck size={18} color={COLORS.primary} />
-            <Text style={styles.markAllText}>Leggi tutte</Text>
-          </TouchableOpacity>
-        )}
+      <ScreenHeader 
+        title="Notifiche" 
+        showHomeButton
+        rightComponent={
+          unreadCount > 0 ? (
+            <TouchableOpacity style={styles.markAllButton} onPress={markAllAsRead}>
+              <CheckCheck size={18} color={COLORS.primary} />
+              <Text style={styles.markAllText}>Leggi tutte</Text>
+            </TouchableOpacity>
+          ) : undefined
+        }
+      />
+      
+      {/* Subtitle */}
+      <View style={styles.subtitleBar}>
+        <Text style={styles.headerSubtitle}>
+          {unreadCount > 0 ? `${unreadCount} da leggere` : 'Tutto letto'}
+        </Text>
       </View>
 
       {/* Filter Tabs */}
@@ -265,6 +269,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 4,
+  },
+  subtitleBar: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.surface,
   },
   markAllButton: {
     flexDirection: 'row',

@@ -20,6 +20,7 @@ import {
   ChevronUp,
   ExternalLink,
   AlertCircle,
+  Home,
 } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
@@ -141,6 +142,18 @@ export const GuidaModelliScreen: React.FC = () => {
     Linking.openURL(url);
   };
 
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      (navigation as any).navigate('Main', { screen: 'HomeTab' });
+    }
+  };
+
+  const handleGoHome = () => {
+    (navigation as any).navigate('Main', { screen: 'HomeTab' });
+  };
+
   const GuideCard = ({ guide }: { guide: ModelGuide }) => {
     const isExpanded = expandedId === guide.id;
     const Icon = guide.icon;
@@ -226,13 +239,16 @@ export const GuidaModelliScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Guida ai Modelli</Text>
           <Text style={styles.headerSubtitle}>Tutto quello che devi sapere</Text>
         </View>
+        <TouchableOpacity onPress={handleGoHome} style={styles.homeButton}>
+          <Home size={20} color={COLORS.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -293,6 +309,12 @@ const styles = StyleSheet.create({
   backButton: {
     padding: SPACING.xs,
     marginRight: SPACING.sm,
+  },
+  homeButton: {
+    padding: SPACING.xs,
+    marginLeft: SPACING.sm,
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: RADIUS.sm,
   },
   headerContent: {
     flex: 1,

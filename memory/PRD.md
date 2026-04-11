@@ -6,6 +6,43 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ## What's Been Implemented
 
 
+
+### Fase 79 (11 Aprile 2026) - COMPLETATA ✅
+
+**Correzioni multiple all'App Mobile:**
+
+1. **Fix Messaggio di Benvenuto Dinamico:**
+   - Problema: la HomeScreen mostrava "Benvenuto, Cliente" invece del nome reale
+   - Causa: `AuthContext.tsx` salvava l'intero oggetto risposta invece di `data.user`
+   - Soluzione: estratto correttamente `data.user` dalla risposta del login
+   - File: `/app/mobile-app/fiscal-tax-mobile/src/context/AuthContext.tsx`
+
+2. **Fix API Key Brevo:**
+   - Aggiornata la chiave API Brevo da `xsmtpsib-...` a `xkeysib-...`
+   - Le notifiche email ora funzionano correttamente
+
+3. **Fix Navigazione App Mobile (CRITICO):**
+   - Problema: da Pratiche/Notifiche non si poteva tornare alla Home
+   - Soluzione implementata:
+     - Creato componente riutilizzabile `ScreenHeader.tsx` con pulsanti Back e Home
+     - Aggiunto header con navigazione a: `DeclarationsScreen`, `NotificationsScreen`, `DeclarationDetailScreen`, `GuidaModelliScreen`
+     - Implementato fallback: se `navigation.canGoBack()` è false, naviga a Main/HomeTab
+     - Aggiunto pulsante Home rapido in tutte le schermate interne
+   - File modificati:
+     - `/app/mobile-app/fiscal-tax-mobile/src/components/ScreenHeader.tsx` (NUOVO)
+     - `/app/mobile-app/fiscal-tax-mobile/src/screens/DeclarationsScreen.tsx`
+     - `/app/mobile-app/fiscal-tax-mobile/src/screens/NotificationsScreen.tsx`
+     - `/app/mobile-app/fiscal-tax-mobile/src/screens/DeclarationDetailScreen.tsx`
+     - `/app/mobile-app/fiscal-tax-mobile/src/screens/GuidaModelliScreen.tsx`
+     - `/app/mobile-app/fiscal-tax-mobile/src/screens/CommunicationsScreen.tsx`
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+- ✅ Navigazione back funziona da tutte le schermate
+- ✅ Pulsante Home presente in tutte le schermate interne
+- ✅ Bottom Tab Navigation funziona correttamente
+
+
 ### Fase 78 (11 Aprile 2026) - COMPLETATA ✅
 
 **Stabilizzazione Codice Mobile App dopo Redesign Massiccio**
