@@ -119,22 +119,54 @@ export const CommunicationsScreen: React.FC = () => {
   }, []);
 
   const createTicket = async () => {
-    if (!newTicketSubject.trim() || !newTicketMessage.trim() || !newTicketCategory) return;
+    // Validazione
+    if (!newTicketCategory) {
+      Alert.alert('Attenzione', 'Seleziona una categoria per il ticket.');
+      return;
+    }
+    if (!newTicketSubject.trim()) {
+      Alert.alert('Attenzione', 'Inserisci un oggetto per il ticket.');
+      return;
+    }
+    if (!newTicketMessage.trim()) {
+      Alert.alert('Attenzione', 'Inserisci un messaggio per il ticket.');
+      return;
+    }
+    if (newTicketMessage.trim().length < 10) {
+      Alert.alert('Attenzione', 'Il messaggio deve essere di almeno 10 caratteri.');
+      return;
+    }
 
     setCreating(true);
     try {
-      await apiService.createTicket({
+      const result = await apiService.createTicket({
         subject: newTicketSubject.trim(),
         message: newTicketMessage.trim(),
         category: newTicketCategory,
       });
+      
+      // Reset form
       setNewTicketSubject('');
       setNewTicketMessage('');
       setNewTicketCategory('');
       setShowNewTicket(false);
+      
+      // Ricarica i dati
       await loadData();
-    } catch (error) {
+      
+      // Feedback successo
+      Alert.alert(
+        'Ticket inviato! ✓',
+        'Il tuo ticket è stato inviato con successo. Ti risponderemo il prima possibile.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
       console.error('Error creating ticket:', error);
+      Alert.alert(
+        'Errore',
+        error?.message || 'Impossibile inviare il ticket. Riprova più tardi.',
+        [{ text: 'Riprova' }]
+      );
     } finally {
       setCreating(false);
     }
