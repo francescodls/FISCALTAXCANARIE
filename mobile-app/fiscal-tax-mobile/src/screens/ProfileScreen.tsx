@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
-  Image,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,10 +15,8 @@ import {
   User,
   Mail,
   Phone,
-  MapPin,
   Shield,
   Bell,
-  Globe,
   ChevronRight,
   LogOut,
   Fingerprint,
@@ -28,32 +25,26 @@ import {
   Lock,
   HelpCircle,
   FileText,
+  Check,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
-import { COLORS, SPACING, RADIUS } from '../config/constants';
-
-interface UserProfile {
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  fiscal_code?: string;
-  client_type?: string;
-}
+import { useLanguage } from '../context/LanguageContext';
+import { COLORS } from '../config/constants';
+import { Language } from '../i18n';
 
 export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
-  const [profile, setProfile] = useState<UserProfile>({});
+  const { t, language, setLanguage, languages } = useLanguage();
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [language, setLanguage] = useState('it');
   const [lastAccess, setLastAccess] = useState<string | null>(null);
 
   useEffect(() => {
     checkBiometricAvailability();
-    loadProfile();
-  }, []);
+    const locale = language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : 'it-IT';
+    setLastAccess(new Date().toLocaleString(locale));
+  }, [language]);
 
   const checkBiometricAvailability = async () => {
     const compatible = await LocalAuthentication.hasHardwareAsync();
@@ -61,65 +52,52 @@ export const ProfileScreen: React.FC = () => {
     setBiometricAvailable(compatible && enrolled);
   };
 
-  const loadProfile = () => {
-    if (user) {
-      setProfile({
-        full_name: user.full_name || user.email?.split('@')[0],
-        email: user.email,
-        phone: user.phone || '',
-        address: user.address || '',
-        fiscal_code: user.fiscal_code || '',
-        client_type: user.role === 'admin' ? 'Amministratore' : 'Cliente',
-      });
-      setLastAccess(new Date().toLocaleString('it-IT'));
+  const getProfileName = () => {
+    if (user?.full_name && user.full_name.trim()) return user.full_name;
+    if (user?.email) {
+      const emailName = user.email.split('@')[0];
+      return emailName.charAt(0).toUpperCase() + emailName.slice(1);
     }
+    return t.profile.title;
+  };
+
+  const getClientType = () => {
+    if (user?.role === 'admin') return 'Admin';
+    const tipo = user?.tipo_cliente;
+    if (tipo === 'autonomo') return t.profile.clientTypes.freelance;
+    if (tipo === 'empresa' || tipo === 'azienda') return t.profile.clientTypes.company;
+    return t.profile.clientTypes.individual;
   };
 
   const handleBiometricToggle = async (value: boolean) => {
     if (value) {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Conferma la tua identità',
-        cancelLabel: 'Annulla',
+        promptMessage: t.common.confirm,
+        cancelLabel: t.common.cancel,
         disableDeviceFallback: false,
       });
-      
       if (result.success) {
         setBiometricEnabled(true);
-        Alert.alert('Successo', 'Accesso biometrico attivato');
+        Alert.alert(t.common.success, 'Biometric enabled');
       }
     } else {
       setBiometricEnabled(false);
-      Alert.alert('Info', 'Accesso biometrico disattivato');
     }
   };
 
   const handleLogout = () => {
     Alert.alert(
-      'Esci',
-      'Sei sicuro di voler uscire?',
+      t.profile.logout,
+      t.profile.logoutConfirm,
       [
-        { text: 'Annulla', style: 'cancel' },
-        { text: 'Esci', style: 'destructive', onPress: logout },
+        { text: t.common.cancel, style: 'cancel' },
+        { text: t.profile.logout, style: 'destructive', onPress: logout },
       ]
     );
   };
 
-  const handleLogoutAllDevices = () => {
-    Alert.alert(
-      'Disconnetti tutti i dispositivi',
-      'Verrai disconnesso da tutti i dispositivi. Dovrai effettuare nuovamente il login.',
-      [
-        { text: 'Annulla', style: 'cancel' },
-        { 
-          text: 'Conferma', 
-          style: 'destructive', 
-          onPress: () => {
-            Alert.alert('Successo', 'Disconnesso da tutti i dispositivi');
-            logout();
-          },
-        },
-      ]
-    );
+  const handleLanguageChange = async (lang: Language) => {
+    await setLanguage(lang);
   };
 
   const SettingItem = ({
@@ -161,62 +139,46 @@ export const ProfileScreen: React.FC = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profilo</Text>
+          <Text style={styles.headerTitle}>{t.profile.title}</Text>
         </View>
 
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {profile.full_name?.charAt(0)?.toUpperCase() || 'U'}
-              </Text>
-            </View>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {getProfileName().charAt(0).toUpperCase()}
+            </Text>
           </View>
-          <Text style={styles.profileName}>{profile.full_name || 'Utente'}</Text>
-          <Text style={styles.profileEmail}>{profile.email}</Text>
+          <Text style={styles.profileName}>{getProfileName()}</Text>
+          <Text style={styles.profileEmail}>{user?.email}</Text>
           <View style={styles.profileBadge}>
-            <Text style={styles.profileBadgeText}>{profile.client_type}</Text>
+            <Text style={styles.profileBadgeText}>{getClientType()}</Text>
           </View>
         </View>
 
         {/* Account Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informazioni Account</Text>
+          <Text style={styles.sectionTitle}>{t.profile.personalInfo}</Text>
           <View style={styles.sectionCard}>
-            <SettingItem
-              icon={Mail}
-              title="Email"
-              subtitle={profile.email}
-            />
-            {profile.phone && (
-              <SettingItem
-                icon={Phone}
-                title="Telefono"
-                subtitle={profile.phone}
-              />
+            <SettingItem icon={Mail} title={t.profile.email} subtitle={user?.email} />
+            {user?.phone && (
+              <SettingItem icon={Phone} title={t.profile.phone} subtitle={user.phone} />
             )}
-            {profile.fiscal_code && (
-              <SettingItem
-                icon={FileText}
-                title="Codice Fiscale"
-                subtitle={profile.fiscal_code}
-              />
+            {user?.fiscal_code && (
+              <SettingItem icon={FileText} title={t.profile.fiscalCode} subtitle={user.fiscal_code} />
             )}
           </View>
         </View>
 
         {/* Security */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sicurezza</Text>
+          <Text style={styles.sectionTitle}>{t.profile.settings}</Text>
           <View style={styles.sectionCard}>
             {biometricAvailable && (
               <SettingItem
                 icon={Fingerprint}
-                title={Platform.OS === 'ios' ? 'Face ID / Touch ID' : 'Impronta digitale'}
-                subtitle="Accedi rapidamente con la biometria"
+                title={Platform.OS === 'ios' ? 'Face ID / Touch ID' : 'Biometric'}
                 rightElement={
                   <Switch
                     value={biometricEnabled}
@@ -228,32 +190,20 @@ export const ProfileScreen: React.FC = () => {
               />
             )}
             <SettingItem
-              icon={Lock}
-              title="Cambia password"
-              onPress={() => Alert.alert('Info', 'Funzionalità in arrivo')}
-            />
-            <SettingItem
               icon={Clock}
-              title="Ultimo accesso"
-              subtitle={lastAccess || 'Non disponibile'}
-            />
-            <SettingItem
-              icon={Smartphone}
-              title="Gestisci dispositivi"
-              subtitle="Visualizza i dispositivi connessi"
-              onPress={() => Alert.alert('Info', 'Funzionalità in arrivo')}
+              title={language === 'en' ? 'Last access' : language === 'es' ? 'Último acceso' : 'Ultimo accesso'}
+              subtitle={lastAccess || '-'}
             />
           </View>
         </View>
 
         {/* Notifications */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifiche</Text>
+          <Text style={styles.sectionTitle}>{t.profile.notifications}</Text>
           <View style={styles.sectionCard}>
             <SettingItem
               icon={Bell}
-              title="Notifiche push"
-              subtitle="Ricevi avvisi su scadenze e aggiornamenti"
+              title={t.profile.notifications}
               rightElement={
                 <Switch
                   value={notificationsEnabled}
@@ -263,42 +213,33 @@ export const ProfileScreen: React.FC = () => {
                 />
               }
             />
-            <SettingItem
-              icon={Mail}
-              title="Email di notifica"
-              subtitle="Scadenze, documenti, comunicazioni"
-              onPress={() => Alert.alert('Info', 'Funzionalità in arrivo')}
-            />
           </View>
         </View>
 
         {/* Language */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lingua</Text>
+          <Text style={styles.sectionTitle}>{t.profile.language}</Text>
           <View style={styles.sectionCard}>
             <View style={styles.languageOptions}>
-              {[
-                { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-                { code: 'es', label: 'Español', flag: '🇪🇸' },
-                { code: 'en', label: 'English', flag: '🇬🇧' },
-              ].map((lang) => (
+              {languages.map((lang) => (
                 <TouchableOpacity
                   key={lang.code}
                   style={[
                     styles.languageOption,
                     language === lang.code && styles.languageOptionActive,
                   ]}
-                  onPress={() => setLanguage(lang.code)}
+                  onPress={() => handleLanguageChange(lang.code)}
                 >
                   <Text style={styles.languageFlag}>{lang.flag}</Text>
-                  <Text
-                    style={[
-                      styles.languageLabel,
-                      language === lang.code && styles.languageLabelActive,
-                    ]}
-                  >
-                    {lang.label}
+                  <Text style={[
+                    styles.languageLabel,
+                    language === lang.code && styles.languageLabelActive,
+                  ]}>
+                    {lang.name}
                   </Text>
+                  {language === lang.code && (
+                    <Check size={16} color={COLORS.primary} />
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -307,22 +248,17 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Support */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Supporto</Text>
+          <Text style={styles.sectionTitle}>{t.profile.help}</Text>
           <View style={styles.sectionCard}>
             <SettingItem
               icon={HelpCircle}
-              title="Centro assistenza"
-              onPress={() => Alert.alert('Info', 'Apri centro assistenza')}
+              title={t.profile.help}
+              onPress={() => Alert.alert('Info', 'Coming soon')}
             />
             <SettingItem
               icon={Shield}
-              title="Privacy e consensi"
-              onPress={() => Alert.alert('Info', 'Gestisci privacy')}
-            />
-            <SettingItem
-              icon={FileText}
-              title="Termini e condizioni"
-              onPress={() => Alert.alert('Info', 'Visualizza termini')}
+              title={t.profile.privacy}
+              onPress={() => Alert.alert('Info', 'Coming soon')}
             />
           </View>
         </View>
@@ -331,21 +267,15 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionCard}>
             <SettingItem
-              icon={Smartphone}
-              title="Disconnetti tutti i dispositivi"
-              color={COLORS.warning}
-              onPress={handleLogoutAllDevices}
-            />
-            <SettingItem
               icon={LogOut}
-              title="Esci"
+              title={t.profile.logout}
               color={COLORS.error}
               onPress={handleLogout}
             />
           </View>
         </View>
 
-        {/* App Version */}
+        {/* Version */}
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>Fiscal Tax Canarie v1.0.0</Text>
           <Text style={styles.copyrightText}>© 2026 Fiscal Tax Canarie S.L.</Text>
@@ -358,163 +288,33 @@ export const ProfileScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fb',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-  },
-  header: {
-    paddingVertical: 16,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: -0.5,
-  },
-  profileCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 20,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    marginBottom: 24,
-  },
-  avatarContainer: {
-    marginBottom: 16,
-  },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  profileName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-  },
-  profileBadge: {
-    backgroundColor: COLORS.primary + '15',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  profileBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 12,
-    marginLeft: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sectionCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
-  },
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  settingContent: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  settingSubtitle: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  languageOptions: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 10,
-  },
-  languageOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#f8f9fb',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    gap: 6,
-  },
-  languageOptionActive: {
-    backgroundColor: COLORS.primary + '15',
-    borderColor: COLORS.primary,
-  },
-  languageFlag: {
-    fontSize: 18,
-  },
-  languageLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-  },
-  languageLabelActive: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  versionText: {
-    fontSize: 13,
-    color: COLORS.textLight,
-  },
-  copyrightText: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    marginTop: 4,
-  },
+  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24 },
+  header: { paddingVertical: 16 },
+  headerTitle: { fontSize: 28, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5 },
+  profileCard: { backgroundColor: '#ffffff', borderRadius: 20, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', marginBottom: 24 },
+  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  avatarText: { fontSize: 32, fontWeight: '700', color: '#ffffff' },
+  profileName: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  profileEmail: { fontSize: 14, color: COLORS.textSecondary, marginBottom: 12 },
+  profileBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  profileBadgeText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 12, marginLeft: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionCard: { backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+  settingItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  settingIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  settingContent: { flex: 1 },
+  settingTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  settingSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginTop: 2 },
+  languageOptions: { padding: 12, gap: 10 },
+  languageOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: '#f8f9fb', borderWidth: 2, borderColor: 'transparent', gap: 10 },
+  languageOptionActive: { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '40' },
+  languageFlag: { fontSize: 22 },
+  languageLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: COLORS.textSecondary },
+  languageLabelActive: { color: COLORS.primary, fontWeight: '600' },
+  versionContainer: { alignItems: 'center', paddingVertical: 20 },
+  versionText: { fontSize: 13, color: COLORS.textLight },
+  copyrightText: { fontSize: 12, color: COLORS.textLight, marginTop: 4 },
 });

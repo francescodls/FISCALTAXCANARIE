@@ -13,12 +13,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Button } from '../components/Button';
 import { TextInput } from '../components/TextInput';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
+import { LanguageSelector } from '../components/LanguageSelector';
 
 export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,7 +30,7 @@ export const LoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      setError('Inserisci email e password');
+      setError(t.login.invalidCredentials);
       return;
     }
 
@@ -37,7 +40,7 @@ export const LoginScreen: React.FC = () => {
     const result = await login(email.trim(), password);
 
     if (!result.success) {
-      setError(result.error || 'Errore di accesso');
+      setError(result.error || t.login.loginError);
     }
 
     setLoading(false);
@@ -54,6 +57,11 @@ export const LoginScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Language Selector */}
+          <View style={styles.languageContainer}>
+            <LanguageSelector />
+          </View>
+
           {/* Logo e Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
@@ -63,14 +71,14 @@ export const LoginScreen: React.FC = () => {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.subtitle}>Area Clienti</Text>
+            <Text style={styles.subtitle}>{t.login.subtitle}</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             <TextInput
-              label="Email"
-              placeholder="La tua email"
+              label={t.login.email}
+              placeholder={t.login.emailPlaceholder}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -80,8 +88,8 @@ export const LoginScreen: React.FC = () => {
             />
 
             <TextInput
-              label="Password"
-              placeholder="La tua password"
+              label={t.login.password}
+              placeholder={t.login.passwordPlaceholder}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
@@ -105,7 +113,7 @@ export const LoginScreen: React.FC = () => {
             ) : null}
 
             <Button
-              title="Accedi"
+              title={t.login.loginButton}
               onPress={handleLogin}
               loading={loading}
               style={styles.loginButton}
@@ -117,7 +125,7 @@ export const LoginScreen: React.FC = () => {
               onPress={() => Linking.openURL('https://fiscaltaxcanarie.com')}
             >
               <Text style={styles.forgotPasswordText}>
-                Password dimenticata?
+                {t.login.forgotPassword}
               </Text>
             </TouchableOpacity>
           </View>
@@ -125,18 +133,18 @@ export const LoginScreen: React.FC = () => {
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              Non hai un account?{' '}
+              {t.login.noAccount}{' '}
               <Text
                 style={styles.footerLink}
                 onPress={() => Linking.openURL('https://fiscaltaxcanarie.com')}
               >
-                Contattaci
+                {t.login.register}
               </Text>
             </Text>
             <TouchableOpacity
               onPress={() => Linking.openURL('https://fiscaltaxcanarie.com/privacy-policy/')}
             >
-              <Text style={styles.privacyLink}>Privacy Policy</Text>
+              <Text style={styles.privacyLink}>{t.profile.privacy}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -157,6 +165,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: SPACING.lg,
     justifyContent: 'center',
+  },
+  languageContainer: {
+    position: 'absolute',
+    top: 16,
+    right: 0,
+    zIndex: 10,
   },
   header: {
     alignItems: 'center',

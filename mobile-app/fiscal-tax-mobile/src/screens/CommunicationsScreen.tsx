@@ -30,6 +30,7 @@ import {
   User,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
 
@@ -56,15 +57,16 @@ interface Message {
 }
 
 const TICKET_CATEGORIES = [
-  { id: 'contabilita', label: 'Contabilità', icon: '📊' },
-  { id: 'imposte', label: 'Imposte', icon: '💰' },
-  { id: 'documenti', label: 'Documenti', icon: '📄' },
-  { id: 'societa', label: 'Società', icon: '🏢' },
-  { id: 'assistenza', label: 'Assistenza generale', icon: '❓' },
+  { id: 'contabilita', labelKey: 'accounting', icon: '📊' },
+  { id: 'imposte', labelKey: 'taxes', icon: '💰' },
+  { id: 'documenti', labelKey: 'documents', icon: '📄' },
+  { id: 'societa', labelKey: 'corporate', icon: '🏢' },
+  { id: 'assistenza', labelKey: 'support', icon: '❓' },
 ];
 
 export const CommunicationsScreen: React.FC = () => {
   const { token } = useAuth();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'messages' | 'tickets'>('tickets');
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -121,19 +123,19 @@ export const CommunicationsScreen: React.FC = () => {
   const createTicket = async () => {
     // Validazione
     if (!newTicketCategory) {
-      Alert.alert('Attenzione', 'Seleziona una categoria per il ticket.');
+      Alert.alert(t.common.error, t.tickets.selectCategory);
       return;
     }
     if (!newTicketSubject.trim()) {
-      Alert.alert('Attenzione', 'Inserisci un oggetto per il ticket.');
+      Alert.alert(t.common.error, t.tickets.enterSubject);
       return;
     }
     if (!newTicketMessage.trim()) {
-      Alert.alert('Attenzione', 'Inserisci un messaggio per il ticket.');
+      Alert.alert(t.common.error, t.tickets.enterMessage);
       return;
     }
     if (newTicketMessage.trim().length < 10) {
-      Alert.alert('Attenzione', 'Il messaggio deve essere di almeno 10 caratteri.');
+      Alert.alert(t.common.error, t.tickets.messageMinLength);
       return;
     }
 
@@ -156,16 +158,16 @@ export const CommunicationsScreen: React.FC = () => {
       
       // Feedback successo
       Alert.alert(
-        'Ticket inviato! ✓',
-        'Il tuo ticket è stato inviato con successo. Ti risponderemo il prima possibile.',
-        [{ text: 'OK' }]
+        t.tickets.ticketSent,
+        t.tickets.ticketSentDesc,
+        [{ text: t.common.ok }]
       );
     } catch (error: any) {
       console.error('Error creating ticket:', error);
       Alert.alert(
-        'Errore',
-        error?.message || 'Impossibile inviare il ticket. Riprova più tardi.',
-        [{ text: 'Riprova' }]
+        t.common.error,
+        error?.message || t.tickets.ticketError,
+        [{ text: t.common.retry }]
       );
     } finally {
       setCreating(false);
@@ -174,11 +176,11 @@ export const CommunicationsScreen: React.FC = () => {
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { color: string; bgColor: string; icon: any; text: string }> = {
-      'open': { color: COLORS.info, bgColor: COLORS.info + '15', icon: Clock, text: 'Aperto' },
-      'pending': { color: COLORS.warning, bgColor: COLORS.warning + '15', icon: Clock, text: 'In attesa' },
-      'in_progress': { color: COLORS.primary, bgColor: COLORS.primary + '15', icon: AlertCircle, text: 'In lavorazione' },
-      'waiting_client': { color: '#8b5cf6', bgColor: '#8b5cf6' + '15', icon: User, text: 'Attesa cliente' },
-      'closed': { color: COLORS.success, bgColor: COLORS.success + '15', icon: CheckCircle, text: 'Chiuso' },
+      'open': { color: COLORS.info, bgColor: COLORS.info + '15', icon: Clock, text: t.tickets.status.open },
+      'pending': { color: COLORS.warning, bgColor: COLORS.warning + '15', icon: Clock, text: t.tickets.status.pending },
+      'in_progress': { color: COLORS.primary, bgColor: COLORS.primary + '15', icon: AlertCircle, text: t.tickets.status.inProgress },
+      'waiting_client': { color: '#8b5cf6', bgColor: '#8b5cf6' + '15', icon: User, text: t.tickets.status.waitingClient },
+      'closed': { color: COLORS.success, bgColor: COLORS.success + '15', icon: CheckCircle, text: t.tickets.status.closed },
     };
     return configs[status] || configs['open'];
   };
@@ -193,9 +195,9 @@ export const CommunicationsScreen: React.FC = () => {
       if (diffDays === 0) {
         return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
       } else if (diffDays === 1) {
-        return 'Ieri';
+        return t.common.yesterday;
       } else if (diffDays < 7) {
-        return `${diffDays}g fa`;
+        return `${diffDays} ${t.common.daysAgo}`;
       } else {
         return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
       }
@@ -278,12 +280,12 @@ export const CommunicationsScreen: React.FC = () => {
         )}
       </View>
       <Text style={styles.emptyTitle}>
-        {activeTab === 'tickets' ? 'Nessun ticket' : 'Nessun messaggio'}
+        {activeTab === 'tickets' ? t.tickets.noTickets : t.tickets.noMessages}
       </Text>
       <Text style={styles.emptyText}>
         {activeTab === 'tickets'
-          ? 'Non hai richieste di assistenza aperte'
-          : 'Non hai messaggi dallo studio'}
+          ? t.tickets.noTicketsDesc
+          : t.tickets.noMessagesDesc}
       </Text>
       {activeTab === 'tickets' && (
         <TouchableOpacity
@@ -291,7 +293,7 @@ export const CommunicationsScreen: React.FC = () => {
           onPress={() => setShowNewTicket(true)}
         >
           <Plus size={18} color="#ffffff" />
-          <Text style={styles.emptyButtonText}>Apri un ticket</Text>
+          <Text style={styles.emptyButtonText}>{t.tickets.openTicket}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -311,7 +313,7 @@ export const CommunicationsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Comunicazioni</Text>
+        <Text style={styles.headerTitle}>{t.tickets.title}</Text>
         {activeTab === 'tickets' && (
           <TouchableOpacity
             style={styles.newButton}
@@ -330,7 +332,7 @@ export const CommunicationsScreen: React.FC = () => {
         >
           <MessageSquare size={18} color={activeTab === 'tickets' ? COLORS.primary : COLORS.textSecondary} />
           <Text style={[styles.tabText, activeTab === 'tickets' && styles.tabTextActive]}>
-            Ticket
+            {t.tickets.tickets}
           </Text>
           {tickets.filter(t => t.status !== 'closed').length > 0 && (
             <View style={styles.tabBadge}>
@@ -346,7 +348,7 @@ export const CommunicationsScreen: React.FC = () => {
         >
           <Mail size={18} color={activeTab === 'messages' ? COLORS.primary : COLORS.textSecondary} />
           <Text style={[styles.tabText, activeTab === 'messages' && styles.tabTextActive]}>
-            Messaggi
+            {t.tickets.messages}
           </Text>
           {messages.filter(m => !m.read).length > 0 && (
             <View style={styles.tabBadge}>
@@ -391,13 +393,13 @@ export const CommunicationsScreen: React.FC = () => {
               <TouchableOpacity onPress={() => setShowNewTicket(false)}>
                 <X size={24} color={COLORS.text} />
               </TouchableOpacity>
-              <Text style={styles.modalTitle}>Nuovo Ticket</Text>
+              <Text style={styles.modalTitle}>{t.tickets.newTicket}</Text>
               <View style={{ width: 24 }} />
             </View>
 
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
               {/* Category Selection */}
-              <Text style={styles.inputLabel}>Categoria</Text>
+              <Text style={styles.inputLabel}>{t.tickets.category}</Text>
               <View style={styles.categoriesGrid}>
                 {TICKET_CATEGORIES.map((cat) => (
                   <TouchableOpacity
@@ -413,17 +415,17 @@ export const CommunicationsScreen: React.FC = () => {
                       styles.categoryLabel,
                       newTicketCategory === cat.id && styles.categoryLabelActive,
                     ]}>
-                      {cat.label}
+                      {t.tickets.categoryOptions[cat.labelKey as keyof typeof t.tickets.categoryOptions]}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
               {/* Subject */}
-              <Text style={styles.inputLabel}>Oggetto</Text>
+              <Text style={styles.inputLabel}>{t.tickets.subject}</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Breve descrizione della richiesta"
+                placeholder={t.tickets.subjectPlaceholder}
                 placeholderTextColor={COLORS.textLight}
                 value={newTicketSubject}
                 onChangeText={setNewTicketSubject}
@@ -431,10 +433,10 @@ export const CommunicationsScreen: React.FC = () => {
               />
 
               {/* Message */}
-              <Text style={styles.inputLabel}>Messaggio</Text>
+              <Text style={styles.inputLabel}>{t.tickets.message}</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
-                placeholder="Descrivi nel dettaglio la tua richiesta..."
+                placeholder={t.tickets.messagePlaceholder}
                 placeholderTextColor={COLORS.textLight}
                 value={newTicketMessage}
                 onChangeText={setNewTicketMessage}
@@ -458,7 +460,7 @@ export const CommunicationsScreen: React.FC = () => {
                 ) : (
                   <>
                     <Send size={18} color="#ffffff" />
-                    <Text style={styles.submitButtonText}>Invia Ticket</Text>
+                    <Text style={styles.submitButtonText}>{t.tickets.sendTicket}</Text>
                   </>
                 )}
               </TouchableOpacity>

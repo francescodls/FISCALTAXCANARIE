@@ -39,6 +39,7 @@ import { Paths, File as ExpoFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
@@ -80,6 +81,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fiscaltax-tribu
 
 export const DocumentsScreen: React.FC = () => {
   const { token } = useAuth();
+  const { t } = useLanguage();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -274,9 +276,9 @@ export const DocumentsScreen: React.FC = () => {
     } catch (error) {
       console.error('Share error:', error);
       Alert.alert(
-        'Errore condivisione',
-        'Impossibile condividere il documento. Riprova più tardi.',
-        [{ text: 'OK' }]
+        t.common.error,
+        t.documents.shareError,
+        [{ text: t.common.ok }]
       );
     } finally {
       setActionLoading(null);
@@ -401,9 +403,9 @@ export const DocumentsScreen: React.FC = () => {
       return (
         <View style={styles.emptyState}>
           <Folder size={64} color={COLORS.textLight} />
-          <Text style={styles.emptyStateTitle}>Nessun documento</Text>
+          <Text style={styles.emptyStateTitle}>{t.documents.noDocuments}</Text>
           <Text style={styles.emptyStateText}>
-            Non ci sono ancora documenti disponibili
+            {t.documents.noDocumentsDesc}
           </Text>
         </View>
       );
@@ -481,9 +483,9 @@ export const DocumentsScreen: React.FC = () => {
         ) : (
           <View style={styles.emptyState}>
             <Search size={48} color={COLORS.textLight} />
-            <Text style={styles.emptyStateTitle}>Nessun risultato</Text>
+            <Text style={styles.emptyStateTitle}>{t.documents.noResults}</Text>
             <Text style={styles.emptyStateText}>
-              Nessun documento corrisponde alla ricerca
+              {t.search.noResultsDesc}
             </Text>
           </View>
         )}
@@ -495,7 +497,7 @@ export const DocumentsScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Documenti</Text>
+          <Text style={styles.headerTitle}>{t.documents.title}</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -508,7 +510,7 @@ export const DocumentsScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Documenti</Text>
+        <Text style={styles.headerTitle}>{t.documents.title}</Text>
         <View style={styles.viewToggle}>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'categories' && styles.toggleButtonActive]}
@@ -534,7 +536,7 @@ export const DocumentsScreen: React.FC = () => {
           <Search size={20} color={COLORS.textSecondary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Cerca documenti..."
+            placeholder={t.documents.searchPlaceholder}
             placeholderTextColor={COLORS.textLight}
             value={searchQuery}
             onChangeText={setSearchQuery}

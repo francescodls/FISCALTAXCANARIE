@@ -10,6 +10,7 @@ import {
   User,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { COLORS } from '../config/constants';
 import { View, ActivityIndicator, StyleSheet, Image, Text } from 'react-native';
 
@@ -32,6 +33,8 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const MainTabs = () => {
+  const { t } = useLanguage();
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -65,40 +68,40 @@ const MainTabs = () => {
         name="HomeTab"
         component={HomeScreen}
         options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ color, size }) => <Home size={22} color={color} />,
+          tabBarLabel: t.nav.home,
+          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
         }}
       />
       <Tab.Screen
         name="Scadenze"
         component={CalendarScreen}
         options={{
-          tabBarLabel: 'Scadenze',
-          tabBarIcon: ({ color, size }) => <Calendar size={22} color={color} />,
+          tabBarLabel: t.nav.deadlines,
+          tabBarIcon: ({ color }) => <Calendar size={22} color={color} />,
         }}
       />
       <Tab.Screen
         name="Documenti"
         component={DocumentsScreen}
         options={{
-          tabBarLabel: 'Documenti',
-          tabBarIcon: ({ color, size }) => <FileText size={22} color={color} />,
+          tabBarLabel: t.nav.documents,
+          tabBarIcon: ({ color }) => <FileText size={22} color={color} />,
         }}
       />
       <Tab.Screen
         name="Comunicazioni"
         component={CommunicationsScreen}
         options={{
-          tabBarLabel: 'Messaggi',
-          tabBarIcon: ({ color, size }) => <MessageSquare size={22} color={color} />,
+          tabBarLabel: t.nav.messages,
+          tabBarIcon: ({ color }) => <MessageSquare size={22} color={color} />,
         }}
       />
       <Tab.Screen
         name="Profilo"
         component={ProfileScreen}
         options={{
-          tabBarLabel: 'Profilo',
-          tabBarIcon: ({ color, size }) => <User size={22} color={color} />,
+          tabBarLabel: t.nav.profile,
+          tabBarIcon: ({ color }) => <User size={22} color={color} />,
         }}
       />
     </Tab.Navigator>

@@ -28,6 +28,7 @@ import {
   ArrowRight,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
@@ -46,23 +47,40 @@ interface Deadline {
   priority: string;
 }
 
-const MONTHS = [
+const MONTHS_IT = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
 ];
 
-const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
-
-const FILTERS = [
-  { key: 'all', label: 'Tutte' },
-  { key: 'urgent', label: 'Urgenti' },
-  { key: 'pending', label: 'In corso' },
-  { key: 'completed', label: 'Completate' },
+const MONTHS_ES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
+
+const MONTHS_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+const DAYS_IT = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const DAYS_ES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const DAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export const CalendarScreen: React.FC = () => {
   const { token } = useAuth();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
+  
+  const MONTHS = language === 'en' ? MONTHS_EN : language === 'es' ? MONTHS_ES : MONTHS_IT;
+  const DAYS = language === 'en' ? DAYS_EN : language === 'es' ? DAYS_ES : DAYS_IT;
+  
+  const FILTERS = [
+    { key: 'all', label: t.common.all },
+    { key: 'urgent', label: t.deadlines.priorityHigh },
+    { key: 'pending', label: t.deadlines.statusInProgress },
+    { key: 'completed', label: t.deadlines.statusCompleted },
+  ];
+  
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
@@ -307,12 +325,12 @@ export const CalendarScreen: React.FC = () => {
           <View style={[styles.nextDeadlineBadge, { backgroundColor: config.bgColor }]}>
             <StatusIcon size={14} color={config.color} />
             <Text style={[styles.nextDeadlineBadgeText, { color: config.color }]}>
-              Prossima scadenza
+              {t.deadlines.nextImportantDeadline}
             </Text>
           </View>
           <View style={[styles.daysLeftBadge, { backgroundColor: config.color }]}>
             <Text style={styles.daysLeftText}>
-              {daysUntil === 0 ? 'OGGI' : daysUntil < 0 ? 'SCADUTA' : `${daysUntil}g`}
+              {daysUntil === 0 ? t.common.today.toUpperCase() : daysUntil < 0 ? t.deadlines.overdue.toUpperCase() : `${daysUntil}${language === 'en' ? 'd' : 'g'}`}
             </Text>
           </View>
         </View>
@@ -322,7 +340,7 @@ export const CalendarScreen: React.FC = () => {
             <CalendarIcon size={14} color={COLORS.textSecondary} /> {formatDate(nextDeadline.date || nextDeadline.due_date || '')}
           </Text>
           <View style={styles.viewDetailButton}>
-            <Text style={styles.viewDetailText}>Dettagli</Text>
+            <Text style={styles.viewDetailText}>{t.deadlines.details}</Text>
             <ArrowRight size={14} color={COLORS.primary} />
           </View>
         </View>
@@ -553,7 +571,9 @@ export const CalendarScreen: React.FC = () => {
         {/* Results Count */}
         <View style={styles.resultsHeader}>
           <Text style={styles.resultsCount}>
-            {filteredDeadlines.length} scadenz{filteredDeadlines.length !== 1 ? 'e' : 'a'}
+            {filteredDeadlines.length} {language === 'en' ? (filteredDeadlines.length !== 1 ? 'deadlines' : 'deadline') : 
+              language === 'es' ? (filteredDeadlines.length !== 1 ? 'vencimientos' : 'vencimiento') :
+              (filteredDeadlines.length !== 1 ? 'scadenze' : 'scadenza')}
           </Text>
         </View>
 
@@ -565,9 +585,9 @@ export const CalendarScreen: React.FC = () => {
         ) : (
           <View style={styles.emptyStateContainer}>
             <Filter size={48} color={COLORS.textLight} />
-            <Text style={styles.emptyStateTitle}>Nessun risultato</Text>
+            <Text style={styles.emptyStateTitle}>{t.deadlines.noDeadlines}</Text>
             <Text style={styles.emptyStateSubtitle}>
-              Nessuna scadenza corrisponde ai filtri selezionati
+              {t.deadlines.noDeadlinesDesc}
             </Text>
           </View>
         )}
@@ -579,7 +599,7 @@ export const CalendarScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Scadenze</Text>
+          <Text style={styles.headerTitle}>{t.deadlines.title}</Text>
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
@@ -592,7 +612,7 @@ export const CalendarScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Scadenze</Text>
+        <Text style={styles.headerTitle}>{t.deadlines.title}</Text>
         <View style={styles.viewToggle}>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'calendar' && styles.toggleButtonActive]}

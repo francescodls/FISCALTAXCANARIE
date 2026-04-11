@@ -19,8 +19,6 @@ import {
   MessageSquare,
   Calendar,
   ChevronRight,
-  Clock,
-  CheckCircle,
   AlertCircle,
   AlertTriangle,
   Search,
@@ -34,8 +32,10 @@ import {
 } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { COLORS, SPACING, RADIUS } from '../config/constants';
+import { LanguageSelector } from '../components/LanguageSelector';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -84,6 +84,7 @@ const DISMISSED_ACTIVITIES_KEY = 'dismissed_activities';
 
 export const HomeScreen: React.FC = () => {
   const { user, token } = useAuth();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
@@ -100,24 +101,21 @@ export const HomeScreen: React.FC = () => {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
 
-  // Ottieni il nome del cliente
   const getClientName = (): string => {
     if (user?.full_name && user.full_name.trim()) {
       return user.full_name;
     }
     if (user?.email) {
       const emailName = user.email.split('@')[0];
-      // Capitalizza la prima lettera e sostituisce underscore/punti con spazi
       const cleanName = emailName.replace(/[._]/g, ' ');
       return cleanName
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
     }
-    return 'Utente';
+    return t.profile.title;
   };
 
-  // Carica attività nascoste dal storage locale
   useEffect(() => {
     const loadDismissedActivities = async () => {
       try {
@@ -134,7 +132,6 @@ export const HomeScreen: React.FC = () => {
     loadDismissedActivities();
   }, []);
 
-  // Salva attività nascoste
   const saveDismissedActivities = async (dismissed: Set<string>, viewed: Set<string>) => {
     try {
       await SecureStore.setItemAsync(
@@ -149,7 +146,6 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
-  // Nascondi singola attività
   const dismissActivity = useCallback((activityId: string) => {
     setDismissedIds(prev => {
       const newSet = new Set(prev);
@@ -160,7 +156,6 @@ export const HomeScreen: React.FC = () => {
     setRecentActivity(prev => prev.filter(a => a.id !== activityId));
   }, [viewedIds]);
 
-  // Segna come visualizzata
   const markAsViewed = useCallback((activityId: string) => {
     setViewedIds(prev => {
       const newSet = new Set(prev);
@@ -170,15 +165,14 @@ export const HomeScreen: React.FC = () => {
     });
   }, [dismissedIds]);
 
-  // Pulisci tutte le attività visualizzate
   const clearAllViewed = useCallback(() => {
     Alert.alert(
-      'Pulisci attività',
-      'Vuoi nascondere tutte le attività visualizzate?',
+      t.home.clearActivityTitle,
+      t.home.clearActivityMessage,
       [
-        { text: 'Annulla', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'Pulisci',
+          text: t.home.clear,
           style: 'destructive',
           onPress: () => {
             const viewedActivityIds = recentActivity.filter(a => viewedIds.has(a.id)).map(a => a.id);
@@ -190,9 +184,8 @@ export const HomeScreen: React.FC = () => {
         },
       ]
     );
-  }, [recentActivity, viewedIds, dismissedIds]);
+  }, [recentActivity, viewedIds, dismissedIds, t]);
 
-  // Segna tutto come visualizzato
   const markAllAsViewed = useCallback(() => {
     const allIds = recentActivity.map(a => a.id);
     const newViewed = new Set([...viewedIds, ...allIds]);
@@ -223,11 +216,7 @@ export const HomeScreen: React.FC = () => {
       const inProgress = declarations.filter((d: any) => 
         d.stato === 'in_lavorazione' || d.stato === 'in_attesa'
       ).length;
-      const completed = declarations.filter((d: any) => 
-        d.stato === 'completata' || d.stato === 'inviata'
-      ).length;
 
-      // Filtra solo scadenze future (daysLeft > 0)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -239,7 +228,9 @@ export const HomeScreen: React.FC = () => {
 
       setStats({
         practicesInProgress: inProgress,
-        practicesCompleted: completed,
+        practicesCompleted: declarations.filter((d: any) => 
+          d.stato === 'completata' || d.stato === 'inviata'
+        ).length,
         ticketsOpen: openTickets.length,
         unreadNotifications: unread.length,
         upcomingDeadlines: futureDeadlines.length,
@@ -251,17 +242,17 @@ export const HomeScreen: React.FC = () => {
         }).length,
       });
 
-      // Action items - SENZA scadenza imminente (rimossa)
+      // Action items - using translations
       const actions: ActionItem[] = [];
 
       if (openTickets.length > 0) {
         actions.push({
           id: 'ticket-1',
           type: 'ticket',
-          title: `${openTickets.length} ticket aperti`,
-          description: 'Controlla lo stato delle tue richieste',
+          title: t.home.openTickets.replace('{count}', openTickets.length.toString()),
+          description: t.home.checkTickets,
           priority: 'medium',
-          action: 'Gestisci',
+          action: t.home.manage,
           route: 'Comunicazioni',
         });
       }
@@ -270,17 +261,16 @@ export const HomeScreen: React.FC = () => {
         actions.push({
           id: 'notification-1',
           type: 'message',
-          title: `${unread.length} notifiche non lette`,
-          description: 'Hai nuovi aggiornamenti da leggere',
+          title: t.home.unreadNotifications.replace('{count}', unread.length.toString()),
+          description: t.home.newUpdates,
           priority: 'medium',
-          action: 'Leggi',
+          action: t.home.read,
           route: 'Notifiche',
         });
       }
 
       setActionItems(actions.slice(0, 3));
 
-      // Process deadlines - SOLO future
       const processedDeadlines: Deadline[] = futureDeadlines.slice(0, 4).map((d: any, index: number) => {
         const deadlineDate = new Date(d.date || d.due_date);
         const diffTime = deadlineDate.getTime() - today.getTime();
@@ -289,9 +279,9 @@ export const HomeScreen: React.FC = () => {
         
         return {
           id: d.id || d._id || `deadline-${index}`,
-          title: d.title || d.name || 'Scadenza fiscale',
+          title: d.title || d.name || t.deadlines.title,
           description: d.description || '',
-          date: deadlineDate.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }),
+          date: deadlineDate.toLocaleDateString(language === 'en' ? 'en-GB' : language === 'es' ? 'es-ES' : 'it-IT', { day: '2-digit', month: 'short' }),
           due_date: d.due_date || d.date,
           category: d.category || 'fiscale',
           daysLeft,
@@ -302,7 +292,6 @@ export const HomeScreen: React.FC = () => {
       });
       setDeadlines(processedDeadlines);
 
-      // Build recent activity
       const activity: ActivityItem[] = [];
       declarations.slice(0, 2).forEach((d: any) => {
         const actId = d._id || `decl-${Math.random().toString()}`;
@@ -310,7 +299,7 @@ export const HomeScreen: React.FC = () => {
           activity.push({
             id: actId,
             type: 'declaration',
-            title: `Pratica ${d.tipo?.toUpperCase() || 'IRPF'} aggiornata`,
+            title: t.home.practiceUpdated.replace('{type}', d.tipo?.toUpperCase() || 'IRPF'),
             timestamp: d.updated_at || d.created_at,
             isNew: !viewedIds.has(actId),
           });
@@ -322,7 +311,7 @@ export const HomeScreen: React.FC = () => {
           activity.push({
             id: actId,
             type: 'document',
-            title: `Nuovo documento: ${d.file_name || 'Documento'}`,
+            title: t.home.newDocument.replace('{name}', d.file_name || t.documents.title),
             timestamp: d.created_at,
             isNew: !viewedIds.has(actId),
           });
@@ -350,10 +339,10 @@ export const HomeScreen: React.FC = () => {
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 60) return `${diffMins} min fa`;
-      if (diffHours < 24) return `${diffHours} ore fa`;
-      if (diffDays === 1) return 'Ieri';
-      return `${diffDays} giorni fa`;
+      if (diffMins < 60) return `${diffMins} ${t.common.minutesAgo}`;
+      if (diffHours < 24) return `${diffHours} ${t.common.hoursAgo}`;
+      if (diffDays === 1) return t.common.yesterday;
+      return `${diffDays} ${t.common.daysAgo}`;
     } catch {
       return '';
     }
@@ -384,6 +373,12 @@ export const HomeScreen: React.FC = () => {
     }
   };
 
+  const getDeadlineDaysText = (daysLeft: number) => {
+    if (daysLeft === 0) return t.common.today + '!';
+    if (daysLeft === 1) return t.common.tomorrow;
+    return t.home.inDays.replace('{days}', daysLeft.toString());
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -398,7 +393,7 @@ export const HomeScreen: React.FC = () => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header with Language Selector */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Image
@@ -406,19 +401,22 @@ export const HomeScreen: React.FC = () => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.brandName}>Fiscal Tax Canarie</Text>
+            <Text style={styles.brandName}>{t.home.brandName}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={() => navigation.navigate('Ricerca')}
-          >
-            <Search size={22} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <LanguageSelector />
+            <TouchableOpacity
+              style={styles.searchButton}
+              onPress={() => navigation.navigate('Ricerca')}
+            >
+              <Search size={22} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Welcome Section - NOME REALE */}
+        {/* Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>Benvenuto,</Text>
+          <Text style={styles.welcomeText}>{t.home.welcome}</Text>
           <Text style={styles.userName}>{getClientName()}</Text>
         </View>
 
@@ -442,37 +440,27 @@ export const HomeScreen: React.FC = () => {
                 </View>
               </View>
               <View style={styles.aiTextContainer}>
-                <Text style={styles.aiTitle}>Assistente Fiscale AI</Text>
-                <Text style={styles.aiSubtitle}>
-                  Chiedi informazioni su fiscalità canaria e spagnola
-                </Text>
+                <Text style={styles.aiTitle}>{t.ai.title}</Text>
+                <Text style={styles.aiSubtitle}>{t.ai.subtitle}</Text>
               </View>
               <View style={styles.aiArrow}>
                 <ArrowRight size={20} color="rgba(255,255,255,0.8)" />
               </View>
             </View>
             <View style={styles.aiHints}>
-              <View style={styles.aiHint}>
-                <Text style={styles.aiHintText}>IGIC</Text>
-              </View>
-              <View style={styles.aiHint}>
-                <Text style={styles.aiHintText}>IRPF</Text>
-              </View>
-              <View style={styles.aiHint}>
-                <Text style={styles.aiHintText}>Modello 720</Text>
-              </View>
-              <View style={styles.aiHint}>
-                <Text style={styles.aiHintText}>ZEC</Text>
-              </View>
+              <View style={styles.aiHint}><Text style={styles.aiHintText}>IGIC</Text></View>
+              <View style={styles.aiHint}><Text style={styles.aiHintText}>IRPF</Text></View>
+              <View style={styles.aiHint}><Text style={styles.aiHintText}>720</Text></View>
+              <View style={styles.aiHint}><Text style={styles.aiHintText}>ZEC</Text></View>
             </View>
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Cosa devo fare adesso? - SENZA scadenza imminente */}
+        {/* What to do now */}
         {actionItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Cosa devo fare adesso?</Text>
+              <Text style={styles.sectionTitle}>{t.home.whatToDo}</Text>
             </View>
             <View style={styles.actionCards}>
               {actionItems.map((item) => {
@@ -482,13 +470,7 @@ export const HomeScreen: React.FC = () => {
                   <TouchableOpacity
                     key={item.id}
                     style={styles.actionCard}
-                    onPress={() => {
-                      if (item.routeParams) {
-                        navigation.navigate(item.route, item.routeParams);
-                      } else {
-                        navigation.navigate(item.route);
-                      }
-                    }}
+                    onPress={() => navigation.navigate(item.route, item.routeParams)}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionPriorityBar, { backgroundColor: priorityColor }]} />
@@ -498,19 +480,11 @@ export const HomeScreen: React.FC = () => {
                       </View>
                       <View style={styles.actionTextContainer}>
                         <Text style={styles.actionTitle}>{item.title}</Text>
-                        <Text style={styles.actionDescription} numberOfLines={1}>
-                          {item.description}
-                        </Text>
+                        <Text style={styles.actionDescription} numberOfLines={1}>{item.description}</Text>
                       </View>
                       <TouchableOpacity 
                         style={[styles.actionButton, { backgroundColor: priorityColor }]}
-                        onPress={() => {
-                          if (item.routeParams) {
-                            navigation.navigate(item.route, item.routeParams);
-                          } else {
-                            navigation.navigate(item.route);
-                          }
-                        }}
+                        onPress={() => navigation.navigate(item.route, item.routeParams)}
                       >
                         <Text style={styles.actionButtonText}>{item.action}</Text>
                       </TouchableOpacity>
@@ -522,15 +496,15 @@ export const HomeScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Widget Scadenze - SOLO FUTURE */}
+        {/* Deadlines */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Prossime scadenze</Text>
+            <Text style={styles.sectionTitle}>{t.home.upcomingDeadlines}</Text>
             <TouchableOpacity
               style={styles.seeAllButton}
               onPress={() => navigation.navigate('Scadenze')}
             >
-              <Text style={styles.seeAllText}>Calendario</Text>
+              <Text style={styles.seeAllText}>{t.home.calendar}</Text>
               <ChevronRight size={16} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
@@ -561,7 +535,7 @@ export const HomeScreen: React.FC = () => {
                   <View style={styles.deadlineInfo}>
                     <Text style={styles.deadlineTitle} numberOfLines={1}>{deadline.title}</Text>
                     <Text style={[styles.deadlineDays, { color: getDeadlineColor(deadline.status) }]}>
-                      {deadline.daysLeft === 0 ? 'Oggi!' : deadline.daysLeft === 1 ? 'Domani' : `Tra ${deadline.daysLeft} giorni`}
+                      {getDeadlineDaysText(deadline.daysLeft)}
                     </Text>
                   </View>
                   {deadline.status === 'urgent' && (
@@ -573,52 +547,39 @@ export const HomeScreen: React.FC = () => {
           ) : (
             <View style={styles.emptyDeadlines}>
               <Calendar size={32} color={COLORS.textLight} />
-              <Text style={styles.emptyText}>Nessuna scadenza imminente</Text>
-              <Text style={styles.emptySubtext}>Sei in regola con tutti gli adempimenti</Text>
+              <Text style={styles.emptyText}>{t.home.noUpcomingDeadlines}</Text>
+              <Text style={styles.emptySubtext}>{t.home.allCaughtUp}</Text>
             </View>
           )}
         </View>
 
-        {/* Accesso Rapido */}
+        {/* Quick Access */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Accesso rapido</Text>
+          <Text style={styles.sectionTitle}>{t.home.quickAccess}</Text>
           <View style={styles.quickAccessGrid}>
-            <TouchableOpacity
-              style={styles.quickAccessCard}
-              onPress={() => navigation.navigate('Dichiarazioni')}
-            >
+            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Dichiarazioni')}>
               <View style={[styles.quickAccessIcon, { backgroundColor: COLORS.primary + '15' }]}>
                 <FileText size={24} color={COLORS.primary} />
               </View>
-              <Text style={styles.quickAccessTitle}>Pratiche</Text>
-              <Text style={styles.quickAccessCount}>
-                {stats.practicesInProgress} in corso
-              </Text>
+              <Text style={styles.quickAccessTitle}>{t.practices.title}</Text>
+              <Text style={styles.quickAccessCount}>{stats.practicesInProgress} {t.home.inProgress}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickAccessCard}
-              onPress={() => navigation.navigate('Documenti')}
-            >
+            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Documenti')}>
               <View style={[styles.quickAccessIcon, { backgroundColor: '#8b5cf6' + '15' }]}>
                 <Folder size={24} color="#8b5cf6" />
               </View>
-              <Text style={styles.quickAccessTitle}>Documenti</Text>
+              <Text style={styles.quickAccessTitle}>{t.documents.title}</Text>
               {stats.newDocuments > 0 && (
-                <Text style={[styles.quickAccessCount, { color: '#8b5cf6' }]}>
-                  {stats.newDocuments} nuovi
-                </Text>
+                <Text style={[styles.quickAccessCount, { color: '#8b5cf6' }]}>{stats.newDocuments} {t.home.newDocs}</Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickAccessCard}
-              onPress={() => navigation.navigate('Comunicazioni')}
-            >
+            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Comunicazioni')}>
               <View style={[styles.quickAccessIcon, { backgroundColor: COLORS.info + '15' }]}>
                 <MessageSquare size={24} color={COLORS.info} />
               </View>
-              <Text style={styles.quickAccessTitle}>Ticket</Text>
+              <Text style={styles.quickAccessTitle}>{t.tickets.tickets}</Text>
               {stats.ticketsOpen > 0 && (
                 <View style={styles.quickAccessBadge}>
                   <Text style={styles.quickAccessBadgeText}>{stats.ticketsOpen}</Text>
@@ -626,14 +587,11 @@ export const HomeScreen: React.FC = () => {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.quickAccessCard}
-              onPress={() => navigation.navigate('Notifiche')}
-            >
+            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Notifiche')}>
               <View style={[styles.quickAccessIcon, { backgroundColor: COLORS.warning + '15' }]}>
                 <Bell size={24} color={COLORS.warning} />
               </View>
-              <Text style={styles.quickAccessTitle}>Notifiche</Text>
+              <Text style={styles.quickAccessTitle}>{t.notifications.title}</Text>
               {stats.unreadNotifications > 0 && (
                 <View style={[styles.quickAccessBadge, { backgroundColor: COLORS.warning }]}>
                   <Text style={styles.quickAccessBadgeText}>{stats.unreadNotifications}</Text>
@@ -643,85 +601,51 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Attività Recente */}
+        {/* Recent Activity */}
         {recentActivity.length > 0 && (
           <View style={styles.section}>
             <View style={styles.activityHeader}>
-              <Text style={styles.sectionTitle}>Attività recente</Text>
+              <Text style={styles.sectionTitle}>{t.home.recentActivity}</Text>
               <View style={styles.activityActions}>
                 {recentActivity.some(a => a.isNew) && (
-                  <TouchableOpacity 
-                    style={styles.activityActionButton}
-                    onPress={markAllAsViewed}
-                  >
+                  <TouchableOpacity style={styles.activityActionButton} onPress={markAllAsViewed}>
                     <Eye size={14} color={COLORS.primary} />
-                    <Text style={styles.activityActionText}>Segna lette</Text>
+                    <Text style={styles.activityActionText}>{t.home.markAsRead}</Text>
                   </TouchableOpacity>
                 )}
                 {viewedIds.size > 0 && recentActivity.some(a => viewedIds.has(a.id)) && (
-                  <TouchableOpacity 
-                    style={styles.activityActionButton}
-                    onPress={clearAllViewed}
-                  >
+                  <TouchableOpacity style={styles.activityActionButton} onPress={clearAllViewed}>
                     <Trash2 size={14} color={COLORS.textSecondary} />
-                    <Text style={[styles.activityActionText, { color: COLORS.textSecondary }]}>Pulisci</Text>
+                    <Text style={[styles.activityActionText, { color: COLORS.textSecondary }]}>{t.home.clear}</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </View>
             <View style={styles.activityContainer}>
               {recentActivity.map((activity, index) => (
-                <View
-                  key={activity.id}
-                  style={[
-                    styles.activityItem,
-                    index < recentActivity.length - 1 && styles.activityItemBorder,
-                  ]}
-                >
-                  <View style={[
-                    styles.activityDot, 
-                    activity.isNew ? styles.activityDotNew : styles.activityDotViewed
-                  ]} />
-                  
-                  <TouchableOpacity 
-                    style={styles.activityContent}
-                    onPress={() => markAsViewed(activity.id)}
-                    activeOpacity={0.7}
-                  >
+                <View key={activity.id} style={[styles.activityItem, index < recentActivity.length - 1 && styles.activityItemBorder]}>
+                  <View style={[styles.activityDot, activity.isNew ? styles.activityDotNew : styles.activityDotViewed]} />
+                  <TouchableOpacity style={styles.activityContent} onPress={() => markAsViewed(activity.id)} activeOpacity={0.7}>
                     <View style={styles.activityTextContainer}>
-                      <Text style={[
-                        styles.activityTitle,
-                        !activity.isNew && styles.activityTitleViewed
-                      ]}>
-                        {activity.title}
-                      </Text>
+                      <Text style={[styles.activityTitle, !activity.isNew && styles.activityTitleViewed]}>{activity.title}</Text>
                       <Text style={styles.activityTime}>{formatTimeAgo(activity.timestamp)}</Text>
                     </View>
                     {activity.isNew && (
                       <View style={styles.newBadge}>
-                        <Text style={styles.newBadgeText}>Nuovo</Text>
+                        <Text style={styles.newBadgeText}>{t.home.new}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.dismissButton}
-                    onPress={() => dismissActivity(activity.id)}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
+                  <TouchableOpacity style={styles.dismissButton} onPress={() => dismissActivity(activity.id)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <X size={16} color={COLORS.textLight} />
                   </TouchableOpacity>
                 </View>
               ))}
             </View>
-            
-            <Text style={styles.activityHint}>
-              Tocca per segnare come letta, X per nascondere
-            </Text>
+            <Text style={styles.activityHint}>{t.home.activityHint}</Text>
           </View>
         )}
 
-        {/* Bottom Spacing */}
         <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
@@ -729,410 +653,79 @@ export const HomeScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fb',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  logo: {
-    width: 36,
-    height: 36,
-  },
-  brandName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  searchButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  welcomeSection: {
-    marginBottom: 24,
-  },
-  welcomeText: {
-    fontSize: 16,
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-  },
-  userName: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: -0.5,
-  },
-  // AI Card
-  aiCard: {
-    marginBottom: 28,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#0d9488',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  aiCardGradient: {
-    padding: 20,
-  },
-  aiCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  aiIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  aiSparkle: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 10,
-    padding: 3,
-  },
-  aiTextContainer: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  aiTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  aiSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
-    lineHeight: 18,
-  },
-  aiArrow: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  aiHints: {
-    flexDirection: 'row',
-    marginTop: 16,
-    gap: 8,
-  },
-  aiHint: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  aiHintText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: -0.3,
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  seeAllText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  actionCards: {
-    gap: 12,
-  },
-  actionCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
-  },
-  actionPriorityBar: {
-    height: 3,
-    width: '100%',
-  },
-  actionCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
-  },
-  actionIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  actionTextContainer: {
-    flex: 1,
-  },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  actionDescription: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  actionButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  deadlinesContainer: {
-    gap: 10,
-  },
-  deadlineCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 12,
-  },
-  deadlineDateBox: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  deadlineDate: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  deadlineInfo: {
-    flex: 1,
-  },
-  deadlineTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 2,
-  },
-  deadlineDays: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  emptyDeadlines: {
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 28,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  emptySubtext: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  quickAccessGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginTop: 12,
-  },
-  quickAccessCard: {
-    width: (SCREEN_WIDTH - 48 - 12) / 2,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    position: 'relative',
-  },
-  quickAccessIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  quickAccessTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  quickAccessCount: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  quickAccessBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  quickAccessBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  activityActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  activityActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: COLORS.primary + '10',
-    borderRadius: 20,
-  },
-  activityActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
-  activityContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    overflow: 'hidden',
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    gap: 12,
-  },
-  activityItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  activityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  activityDotNew: {
-    backgroundColor: COLORS.primary,
-  },
-  activityDotViewed: {
-    backgroundColor: COLORS.textLight,
-    opacity: 0.5,
-  },
-  activityContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  activityTextContainer: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.text,
-  },
-  activityTitleViewed: {
-    color: COLORS.textSecondary,
-  },
-  activityTime: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    marginTop: 2,
-  },
-  newBadge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  newBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  dismissButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: COLORS.background,
-  },
-  activityHint: {
-    fontSize: 11,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
+  container: { flex: 1, backgroundColor: '#f8f9fb' },
+  scrollView: { flex: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingTop: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logo: { width: 36, height: 36 },
+  brandName: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  searchButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#ffffff', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
+  welcomeSection: { marginBottom: 24 },
+  welcomeText: { fontSize: 16, color: COLORS.textSecondary, marginBottom: 4 },
+  userName: { fontSize: 28, fontWeight: '700', color: COLORS.text, letterSpacing: -0.5 },
+  aiCard: { marginBottom: 28, borderRadius: 20, overflow: 'hidden', shadowColor: '#0d9488', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  aiCardGradient: { padding: 20 },
+  aiCardContent: { flexDirection: 'row', alignItems: 'center' },
+  aiIconContainer: { width: 56, height: 56, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  aiSparkle: { position: 'absolute', top: -4, right: -4, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: 3 },
+  aiTextContainer: { flex: 1, marginLeft: 16 },
+  aiTitle: { fontSize: 18, fontWeight: '700', color: '#ffffff', marginBottom: 4 },
+  aiSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.85)', lineHeight: 18 },
+  aiArrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  aiHints: { flexDirection: 'row', marginTop: 16, gap: 8 },
+  aiHint: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  aiHintText: { fontSize: 12, fontWeight: '600', color: '#ffffff' },
+  section: { marginBottom: 32 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
+  seeAllButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  seeAllText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  actionCards: { gap: 12 },
+  actionCard: { backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+  actionPriorityBar: { height: 3, width: '100%' },
+  actionCardContent: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
+  actionIconContainer: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  actionTextContainer: { flex: 1 },
+  actionTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 2 },
+  actionDescription: { fontSize: 13, color: COLORS.textSecondary },
+  actionButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  actionButtonText: { fontSize: 13, fontWeight: '600', color: '#ffffff' },
+  deadlinesContainer: { gap: 10 },
+  deadlineCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#e2e8f0', gap: 12 },
+  deadlineDateBox: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
+  deadlineDate: { fontSize: 13, fontWeight: '700' },
+  deadlineInfo: { flex: 1 },
+  deadlineTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text, marginBottom: 2 },
+  deadlineDays: { fontSize: 12, fontWeight: '500' },
+  emptyDeadlines: { backgroundColor: '#ffffff', borderRadius: 14, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', gap: 8 },
+  emptyText: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  emptySubtext: { fontSize: 13, color: COLORS.textSecondary },
+  quickAccessGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 12 },
+  quickAccessCard: { width: (SCREEN_WIDTH - 48 - 12) / 2, backgroundColor: '#ffffff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', position: 'relative' },
+  quickAccessIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  quickAccessTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text, marginBottom: 4 },
+  quickAccessCount: { fontSize: 13, color: COLORS.textSecondary },
+  quickAccessBadge: { position: 'absolute', top: 12, right: 12, backgroundColor: COLORS.primary, borderRadius: 10, minWidth: 20, height: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 6 },
+  quickAccessBadgeText: { fontSize: 11, fontWeight: '700', color: '#ffffff' },
+  activityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  activityActions: { flexDirection: 'row', gap: 8 },
+  activityActionButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: COLORS.primary + '10', borderRadius: 20 },
+  activityActionText: { fontSize: 12, fontWeight: '600', color: COLORS.primary },
+  activityContainer: { backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', overflow: 'hidden' },
+  activityItem: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 12 },
+  activityItemBorder: { borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  activityDot: { width: 10, height: 10, borderRadius: 5 },
+  activityDotNew: { backgroundColor: COLORS.primary },
+  activityDotViewed: { backgroundColor: COLORS.textLight, opacity: 0.5 },
+  activityContent: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  activityTextContainer: { flex: 1 },
+  activityTitle: { fontSize: 14, fontWeight: '500', color: COLORS.text },
+  activityTitleViewed: { color: COLORS.textSecondary },
+  activityTime: { fontSize: 12, color: COLORS.textLight, marginTop: 2 },
+  newBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginLeft: 8 },
+  newBadgeText: { fontSize: 10, fontWeight: '700', color: '#ffffff' },
+  dismissButton: { padding: 8, borderRadius: 20, backgroundColor: COLORS.background },
+  activityHint: { fontSize: 11, color: COLORS.textLight, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
 });

@@ -31,6 +31,7 @@ import {
   HelpCircle,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
@@ -53,7 +54,7 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-const QUICK_QUESTIONS = [
+const QUICK_QUESTIONS_DEFAULT = [
   "Cos'è l'IGIC alle Canarie?",
   "Quali sono le scadenze fiscali del trimestre?",
   "Come funziona il regime ZEC?",
@@ -71,6 +72,7 @@ const SEARCH_SUGGESTIONS = [
 
 export const SearchScreen: React.FC = () => {
   const { token, user } = useAuth();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<TabType>('search');
   const [searchQuery, setSearchQuery] = useState('');
@@ -206,7 +208,7 @@ export const SearchScreen: React.FC = () => {
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Mi dispiace, si è verificato un errore. Riprova più tardi.',
+        content: t.ai.errorMessage,
         timestamp: new Date(),
       };
       setChatMessages(prev => [...prev, errorMessage]);
@@ -306,7 +308,7 @@ export const SearchScreen: React.FC = () => {
         <TextInput
           ref={searchInputRef}
           style={styles.searchInput}
-          placeholder="Cerca nei tuoi documenti..."
+          placeholder={t.search.searchPlaceholder}
           placeholderTextColor={COLORS.textLight}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -332,7 +334,7 @@ export const SearchScreen: React.FC = () => {
         ) : (
           <>
             <Search size={18} color="#fff" />
-            <Text style={styles.searchButtonText}>Cerca</Text>
+            <Text style={styles.searchButtonText}>{t.common.search}</Text>
           </>
         )}
       </TouchableOpacity>
@@ -342,8 +344,8 @@ export const SearchScreen: React.FC = () => {
         <View style={styles.resultsContainer}>
           <Text style={styles.resultsTitle}>
             {searchResults.length > 0 
-              ? `${searchResults.length} risultat${searchResults.length === 1 ? 'o' : 'i'} trovati`
-              : 'Nessun risultato'}
+              ? `${searchResults.length} ${t.search.noResults === 'No results' ? 'results found' : 'risultati trovati'}`
+              : t.search.noResults}
           </Text>
           
           {searchResults.length > 0 ? (
@@ -357,26 +359,26 @@ export const SearchScreen: React.FC = () => {
           ) : (
             <View style={styles.noResults}>
               <AlertCircle size={48} color={COLORS.textLight} />
-              <Text style={styles.noResultsText}>Nessun documento trovato</Text>
+              <Text style={styles.noResultsText}>{t.search.noResults}</Text>
               <Text style={styles.noResultsHint}>
-                Prova a cercare con parole diverse o chiedi all'assistente AI
+                {t.search.noResultsDesc}
               </Text>
               <TouchableOpacity 
                 style={styles.askAiButton}
                 onPress={() => {
                   setActiveTab('assistant');
-                  setChatInput(`Aiutami a trovare documenti riguardo: ${searchQuery}`);
+                  setChatInput(`${searchQuery}`);
                 }}
               >
                 <Sparkles size={16} color={COLORS.primary} />
-                <Text style={styles.askAiButtonText}>Chiedi all'assistente</Text>
+                <Text style={styles.askAiButtonText}>{t.search.assistantTab}</Text>
               </TouchableOpacity>
             </View>
           )}
         </View>
       ) : (
         <View style={styles.suggestionsContainer}>
-          <Text style={styles.suggestionsTitle}>Ricerche suggerite</Text>
+          <Text style={styles.suggestionsTitle}>{t.search.suggestions}</Text>
           <View style={styles.suggestionTags}>
             {SEARCH_SUGGESTIONS.map((suggestion, index) => (
               <TouchableOpacity
@@ -395,16 +397,16 @@ export const SearchScreen: React.FC = () => {
               <Sparkles size={24} color={COLORS.primary} />
             </View>
             <View style={styles.aiPromoContent}>
-              <Text style={styles.aiPromoTitle}>Assistente AI</Text>
+              <Text style={styles.aiPromoTitle}>{t.ai.title}</Text>
               <Text style={styles.aiPromoText}>
-                Fai domande in linguaggio naturale sui tuoi documenti e sulla fiscalità canaria
+                {t.ai.subtitle}
               </Text>
             </View>
             <TouchableOpacity 
               style={styles.aiPromoButton}
               onPress={() => setActiveTab('assistant')}
             >
-              <Text style={styles.aiPromoButtonText}>Prova</Text>
+              <Text style={styles.aiPromoButtonText}>AI</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -419,15 +421,14 @@ export const SearchScreen: React.FC = () => {
           <View style={styles.welcomeIcon}>
             <Bot size={48} color={COLORS.primary} />
           </View>
-          <Text style={styles.welcomeTitle}>Assistente Fiscal Tax</Text>
+          <Text style={styles.welcomeTitle}>{t.ai.title}</Text>
           <Text style={styles.welcomeText}>
-            Sono il tuo assistente virtuale specializzato in fiscalità delle Canarie e spagnola. 
-            Posso aiutarti con domande sui tuoi documenti, scadenze e adempimenti fiscali.
+            {t.ai.welcomeMessage}
           </Text>
           
-          <Text style={styles.quickQuestionsTitle}>Domande frequenti</Text>
+          <Text style={styles.quickQuestionsTitle}>{t.search.suggestions}</Text>
           <View style={styles.quickQuestions}>
-            {QUICK_QUESTIONS.map((question, index) => (
+            {t.ai.quickQuestions.map((question, index) => (
               <TouchableOpacity
                 key={index}
                 style={styles.quickQuestionButton}
@@ -458,7 +459,7 @@ export const SearchScreen: React.FC = () => {
         <View style={styles.chatInputContainer}>
           <TextInput
             style={styles.chatInput}
-            placeholder="Fai una domanda..."
+            placeholder={t.ai.placeholder}
             placeholderTextColor={COLORS.textLight}
             value={chatInput}
             onChangeText={setChatInput}
@@ -491,7 +492,7 @@ export const SearchScreen: React.FC = () => {
         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ricerca</Text>
+        <Text style={styles.headerTitle}>{t.search.title}</Text>
         <View style={styles.headerRight} />
       </View>
 
@@ -503,7 +504,7 @@ export const SearchScreen: React.FC = () => {
         >
           <Search size={18} color={activeTab === 'search' ? COLORS.primary : COLORS.textSecondary} />
           <Text style={[styles.tabText, activeTab === 'search' && styles.tabTextActive]}>
-            Documenti
+            {t.search.searchTab}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -512,7 +513,7 @@ export const SearchScreen: React.FC = () => {
         >
           <Sparkles size={18} color={activeTab === 'assistant' ? COLORS.primary : COLORS.textSecondary} />
           <Text style={[styles.tabText, activeTab === 'assistant' && styles.tabTextActive]}>
-            Assistente AI
+            {t.search.assistantTab}
           </Text>
         </TouchableOpacity>
       </View>

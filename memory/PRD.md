@@ -7,6 +7,58 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 86 (11 Aprile 2026) - COMPLETATA ✅
+
+**Sistema i18n Completo per Mobile App:**
+
+**Implementazione:**
+
+1. **Struttura i18n:**
+   - Creati file traduzioni: `it.ts`, `es.ts`, `en.ts` in `/src/i18n/`
+   - `LanguageContext.tsx` per gestire stato lingua globale
+   - `LanguageSelector.tsx` componente con bandierine
+   - Persistenza lingua via SecureStore
+
+2. **Lingue supportate:**
+   - 🇮🇹 Italiano (default)
+   - 🇪🇸 Español
+   - 🇬🇧 English
+
+3. **Selettore lingua:**
+   - Accesso diretto dalla Home (header, accanto al logo)
+   - Accesso dalla schermata Login
+   - Modal elegante con bandierine e check sulla lingua attiva
+   - Persistente dopo chiusura/riapertura app
+
+4. **Schermate tradotte:**
+   - ✅ HomeScreen (welcome, AI card, quick access, deadlines)
+   - ✅ LoginScreen
+   - ✅ ProfileScreen (con cambio lingua inline)
+   - ✅ CommunicationsScreen (ticket, messaggi, form nuovo ticket)
+   - ✅ DocumentsScreen (categorie, search, empty states)
+   - ✅ CalendarScreen (mesi, giorni, filtri, dettagli)
+   - ✅ SearchScreen (tabs, AI assistant, messaggi)
+   - ✅ Tab Bar navigation labels
+
+5. **Traduzioni professionali:**
+   - Terminologia fiscale corretta (IGIC, IRPF, ZEC, etc.)
+   - Empty states localizzati
+   - Messaggi di errore e conferma
+   - Form labels e placeholder
+   - Stati ticket e pratiche
+
+**File creati/modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/i18n/` (nuovo)
+- `/app/mobile-app/fiscal-tax-mobile/src/context/LanguageContext.tsx` (nuovo)
+- `/app/mobile-app/fiscal-tax-mobile/src/components/LanguageSelector.tsx` (nuovo)
+- Aggiornati: `App.tsx`, `AppNavigator.tsx`, e tutte le schermate principali
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+- ✅ Cambio lingua persistente
+- ✅ UI aggiornata immediatamente al cambio
+
+
 ### Fase 85 (11 Aprile 2026) - COMPLETATA ✅
 
 **Fix Flusso "Nuovo Ticket" + Redesign Homepage Mobile App:**
