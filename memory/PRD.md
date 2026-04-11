@@ -7,6 +7,61 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 84 (11 Aprile 2026) - COMPLETATA ✅
+
+**Redesign e Fix Sezione Documenti:**
+
+**Problemi risolti:**
+1. Visualizza, Scarica, Condividi non funzionavano su iPhone
+2. UI troppo basilare senza navigazione per categorie
+
+**Implementazione:**
+
+1. **Azioni documento funzionanti su iOS:**
+   - **Visualizza**: usa `expo-web-browser` per aprire PDF e file
+   - **Scarica**: usa `expo-file-system` (Paths API) + `expo-sharing` per salvare in Files
+   - **Condividi**: usa `expo-sharing` con foglio condivisione nativo iOS
+   - UTI corretti per ogni tipo file (PDF, Word, Excel, immagini)
+
+2. **Vista per Categorie:**
+   - Grid di card colorate per categoria
+   - Contatore documenti per categoria
+   - Click → apre lista filtrata
+   - Categorie: Fiscali, Modelli, Ricevute, Societari, Comunicazioni, Contratti, Altro
+
+3. **Vista Lista migliorata:**
+   - Ordinamento per Data o Nome
+   - Filtro per categoria
+   - Ricerca documenti
+   - Card con icona tipo file, nome, data, dimensione
+   - Barra azioni: Visualizza | Scarica | Condividi
+
+4. **Stats Card:**
+   - Documenti totali + numero categorie
+
+5. **Sezione Documenti Recenti:**
+   - Ultimi 3 documenti in vista categorie
+
+6. **Loading states:**
+   - Spinner su ogni azione
+   - Pull-to-refresh
+
+7. **Empty states:**
+   - Messaggi appropriati per nessun documento/risultato
+
+**Dipendenze aggiunte:**
+- `expo-file-system` (aggiornato)
+- `expo-sharing`
+- `expo-web-browser`
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/DocumentsScreen.tsx` (riscritto)
+- `/app/mobile-app/fiscal-tax-mobile/package.json`
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+
+
 ### Fase 83 (11 Aprile 2026) - COMPLETATA ✅
 
 **Redesign Completo Sezione Scadenze:**

@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
-  Linking,
+  Platform,
+  Dimensions,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -18,18 +20,29 @@ import {
   File,
   Image as ImageIcon,
   Download,
-  Share,
+  Share2,
   Eye,
   Filter,
   ChevronDown,
   X,
   Folder,
   Calendar,
-  Clock,
+  Grid,
+  List,
+  ChevronRight,
+  FileSpreadsheet,
+  FileType,
+  Info,
 } from 'lucide-react-native';
+import * as FileSystem from 'expo-file-system';
+import { Paths, File as ExpoFile } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
-import { COLORS, SPACING, RADIUS } from '../config/constants';
+import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface Document {
   _id: string;
@@ -38,20 +51,32 @@ interface Document {
   file_type: string;
   file_size?: number;
   category?: string;
+  folder_category?: string;
   year?: string;
   practice?: string;
   created_at: string;
   download_url?: string;
 }
 
-const CATEGORIES = [
-  { id: 'all', label: 'Tutti', icon: Folder },
-  { id: 'fiscali', label: 'Fiscali', icon: FileText },
-  { id: 'modelli', label: 'Modelli', icon: File },
-  { id: 'ricevute', label: 'Ricevute', icon: FileText },
-  { id: 'societa', label: 'Società', icon: Folder },
-  { id: 'comunicazioni', label: 'Comunicazioni', icon: FileText },
-];
+interface CategoryGroup {
+  id: string;
+  label: string;
+  icon: any;
+  count: number;
+  color: string;
+}
+
+const CATEGORY_CONFIG: Record<string, { label: string; icon: any; color: string }> = {
+  'fiscali': { label: 'Documenti Fiscali', icon: FileText, color: '#ef4444' },
+  'modelli': { label: 'Modelli', icon: FileType, color: '#8b5cf6' },
+  'ricevute': { label: 'Ricevute', icon: FileSpreadsheet, color: '#10b981' },
+  'societari': { label: 'Doc. Societari', icon: Folder, color: '#3b82f6' },
+  'comunicazioni': { label: 'Comunicazioni', icon: File, color: '#f59e0b' },
+  'contratti': { label: 'Contratti', icon: FileText, color: '#6366f1' },
+  'altro': { label: 'Altri Documenti', icon: File, color: '#64748b' },
+};
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fiscaltax-tribute-models-docs.preview.emergentagent.com';
 
 export const DocumentsScreen: React.FC = () => {
   const { token } = useAuth();
@@ -59,9 +84,10 @@ export const DocumentsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState<'date' | 'name' | 'category'>('date');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'categories' | 'list'>('categories');
+  const [sortBy, setSortBy] = useState<'date' | 'name'>('date');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -88,13 +114,17 @@ export const DocumentsScreen: React.FC = () => {
   }, []);
 
   const getFileIcon = (fileType: string) => {
-    if (fileType?.includes('image')) {
+    const type = fileType?.toLowerCase() || '';
+    if (type.includes('image') || type.includes('png') || type.includes('jpg') || type.includes('jpeg')) {
       return { icon: ImageIcon, color: '#8b5cf6' };
-    } else if (fileType?.includes('pdf')) {
+    } else if (type.includes('pdf')) {
       return { icon: FileText, color: '#ef4444' };
-    } else {
-      return { icon: File, color: COLORS.textSecondary };
+    } else if (type.includes('sheet') || type.includes('excel') || type.includes('xlsx') || type.includes('csv')) {
+      return { icon: FileSpreadsheet, color: '#10b981' };
+    } else if (type.includes('doc') || type.includes('word')) {
+      return { icon: FileType, color: '#3b82f6' };
     }
+    return { icon: File, color: COLORS.textSecondary };
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -117,49 +147,182 @@ export const DocumentsScreen: React.FC = () => {
     }
   };
 
-  const filteredDocuments = documents
-    .filter(doc => {
-      const matchesSearch = doc.file_name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || doc.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      } else if (sortBy === 'name') {
-        return a.file_name.localeCompare(b.file_name);
-      }
-      return 0;
+  // Raggruppa documenti per categoria
+  const getCategoryGroups = (): CategoryGroup[] => {
+    const groups: Record<string, number> = {};
+    
+    documents.forEach(doc => {
+      const cat = doc.folder_category || doc.category || 'altro';
+      groups[cat] = (groups[cat] || 0) + 1;
     });
 
-  const handlePreview = (doc: Document) => {
-    Alert.alert(
-      'Anteprima',
-      `Visualizzazione di "${doc.file_name}"`,
-      [
-        { text: 'Chiudi', style: 'cancel' },
-        { 
-          text: 'Scarica', 
-          onPress: () => handleDownload(doc),
-        },
-      ]
-    );
+    return Object.entries(groups).map(([id, count]) => {
+      const config = CATEGORY_CONFIG[id] || CATEGORY_CONFIG['altro'];
+      return {
+        id,
+        label: config.label,
+        icon: config.icon,
+        count,
+        color: config.color,
+      };
+    }).sort((a, b) => b.count - a.count);
   };
 
-  const handleDownload = (doc: Document) => {
-    if (doc.download_url) {
-      Linking.openURL(doc.download_url);
-    } else {
-      Alert.alert('Download', `Download di "${doc.file_name}" avviato`);
+  // Filtra documenti
+  const getFilteredDocuments = () => {
+    return documents
+      .filter(doc => {
+        const matchesSearch = !searchQuery || 
+          doc.file_name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = !selectedCategory || 
+          doc.folder_category === selectedCategory || 
+          doc.category === selectedCategory;
+        return matchesSearch && matchesCategory;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'date') {
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+        return a.file_name.localeCompare(b.file_name);
+      });
+  };
+
+  // VISUALIZZA - Apre il documento in un browser/viewer
+  const handlePreview = async (doc: Document) => {
+    setActionLoading(doc._id + '-preview');
+    try {
+      const downloadUrl = doc.download_url || `${API_BASE_URL}/api/documents/${doc._id}/download`;
+      
+      // Usa WebBrowser per aprire PDF e altri documenti
+      await WebBrowser.openBrowserAsync(downloadUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        controlsColor: COLORS.primary,
+        toolbarColor: COLORS.surface,
+      });
+    } catch (error) {
+      console.error('Preview error:', error);
+      Alert.alert(
+        'Errore',
+        'Impossibile visualizzare il documento. Riprova più tardi.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleShare = (doc: Document) => {
-    Alert.alert('Condividi', `Condivisione di "${doc.file_name}"`);
+  // SCARICA - Scarica il file e lo salva/apre con opzioni iOS
+  const handleDownload = async (doc: Document) => {
+    setActionLoading(doc._id + '-download');
+    try {
+      const downloadUrl = doc.download_url || `${API_BASE_URL}/api/documents/${doc._id}/download`;
+      
+      // Usa la nuova API expo-file-system
+      const destinationDir = Paths.document;
+      const downloadedFile = await ExpoFile.downloadFileAsync(downloadUrl, destinationDir);
+
+      // Su iOS, apriamo il foglio di condivisione che permette di salvare in Files
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(downloadedFile.uri, {
+          mimeType: doc.file_type || 'application/octet-stream',
+          dialogTitle: 'Salva documento',
+          UTI: getUTI(doc.file_type),
+        });
+      } else {
+        Alert.alert(
+          'Download completato',
+          `Il documento "${doc.file_name}" è stato scaricato.`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert(
+        'Errore download',
+        'Impossibile scaricare il documento. Verifica la connessione e riprova.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const renderDocument = ({ item }: { item: Document }) => {
+  // CONDIVIDI - Usa il foglio di condivisione nativo iOS
+  const handleShare = async (doc: Document) => {
+    setActionLoading(doc._id + '-share');
+    try {
+      const downloadUrl = doc.download_url || `${API_BASE_URL}/api/documents/${doc._id}/download`;
+
+      // Scarica il file temporaneamente
+      const cacheDir = Paths.cache;
+      const downloadedFile = await ExpoFile.downloadFileAsync(downloadUrl, cacheDir);
+
+      // Verifica che la condivisione sia disponibile
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(downloadedFile.uri, {
+          mimeType: doc.file_type || 'application/octet-stream',
+          dialogTitle: `Condividi ${doc.file_name}`,
+          UTI: getUTI(doc.file_type),
+        });
+      } else {
+        Alert.alert(
+          'Condivisione non disponibile',
+          'La condivisione non è disponibile su questo dispositivo.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      Alert.alert(
+        'Errore condivisione',
+        'Impossibile condividere il documento. Riprova più tardi.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Ottieni UTI per iOS
+  const getUTI = (fileType?: string): string => {
+    const type = fileType?.toLowerCase() || '';
+    if (type.includes('pdf')) return 'com.adobe.pdf';
+    if (type.includes('png')) return 'public.png';
+    if (type.includes('jpg') || type.includes('jpeg')) return 'public.jpeg';
+    if (type.includes('doc')) return 'com.microsoft.word.doc';
+    if (type.includes('xls')) return 'com.microsoft.excel.xls';
+    return 'public.data';
+  };
+
+  // Render Card Categoria
+  const renderCategoryCard = (category: CategoryGroup) => {
+    const IconComponent = category.icon;
+    
+    return (
+      <TouchableOpacity
+        key={category.id}
+        style={styles.categoryCard}
+        onPress={() => {
+          setSelectedCategory(category.id);
+          setViewMode('list');
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.categoryIconContainer, { backgroundColor: category.color + '15' }]}>
+          <IconComponent size={28} color={category.color} />
+        </View>
+        <Text style={styles.categoryLabel} numberOfLines={2}>{category.label}</Text>
+        <View style={[styles.categoryCountBadge, { backgroundColor: category.color }]}>
+          <Text style={styles.categoryCountText}>{category.count}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Render Card Documento
+  const renderDocumentCard = ({ item }: { item: Document }) => {
     const { icon: FileIcon, color } = getFileIcon(item.file_type);
+    const isLoading = actionLoading?.startsWith(item._id);
 
     return (
       <View style={styles.documentCard}>
@@ -167,12 +330,13 @@ export const DocumentsScreen: React.FC = () => {
           style={styles.documentMain}
           onPress={() => handlePreview(item)}
           activeOpacity={0.7}
+          disabled={isLoading}
         >
           <View style={[styles.documentIcon, { backgroundColor: color + '15' }]}>
             <FileIcon size={24} color={color} />
           </View>
           <View style={styles.documentInfo}>
-            <Text style={styles.documentName} numberOfLines={1}>
+            <Text style={styles.documentName} numberOfLines={2}>
               {item.file_name}
             </Text>
             <View style={styles.documentMeta}>
@@ -185,58 +349,154 @@ export const DocumentsScreen: React.FC = () => {
                 </>
               )}
             </View>
-            {item.category && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>{item.category}</Text>
-              </View>
-            )}
           </View>
         </TouchableOpacity>
         
         <View style={styles.documentActions}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, actionLoading === item._id + '-preview' && styles.actionButtonLoading]}
             onPress={() => handlePreview(item)}
+            disabled={isLoading}
           >
-            <Eye size={18} color={COLORS.textSecondary} />
+            {actionLoading === item._id + '-preview' ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <Eye size={18} color={COLORS.primary} />
+            )}
           </TouchableOpacity>
+          
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, actionLoading === item._id + '-download' && styles.actionButtonLoading]}
             onPress={() => handleDownload(item)}
+            disabled={isLoading}
           >
-            <Download size={18} color={COLORS.primary} />
+            {actionLoading === item._id + '-download' ? (
+              <ActivityIndicator size="small" color={COLORS.success} />
+            ) : (
+              <Download size={18} color={COLORS.success} />
+            )}
           </TouchableOpacity>
+          
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, actionLoading === item._id + '-share' && styles.actionButtonLoading]}
             onPress={() => handleShare(item)}
+            disabled={isLoading}
           >
-            <Share size={18} color={COLORS.textSecondary} />
+            {actionLoading === item._id + '-share' ? (
+              <ActivityIndicator size="small" color={COLORS.warning} />
+            ) : (
+              <Share2 size={18} color={COLORS.warning} />
+            )}
           </TouchableOpacity>
         </View>
       </View>
     );
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIcon}>
-        <FileText size={48} color={COLORS.textLight} />
+  // Render Vista Categorie
+  const renderCategoriesView = () => {
+    const categories = getCategoryGroups();
+    
+    if (categories.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <Folder size={64} color={COLORS.textLight} />
+          <Text style={styles.emptyStateTitle}>Nessun documento</Text>
+          <Text style={styles.emptyStateText}>
+            Non ci sono ancora documenti disponibili
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.categoriesGrid}>
+        {categories.map(renderCategoryCard)}
       </View>
-      <Text style={styles.emptyTitle}>Nessun documento</Text>
-      <Text style={styles.emptyText}>
-        {searchQuery
-          ? 'Nessun documento corrisponde alla tua ricerca'
-          : 'I documenti caricati dal tuo commercialista appariranno qui'}
-      </Text>
-      <Text style={styles.emptyHint}>
-        Questa sezione è di sola consultazione
-      </Text>
-    </View>
-  );
+    );
+  };
+
+  // Render Vista Lista
+  const renderListView = () => {
+    const filteredDocs = getFilteredDocuments();
+
+    return (
+      <>
+        {/* Header categoria selezionata */}
+        {selectedCategory && (
+          <View style={styles.selectedCategoryHeader}>
+            <Text style={styles.selectedCategoryTitle}>
+              {CATEGORY_CONFIG[selectedCategory]?.label || selectedCategory}
+            </Text>
+            <TouchableOpacity
+              style={styles.clearCategoryButton}
+              onPress={() => {
+                setSelectedCategory(null);
+                setViewMode('categories');
+              }}
+            >
+              <X size={16} color={COLORS.textSecondary} />
+              <Text style={styles.clearCategoryText}>Chiudi</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Sort Options */}
+        <View style={styles.sortBar}>
+          <Text style={styles.resultsCount}>
+            {filteredDocs.length} document{filteredDocs.length !== 1 ? 'i' : 'o'}
+          </Text>
+          <View style={styles.sortButtons}>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'date' && styles.sortButtonActive]}
+              onPress={() => setSortBy('date')}
+            >
+              <Calendar size={14} color={sortBy === 'date' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.sortButtonText, sortBy === 'date' && styles.sortButtonTextActive]}>
+                Data
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.sortButton, sortBy === 'name' && styles.sortButtonActive]}
+              onPress={() => setSortBy('name')}
+            >
+              <FileText size={14} color={sortBy === 'name' ? COLORS.primary : COLORS.textSecondary} />
+              <Text style={[styles.sortButtonText, sortBy === 'name' && styles.sortButtonTextActive]}>
+                Nome
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Lista Documenti */}
+        {filteredDocs.length > 0 ? (
+          <FlatList
+            data={filteredDocs}
+            renderItem={renderDocumentCard}
+            keyExtractor={(item) => item._id || item.id || Math.random().toString()}
+            contentContainerStyle={styles.documentsList}
+            showsVerticalScrollIndicator={false}
+            scrollEnabled={false}
+          />
+        ) : (
+          <View style={styles.emptyState}>
+            <Search size={48} color={COLORS.textLight} />
+            <Text style={styles.emptyStateTitle}>Nessun risultato</Text>
+            <Text style={styles.emptyStateText}>
+              Nessun documento corrisponde alla ricerca
+            </Text>
+          </View>
+        )}
+      </>
+    );
+  };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Documenti</Text>
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
@@ -249,14 +509,28 @@ export const DocumentsScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Documenti</Text>
-        <Text style={styles.headerSubtitle}>
-          {documents.length} document{documents.length !== 1 ? 'i' : 'o'}
-        </Text>
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[styles.toggleButton, viewMode === 'categories' && styles.toggleButtonActive]}
+            onPress={() => {
+              setViewMode('categories');
+              setSelectedCategory(null);
+            }}
+          >
+            <Grid size={18} color={viewMode === 'categories' ? '#fff' : COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
+            onPress={() => setViewMode('list')}
+          >
+            <List size={18} color={viewMode === 'list' ? '#fff' : COLORS.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
+        <View style={styles.searchBar}>
           <Search size={20} color={COLORS.textSecondary} />
           <TextInput
             style={styles.searchInput}
@@ -271,70 +545,12 @@ export const DocumentsScreen: React.FC = () => {
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity
-          style={[styles.filterButton, showFilters && styles.filterButtonActive]}
-          onPress={() => setShowFilters(!showFilters)}
-        >
-          <Filter size={20} color={showFilters ? '#ffffff' : COLORS.textSecondary} />
-        </TouchableOpacity>
       </View>
 
-      {/* Category Filters */}
-      {showFilters && (
-        <View style={styles.filtersContainer}>
-          <Text style={styles.filtersLabel}>Categoria</Text>
-          <View style={styles.categoryFilters}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryFilter,
-                  selectedCategory === cat.id && styles.categoryFilterActive,
-                ]}
-                onPress={() => setSelectedCategory(cat.id)}
-              >
-                <Text
-                  style={[
-                    styles.categoryFilterText,
-                    selectedCategory === cat.id && styles.categoryFilterTextActive,
-                  ]}
-                >
-                  {cat.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={[styles.filtersLabel, { marginTop: 16 }]}>Ordina per</Text>
-          <View style={styles.sortOptions}>
-            <TouchableOpacity
-              style={[styles.sortOption, sortBy === 'date' && styles.sortOptionActive]}
-              onPress={() => setSortBy('date')}
-            >
-              <Clock size={14} color={sortBy === 'date' ? COLORS.primary : COLORS.textSecondary} />
-              <Text style={[styles.sortOptionText, sortBy === 'date' && styles.sortOptionTextActive]}>
-                Data
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
-              onPress={() => setSortBy('name')}
-            >
-              <FileText size={14} color={sortBy === 'name' ? COLORS.primary : COLORS.textSecondary} />
-              <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
-                Nome
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Documents List */}
-      <FlatList
-        data={filteredDocuments}
-        renderItem={renderDocument}
-        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
-        contentContainerStyle={styles.listContent}
+      {/* Content */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -342,16 +558,58 @@ export const DocumentsScreen: React.FC = () => {
             tintColor={COLORS.primary}
           />
         }
-        ListEmptyComponent={renderEmptyState}
         showsVerticalScrollIndicator={false}
-      />
+      >
+        {viewMode === 'categories' && !selectedCategory ? (
+          <>
+            {/* Stats Card */}
+            <View style={styles.statsCard}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{documents.length}</Text>
+                <Text style={styles.statLabel}>Documenti totali</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{getCategoryGroups().length}</Text>
+                <Text style={styles.statLabel}>Categorie</Text>
+              </View>
+            </View>
 
-      {/* Info Banner */}
-      <View style={styles.infoBanner}>
-        <Text style={styles.infoBannerText}>
-          📄 I documenti sono caricati dal tuo commercialista
-        </Text>
-      </View>
+            {/* Categorie */}
+            <Text style={styles.sectionTitle}>Sfoglia per categoria</Text>
+            {renderCategoriesView()}
+
+            {/* Documenti Recenti */}
+            {documents.length > 0 && (
+              <>
+                <View style={styles.recentHeader}>
+                  <Text style={styles.sectionTitle}>Documenti recenti</Text>
+                  <TouchableOpacity onPress={() => setViewMode('list')}>
+                    <Text style={styles.viewAllText}>Vedi tutti</Text>
+                  </TouchableOpacity>
+                </View>
+                {documents.slice(0, 3).map(doc => (
+                  <View key={doc._id}>
+                    {renderDocumentCard({ item: doc })}
+                  </View>
+                ))}
+              </>
+            )}
+          </>
+        ) : (
+          renderListView()
+        )}
+
+        {/* Info Banner */}
+        <View style={styles.infoBanner}>
+          <Info size={16} color={COLORS.textSecondary} />
+          <Text style={styles.infoBannerText}>
+            I documenti sono caricati dal tuo commercialista
+          </Text>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -359,157 +617,234 @@ export const DocumentsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
+    backgroundColor: COLORS.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
+    padding: 4,
+  },
+  toggleButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: RADIUS.md,
+  },
+  toggleButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  searchContainer: {
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.surface,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: SPACING.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
+  // Stats Card
+  statsCard: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
   },
-  headerTitle: {
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
     fontSize: 28,
     fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: -0.5,
+    color: COLORS.primary,
   },
-  headerSubtitle: {
-    fontSize: 14,
+  statLabel: {
+    fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 4,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    gap: 12,
+  statDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.md,
   },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fb',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 15,
+  // Categories
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
     color: COLORS.text,
+    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
   },
-  filterButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#f8f9fb',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterButtonActive: {
-    backgroundColor: COLORS.primary,
-  },
-  filtersContainer: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  filtersLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  categoryFilters: {
+  categoriesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
-  categoryFilter: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fb',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+  categoryCard: {
+    width: (SCREEN_WIDTH - SPACING.md * 2 - SPACING.sm * 2) / 3,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.md,
+    alignItems: 'center',
+    ...SHADOWS.sm,
   },
-  categoryFilterActive: {
-    backgroundColor: COLORS.primary + '15',
-    borderColor: COLORS.primary,
+  categoryIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
   },
-  categoryFilterText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-  },
-  categoryFilterTextActive: {
-    color: COLORS.primary,
+  categoryLabel: {
+    fontSize: 12,
     fontWeight: '600',
+    color: COLORS.text,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
   },
-  sortOptions: {
+  categoryCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: RADIUS.full,
+  },
+  categoryCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  // Recent Header
+  recentHeader: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: SPACING.sm,
   },
-  sortOption: {
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  // Selected Category
+  selectedCategoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  selectedCategoryTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  clearCategoryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fb',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 6,
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.full,
   },
-  sortOptionActive: {
-    backgroundColor: COLORS.primary + '15',
-    borderColor: COLORS.primary,
-  },
-  sortOptionText: {
+  clearCategoryText: {
     fontSize: 13,
-    fontWeight: '500',
     color: COLORS.textSecondary,
   },
-  sortOptionTextActive: {
+  // Sort Bar
+  sortBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  resultsCount: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  sortButtons: {
+    flexDirection: 'row',
+    gap: SPACING.xs,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.surface,
+  },
+  sortButtonActive: {
+    backgroundColor: COLORS.primary + '15',
+  },
+  sortButtonText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  sortButtonTextActive: {
     color: COLORS.primary,
     fontWeight: '600',
   },
-  listContent: {
-    padding: 24,
-    paddingBottom: 140,
-  },
+  // Document Card
   documentCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    marginBottom: SPACING.sm,
     overflow: 'hidden',
+    ...SHADOWS.sm,
   },
   documentMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 14,
+    padding: SPACING.md,
   },
   documentIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
   },
   documentInfo: {
     flex: 1,
@@ -519,6 +854,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.text,
     marginBottom: 4,
+    lineHeight: 20,
   },
   documentMeta: {
     flexDirection: 'row',
@@ -528,10 +864,8 @@ const styles = StyleSheet.create({
   documentDate: {
     fontSize: 12,
     color: COLORS.textSecondary,
-    marginLeft: 2,
   },
   metaSeparator: {
-    fontSize: 12,
     color: COLORS.textLight,
     marginHorizontal: 4,
   },
@@ -539,83 +873,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
   },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#f1f5f9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 6,
-  },
-  categoryBadgeText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-  },
   documentActions: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    gap: 8,
+    borderTopColor: COLORS.border,
   },
   actionButton: {
     flex: 1,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#f8f9fb',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
   },
+  actionButtonLoading: {
+    backgroundColor: COLORS.background,
+  },
+  documentsList: {
+    paddingBottom: SPACING.md,
+  },
+  // Empty State
   emptyState: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: SPACING.xl * 2,
   },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
+  emptyStateTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: COLORS.text,
-    marginBottom: 8,
+    marginTop: SPACING.md,
   },
-  emptyText: {
+  emptyStateText: {
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: 12,
-    paddingHorizontal: 32,
+    marginTop: SPACING.xs,
   },
-  emptyHint: {
-    fontSize: 13,
-    color: COLORS.textLight,
-    fontStyle: 'italic',
-  },
+  // Info Banner
   infoBanner: {
-    position: 'absolute',
-    bottom: 90,
-    left: 24,
-    right: 24,
-    backgroundColor: COLORS.primary + '15',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: COLORS.primary + '30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.md,
   },
   infoBannerText: {
-    fontSize: 13,
-    color: COLORS.primary,
-    textAlign: 'center',
-    fontWeight: '500',
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
 });
