@@ -50,14 +50,20 @@ interface ActionItem {
   priority: 'high' | 'medium' | 'low';
   action: string;
   route: string;
+  routeParams?: Record<string, any>;
 }
 
 interface Deadline {
   id: string;
   title: string;
+  description: string;
   date: string;
+  due_date: string;
+  category: string;
   daysLeft: number;
   status: 'urgent' | 'warning' | 'normal';
+  originalStatus: string;
+  priority: string;
 }
 
 interface ActivityItem {
@@ -128,6 +134,11 @@ export const HomeScreen: React.FC = () => {
       
       if (deadlinesData.length > 0) {
         const nextDeadline = deadlinesData[0];
+        const deadlineDate = new Date(nextDeadline.date || nextDeadline.due_date);
+        const today = new Date();
+        const diffTime = deadlineDate.getTime() - today.getTime();
+        const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
         actions.push({
           id: 'deadline-1',
           type: 'deadline',
@@ -135,7 +146,17 @@ export const HomeScreen: React.FC = () => {
           description: nextDeadline.title || 'Verifica la prossima scadenza',
           priority: 'high',
           action: 'Visualizza',
-          route: 'Scadenze',
+          route: 'DeadlineDetail',
+          routeParams: {
+            id: nextDeadline.id || nextDeadline._id,
+            title: nextDeadline.title,
+            description: nextDeadline.description || '',
+            due_date: nextDeadline.due_date || nextDeadline.date,
+            category: nextDeadline.category || 'fiscale',
+            status: nextDeadline.status || 'da_fare',
+            priority: nextDeadline.priority || 'normale',
+            daysLeft,
+          },
         });
       }
 
@@ -174,11 +195,16 @@ export const HomeScreen: React.FC = () => {
         const status: 'urgent' | 'warning' | 'normal' = daysLeft <= 3 ? 'urgent' : daysLeft <= 7 ? 'warning' : 'normal';
         
         return {
-          id: d._id || `deadline-${index}`,
+          id: d.id || d._id || `deadline-${index}`,
           title: d.title || d.name || 'Scadenza fiscale',
+          description: d.description || '',
           date: deadlineDate.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }),
+          due_date: d.due_date || d.date,
+          category: d.category || 'fiscale',
           daysLeft,
           status,
+          originalStatus: d.status || 'da_fare',
+          priority: d.priority || 'normale',
         };
       });
       setDeadlines(processedDeadlines);
@@ -310,7 +336,13 @@ export const HomeScreen: React.FC = () => {
                   <TouchableOpacity
                     key={item.id}
                     style={styles.actionCard}
-                    onPress={() => navigation.navigate(item.route)}
+                    onPress={() => {
+                      if (item.routeParams) {
+                        navigation.navigate(item.route, item.routeParams);
+                      } else {
+                        navigation.navigate(item.route);
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
                     <View style={[styles.actionPriorityBar, { backgroundColor: priorityColor }]} />
@@ -324,7 +356,16 @@ export const HomeScreen: React.FC = () => {
                           {item.description}
                         </Text>
                       </View>
-                      <TouchableOpacity style={[styles.actionButton, { backgroundColor: priorityColor }]}>
+                      <TouchableOpacity 
+                        style={[styles.actionButton, { backgroundColor: priorityColor }]}
+                        onPress={() => {
+                          if (item.routeParams) {
+                            navigation.navigate(item.route, item.routeParams);
+                          } else {
+                            navigation.navigate(item.route);
+                          }
+                        }}
+                      >
                         <Text style={styles.actionButtonText}>{item.action}</Text>
                       </TouchableOpacity>
                     </View>
@@ -354,7 +395,16 @@ export const HomeScreen: React.FC = () => {
                 <TouchableOpacity
                   key={deadline.id}
                   style={styles.deadlineCard}
-                  onPress={() => navigation.navigate('Scadenze')}
+                  onPress={() => navigation.navigate('DeadlineDetail', {
+                    id: deadline.id,
+                    title: deadline.title,
+                    description: deadline.description,
+                    due_date: deadline.due_date,
+                    category: deadline.category,
+                    status: deadline.originalStatus,
+                    priority: deadline.priority,
+                    daysLeft: deadline.daysLeft,
+                  })}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.deadlineDateBox, { backgroundColor: getDeadlineColor(deadline.status) + '15' }]}>

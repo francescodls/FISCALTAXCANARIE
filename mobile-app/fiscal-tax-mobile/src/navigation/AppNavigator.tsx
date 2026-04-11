@@ -24,6 +24,7 @@ import { DeclarationsScreen } from '../screens/DeclarationsScreen';
 import { DeclarationDetailScreen } from '../screens/DeclarationDetailScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
+import { DeadlineDetailScreen } from '../screens/DeadlineDetailScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -135,6 +136,7 @@ export const AppNavigator = () => {
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Dichiarazioni" component={DeclarationsScreen} />
             <Stack.Screen name="DeclarationDetail" component={DeclarationDetailScreen} />
+            <Stack.Screen name="DeadlineDetail" component={DeadlineDetailScreen} />
             <Stack.Screen name="Notifiche" component={NotificationsScreen} />
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />
           </>

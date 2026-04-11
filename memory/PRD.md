@@ -7,6 +7,44 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 
 
+### Fase 80 (11 Aprile 2026) - COMPLETATA ✅
+
+**Fix Card Scadenza Imminente nella HomeScreen:**
+
+**Problema:** Quando si cliccava sulla card "Scadenza imminente" o sul pulsante "Visualizza", l'utente veniva reindirizzato al Calendario invece di vedere il dettaglio della scadenza.
+
+**Soluzione implementata:**
+1. **Creato `DeadlineDetailScreen.tsx`** - Nuova schermata dettaglio scadenza con:
+   - Banner urgenza colorato (verde/giallo/rosso in base ai giorni rimanenti)
+   - Titolo, descrizione, categoria, data scadenza
+   - Badge stato (da completare, in corso, completata, scaduta)
+   - Badge priorità (alta, normale, bassa)
+   - Sezione "Cosa devi fare?" con istruzioni dinamiche
+   - Card aiuto con pulsante "Contatta lo studio"
+   - Navigazione back/home corretta
+
+2. **Aggiornato `AppNavigator.tsx`** - Aggiunta route `DeadlineDetail`
+
+3. **Aggiornato `HomeScreen.tsx`**:
+   - Estesa interfaccia `Deadline` con tutti i campi necessari (description, due_date, category, originalStatus, priority)
+   - Aggiunta interfaccia `routeParams` agli ActionItem
+   - Click su card scadenza → naviga a `DeadlineDetail` con tutti i parametri
+   - Pulsante "Visualizza" in "Cosa devo fare?" → naviga a `DeadlineDetail`
+   - Link "Calendario" resta disponibile per vedere tutte le scadenze
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/DeadlineDetailScreen.tsx` (NUOVO)
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/HomeScreen.tsx`
+
+**Verifiche:**
+- ✅ TypeScript compila senza errori
+- ✅ Click su card scadenza apre dettaglio (non calendario)
+- ✅ Pulsante "Visualizza" funziona
+- ✅ Dati scadenza mostrati dinamicamente
+- ✅ Navigazione back/home funziona
+
+
 ### Fase 79 (11 Aprile 2026) - COMPLETATA ✅
 
 **Correzioni multiple all'App Mobile:**
