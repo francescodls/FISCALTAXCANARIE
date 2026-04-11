@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,6 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  Animated,
-  PanResponder,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,18 +19,18 @@ import {
   MessageSquare,
   Calendar,
   ChevronRight,
-  User,
   Clock,
   CheckCircle,
   AlertCircle,
   AlertTriangle,
   Search,
   Folder,
-  ArrowRight,
   X,
   Trash2,
   Eye,
-  CheckCheck,
+  Sparkles,
+  Bot,
+  ArrowRight,
 } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
@@ -52,7 +50,7 @@ interface DashboardStats {
 
 interface ActionItem {
   id: string;
-  type: 'deadline' | 'ticket' | 'message' | 'document';
+  type: 'ticket' | 'message' | 'document';
   title: string;
   description: string;
   priority: 'high' | 'medium' | 'low';
@@ -102,6 +100,23 @@ export const HomeScreen: React.FC = () => {
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [viewedIds, setViewedIds] = useState<Set<string>>(new Set());
 
+  // Ottieni il nome del cliente
+  const getClientName = (): string => {
+    if (user?.full_name && user.full_name.trim()) {
+      return user.full_name;
+    }
+    if (user?.email) {
+      const emailName = user.email.split('@')[0];
+      // Capitalizza la prima lettera e sostituisce underscore/punti con spazi
+      const cleanName = emailName.replace(/[._]/g, ' ');
+      return cleanName
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+    }
+    return 'Utente';
+  };
+
   // Carica attività nascoste dal storage locale
   useEffect(() => {
     const loadDismissedActivities = async () => {
@@ -142,7 +157,6 @@ export const HomeScreen: React.FC = () => {
       saveDismissedActivities(newSet, viewedIds);
       return newSet;
     });
-    // Rimuovi immediatamente dall'UI
     setRecentActivity(prev => prev.filter(a => a.id !== activityId));
   }, [viewedIds]);
 
@@ -184,7 +198,6 @@ export const HomeScreen: React.FC = () => {
     const newViewed = new Set([...viewedIds, ...allIds]);
     setViewedIds(newViewed);
     saveDismissedActivities(dismissedIds, newViewed);
-    // Aggiorna lo stato delle attività
     setRecentActivity(prev => prev.map(a => ({ ...a, isNew: false })));
   }, [recentActivity, viewedIds, dismissedIds]);
 
@@ -214,12 +227,22 @@ export const HomeScreen: React.FC = () => {
         d.stato === 'completata' || d.stato === 'inviata'
       ).length;
 
+      // Filtra solo scadenze future (daysLeft > 0)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const futureDeadlines = deadlinesData.filter((d: any) => {
+        const deadlineDate = new Date(d.date || d.due_date);
+        deadlineDate.setHours(0, 0, 0, 0);
+        return deadlineDate >= today;
+      });
+
       setStats({
         practicesInProgress: inProgress,
         practicesCompleted: completed,
         ticketsOpen: openTickets.length,
         unreadNotifications: unread.length,
-        upcomingDeadlines: deadlinesData.length,
+        upcomingDeadlines: futureDeadlines.length,
         newDocuments: documents.filter((d: any) => {
           const created = new Date(d.created_at);
           const weekAgo = new Date();
@@ -228,36 +251,8 @@ export const HomeScreen: React.FC = () => {
         }).length,
       });
 
-      // Generate action items based on real data
+      // Action items - SENZA scadenza imminente (rimossa)
       const actions: ActionItem[] = [];
-      
-      if (deadlinesData.length > 0) {
-        const nextDeadline = deadlinesData[0];
-        const deadlineDate = new Date(nextDeadline.date || nextDeadline.due_date);
-        const today = new Date();
-        const diffTime = deadlineDate.getTime() - today.getTime();
-        const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
-        actions.push({
-          id: 'deadline-1',
-          type: 'deadline',
-          title: 'Scadenza imminente',
-          description: nextDeadline.title || 'Verifica la prossima scadenza',
-          priority: 'high',
-          action: 'Visualizza',
-          route: 'DeadlineDetail',
-          routeParams: {
-            id: nextDeadline.id || nextDeadline._id,
-            title: nextDeadline.title,
-            description: nextDeadline.description || '',
-            due_date: nextDeadline.due_date || nextDeadline.date,
-            category: nextDeadline.category || 'fiscale',
-            status: nextDeadline.status || 'da_fare',
-            priority: nextDeadline.priority || 'normale',
-            daysLeft,
-          },
-        });
-      }
 
       if (openTickets.length > 0) {
         actions.push({
@@ -285,10 +280,9 @@ export const HomeScreen: React.FC = () => {
 
       setActionItems(actions.slice(0, 3));
 
-      // Process deadlines
-      const processedDeadlines: Deadline[] = deadlinesData.slice(0, 3).map((d: any, index: number) => {
+      // Process deadlines - SOLO future
+      const processedDeadlines: Deadline[] = futureDeadlines.slice(0, 4).map((d: any, index: number) => {
         const deadlineDate = new Date(d.date || d.due_date);
-        const today = new Date();
         const diffTime = deadlineDate.getTime() - today.getTime();
         const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         const status: 'urgent' | 'warning' | 'normal' = daysLeft <= 3 ? 'urgent' : daysLeft <= 7 ? 'warning' : 'normal';
@@ -308,7 +302,7 @@ export const HomeScreen: React.FC = () => {
       });
       setDeadlines(processedDeadlines);
 
-      // Build recent activity (filtra quelle già nascoste)
+      // Build recent activity
       const activity: ActivityItem[] = [];
       declarations.slice(0, 2).forEach((d: any) => {
         const actId = d._id || `decl-${Math.random().toString()}`;
@@ -367,7 +361,6 @@ export const HomeScreen: React.FC = () => {
 
   const getActionIcon = (type: string) => {
     switch (type) {
-      case 'deadline': return Calendar;
       case 'ticket': return MessageSquare;
       case 'message': return Bell;
       case 'document': return FileText;
@@ -423,13 +416,59 @@ export const HomeScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Welcome Section */}
+        {/* Welcome Section - NOME REALE */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeText}>Benvenuto,</Text>
-          <Text style={styles.userName}>{user?.full_name || user?.email?.split('@')[0] || 'Cliente'}</Text>
+          <Text style={styles.userName}>{getClientName()}</Text>
         </View>
 
-        {/* Cosa devo fare adesso? */}
+        {/* AI Assistant Card */}
+        <TouchableOpacity 
+          style={styles.aiCard}
+          onPress={() => navigation.navigate('Ricerca')}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={['#0d9488', '#0f766e', '#115e59']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.aiCardGradient}
+          >
+            <View style={styles.aiCardContent}>
+              <View style={styles.aiIconContainer}>
+                <Bot size={28} color="#ffffff" />
+                <View style={styles.aiSparkle}>
+                  <Sparkles size={14} color="#fcd34d" />
+                </View>
+              </View>
+              <View style={styles.aiTextContainer}>
+                <Text style={styles.aiTitle}>Assistente Fiscale AI</Text>
+                <Text style={styles.aiSubtitle}>
+                  Chiedi informazioni su fiscalità canaria e spagnola
+                </Text>
+              </View>
+              <View style={styles.aiArrow}>
+                <ArrowRight size={20} color="rgba(255,255,255,0.8)" />
+              </View>
+            </View>
+            <View style={styles.aiHints}>
+              <View style={styles.aiHint}>
+                <Text style={styles.aiHintText}>IGIC</Text>
+              </View>
+              <View style={styles.aiHint}>
+                <Text style={styles.aiHintText}>IRPF</Text>
+              </View>
+              <View style={styles.aiHint}>
+                <Text style={styles.aiHintText}>Modello 720</Text>
+              </View>
+              <View style={styles.aiHint}>
+                <Text style={styles.aiHintText}>ZEC</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Cosa devo fare adesso? - SENZA scadenza imminente */}
         {actionItems.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -483,7 +522,7 @@ export const HomeScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Widget Scadenze */}
+        {/* Widget Scadenze - SOLO FUTURE */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Prossime scadenze</Text>
@@ -522,7 +561,7 @@ export const HomeScreen: React.FC = () => {
                   <View style={styles.deadlineInfo}>
                     <Text style={styles.deadlineTitle} numberOfLines={1}>{deadline.title}</Text>
                     <Text style={[styles.deadlineDays, { color: getDeadlineColor(deadline.status) }]}>
-                      {deadline.daysLeft <= 0 ? 'Oggi!' : `Tra ${deadline.daysLeft} giorni`}
+                      {deadline.daysLeft === 0 ? 'Oggi!' : deadline.daysLeft === 1 ? 'Domani' : `Tra ${deadline.daysLeft} giorni`}
                     </Text>
                   </View>
                   {deadline.status === 'urgent' && (
@@ -535,6 +574,7 @@ export const HomeScreen: React.FC = () => {
             <View style={styles.emptyDeadlines}>
               <Calendar size={32} color={COLORS.textLight} />
               <Text style={styles.emptyText}>Nessuna scadenza imminente</Text>
+              <Text style={styles.emptySubtext}>Sei in regola con tutti gli adempimenti</Text>
             </View>
           )}
         </View>
@@ -638,13 +678,11 @@ export const HomeScreen: React.FC = () => {
                     index < recentActivity.length - 1 && styles.activityItemBorder,
                   ]}
                 >
-                  {/* Indicatore nuovo */}
                   <View style={[
                     styles.activityDot, 
                     activity.isNew ? styles.activityDotNew : styles.activityDotViewed
                   ]} />
                   
-                  {/* Contenuto */}
                   <TouchableOpacity 
                     style={styles.activityContent}
                     onPress={() => markAsViewed(activity.id)}
@@ -666,7 +704,6 @@ export const HomeScreen: React.FC = () => {
                     )}
                   </TouchableOpacity>
                   
-                  {/* Pulsante rimuovi */}
                   <TouchableOpacity 
                     style={styles.dismissButton}
                     onPress={() => dismissActivity(activity.id)}
@@ -678,7 +715,6 @@ export const HomeScreen: React.FC = () => {
               ))}
             </View>
             
-            {/* Hint */}
             <Text style={styles.activityHint}>
               Tocca per segnare come letta, X per nascondere
             </Text>
@@ -735,7 +771,7 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   welcomeSection: {
-    marginBottom: 32,
+    marginBottom: 24,
   },
   welcomeText: {
     fontSize: 16,
@@ -747,6 +783,80 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: COLORS.text,
     letterSpacing: -0.5,
+  },
+  // AI Card
+  aiCard: {
+    marginBottom: 28,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#0d9488',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  aiCardGradient: {
+    padding: 20,
+  },
+  aiCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  aiIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  aiSparkle: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    borderRadius: 10,
+    padding: 3,
+  },
+  aiTextContainer: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  aiTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  aiSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 18,
+  },
+  aiArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiHints: {
+    flexDirection: 'row',
+    marginTop: 16,
+    gap: 8,
+  },
+  aiHint: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  aiHintText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
   },
   section: {
     marginBottom: 32,
@@ -862,14 +972,19 @@ const styles = StyleSheet.create({
   emptyDeadlines: {
     backgroundColor: '#ffffff',
     borderRadius: 14,
-    padding: 24,
+    padding: 28,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     gap: 8,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  emptySubtext: {
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   quickAccessGrid: {

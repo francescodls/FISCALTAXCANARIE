@@ -9,38 +9,55 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Fase 85 (11 Aprile 2026) - COMPLETATA ✅
 
-**Fix Flusso "Nuovo Ticket" Mobile App:**
+**Fix Flusso "Nuovo Ticket" + Redesign Homepage Mobile App:**
+
+**A) Fix Ticket (completato prima):**
+1. Registrato `TicketDetailScreen` in `AppNavigator.tsx`
+2. Navigazione funzionante da lista ticket a dettaglio
+3. Aggiunto `getTicketDetails()` al servizio API
+
+**B) Redesign Homepage Mobile:**
 
 **Problemi risolti:**
-1. Il form "Nuovo Ticket" inviava `message` ma il backend aspettava `content` → Ticket creato senza messaggio
-2. `TicketDetailScreen.tsx` creato ma MAI registrato in `AppNavigator.tsx` → navigazione non funzionante
-3. Mancava il metodo `getTicketDetails()` nel servizio API mobile
+1. Welcome section mostrava "Cliente" invece del nome reale
+2. "Scadenza imminente" ridondante con "Prossime scadenze"
+3. Scadenze passate apparivano ancora in home
+4. Assistente AI non visibile/accessibile dalla home
 
 **Implementazione:**
 
-1. **Backend/API fix (fase precedente):**
-   - Fix payload mapping: `message` → `content` in `api.ts`
+1. **Welcome section dinamica:**
+   - Mostra sempre `user.full_name`
+   - Fallback intelligente su email (capitalizzata, senza underscore)
+   - Aggiornamento automatico post-login/refresh
 
-2. **Registrazione TicketDetailScreen:**
-   - Import aggiunto in `AppNavigator.tsx`
-   - Registrato come `<Stack.Screen name="TicketDetail" />`
+2. **Eliminato blocco "Scadenza imminente":**
+   - Rimosso completamente dalla sezione "Cosa devo fare adesso?"
+   - La sezione ora mostra solo ticket aperti e notifiche non lette
 
-3. **Navigazione funzionante:**
-   - `CommunicationsScreen.tsx` ora naviga a `TicketDetail` al tap su ticket
-   - Rimosso Alert placeholder temporaneo
+3. **Prossime scadenze - solo future:**
+   - Filtro `deadlineDate >= today` applicato
+   - Scadenze passate spariscono automaticamente
+   - Empty state migliorato con messaggio positivo
 
-4. **Servizio API completato:**
-   - Aggiunto `getTicketDetails(ticketId)` in `api.ts`
+4. **Assistente AI in home:**
+   - Card gradient prominente sotto welcome
+   - Icona Bot + Sparkles per evidenziare AI
+   - Titolo "Assistente Fiscale AI"
+   - Sottotitolo che spiega la funzionalità
+   - Tag rapidi: IGIC, IRPF, Modello 720, ZEC
+   - Click → apre SearchScreen con tab Assistente
 
 **Verifiche:**
-- ✅ TypeScript compila senza errori (`npx tsc --noEmit`)
-- ✅ API `POST /api/tickets` - Creazione ticket funzionante
-- ✅ API `GET /api/tickets/{id}` - Dettaglio ticket funzionante
-- ✅ API `POST /api/tickets/{id}/messages` - Invio messaggi funzionante
+- ✅ TypeScript compila senza errori
+- ✅ Nome cliente dinamico
+- ✅ "Scadenza imminente" rimossa
+- ✅ Solo scadenze future in home
+- ✅ AI Card visibile e accessibile
 
 **File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/HomeScreen.tsx` (riscritto)
 - `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx`
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/CommunicationsScreen.tsx`
 - `/app/mobile-app/fiscal-tax-mobile/src/services/api.ts`
 
 
