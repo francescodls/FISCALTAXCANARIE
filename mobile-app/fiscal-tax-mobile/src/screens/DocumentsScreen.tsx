@@ -35,13 +35,12 @@ import {
   Info,
 } from 'lucide-react-native';
 import * as FileSystem from 'expo-file-system';
-import { Paths, File as ExpoFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
-import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { API_URL, COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -76,8 +75,6 @@ const CATEGORY_CONFIG: Record<string, { label: string; icon: any; color: string 
   'contratti': { label: 'Contratti', icon: FileText, color: '#6366f1' },
   'altro': { label: 'Altri Documenti', icon: File, color: '#64748b' },
 };
-
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fiscaltax-tribute-models-docs.preview.emergentagent.com';
 
 export const DocumentsScreen: React.FC = () => {
   const { token } = useAuth();
@@ -193,19 +190,42 @@ export const DocumentsScreen: React.FC = () => {
   const handlePreview = async (doc: Document) => {
     setActionLoading(doc._id + '-preview');
     try {
-      const downloadUrl = doc.download_url || `${API_BASE_URL}/api/documents/${doc._id}/download`;
+      // Costruisce URL preview con token come query parameter
+      const previewUrl = `${API_URL}/api/documents/${doc._id}/preview?token=${encodeURIComponent(token || '')}`;
       
-      // Usa WebBrowser per aprire PDF e altri documenti
-      await WebBrowser.openBrowserAsync(downloadUrl, {
+      console.log('[DocumentPreview] Attempting to open:', {
+        documentId: doc._id,
+        fileName: doc.file_name,
+        previewUrl: previewUrl.replace(token || '', '***TOKEN***'), // Log senza token per sicurezza
+      });
+      
+      // Prima verifica che il documento sia accessibile
+      try {
+        const testResponse = await fetch(previewUrl, { method: 'HEAD' });
+        console.log('[DocumentPreview] Server response status:', testResponse.status);
+        
+        if (!testResponse.ok) {
+          throw new Error(`Server returned ${testResponse.status}`);
+        }
+      } catch (fetchError) {
+        console.error('[DocumentPreview] Fetch test failed:', fetchError);
+        // Continua comunque, potrebbe essere un problema di CORS con HEAD
+      }
+      
+      // Usa WebBrowser per aprire il documento
+      const result = await WebBrowser.openBrowserAsync(previewUrl, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
         controlsColor: COLORS.primary,
         toolbarColor: COLORS.surface,
       });
-    } catch (error) {
-      console.error('Preview error:', error);
+      
+      console.log('[DocumentPreview] WebBrowser result:', result.type);
+      
+    } catch (error: any) {
+      console.error('[DocumentPreview] Error:', error);
       Alert.alert(
-        'Errore',
-        'Impossibile visualizzare il documento. Riprova più tardi.',
+        'Errore visualizzazione',
+        `Impossibile visualizzare "${doc.file_name}".\n\nDettaglio: ${error?.message || 'Errore sconosciuto'}`,
         [{ text: 'OK' }]
       );
     } finally {
@@ -217,15 +237,33 @@ export const DocumentsScreen: React.FC = () => {
   const handleDownload = async (doc: Document) => {
     setActionLoading(doc._id + '-download');
     try {
-      const downloadUrl = doc.download_url || `${API_BASE_URL}/api/documents/${doc._id}/download`;
+      // Costruisce URL per il download con autenticazione
+      const downloadUrl = `${API_URL}/api/documents/${doc._id}/preview?token=${encodeURIComponent(token || '')}`;
       
-      // Usa la nuova API expo-file-system
-      const destinationDir = Paths.document;
-      const downloadedFile = await ExpoFile.downloadFileAsync(downloadUrl, destinationDir);
+      console.log('[DocumentDownload] Starting download:', {
+        documentId: doc._id,
+        fileName: doc.file_name,
+      });
+      
+      // Genera un nome file sicuro
+      const safeFileName = doc.file_name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileUri = `${FileSystem.cacheDirectory}${safeFileName}`;
+      
+      // Scarica il file
+      const downloadResult = await FileSystem.downloadAsync(downloadUrl, fileUri);
+      
+      console.log('[DocumentDownload] Download result:', {
+        status: downloadResult.status,
+        uri: downloadResult.uri,
+      });
+      
+      if (downloadResult.status !== 200) {
+        throw new Error(`Download failed with status ${downloadResult.status}`);
+      }
 
       // Su iOS, apriamo il foglio di condivisione che permette di salvare in Files
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(downloadedFile.uri, {
+        await Sharing.shareAsync(downloadResult.uri, {
           mimeType: doc.file_type || 'application/octet-stream',
           dialogTitle: 'Salva documento',
           UTI: getUTI(doc.file_type),
@@ -237,11 +275,11 @@ export const DocumentsScreen: React.FC = () => {
           [{ text: 'OK' }]
         );
       }
-    } catch (error) {
-      console.error('Download error:', error);
+    } catch (error: any) {
+      console.error('[DocumentDownload] Error:', error);
       Alert.alert(
         'Errore download',
-        'Impossibile scaricare il documento. Verifica la connessione e riprova.',
+        `Impossibile scaricare "${doc.file_name}".\n\nDettaglio: ${error?.message || 'Verifica la connessione e riprova.'}`,
         [{ text: 'OK' }]
       );
     } finally {
@@ -253,15 +291,33 @@ export const DocumentsScreen: React.FC = () => {
   const handleShare = async (doc: Document) => {
     setActionLoading(doc._id + '-share');
     try {
-      const downloadUrl = doc.download_url || `${API_BASE_URL}/api/documents/${doc._id}/download`;
+      // Costruisce URL per il download con autenticazione
+      const downloadUrl = `${API_URL}/api/documents/${doc._id}/preview?token=${encodeURIComponent(token || '')}`;
 
+      console.log('[DocumentShare] Starting share:', {
+        documentId: doc._id,
+        fileName: doc.file_name,
+      });
+
+      // Genera un nome file sicuro
+      const safeFileName = doc.file_name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileUri = `${FileSystem.cacheDirectory}${safeFileName}`;
+      
       // Scarica il file temporaneamente
-      const cacheDir = Paths.cache;
-      const downloadedFile = await ExpoFile.downloadFileAsync(downloadUrl, cacheDir);
+      const downloadResult = await FileSystem.downloadAsync(downloadUrl, fileUri);
+      
+      console.log('[DocumentShare] Download result:', {
+        status: downloadResult.status,
+        uri: downloadResult.uri,
+      });
+
+      if (downloadResult.status !== 200) {
+        throw new Error(`Download failed with status ${downloadResult.status}`);
+      }
 
       // Verifica che la condivisione sia disponibile
       if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(downloadedFile.uri, {
+        await Sharing.shareAsync(downloadResult.uri, {
           mimeType: doc.file_type || 'application/octet-stream',
           dialogTitle: `Condividi ${doc.file_name}`,
           UTI: getUTI(doc.file_type),
@@ -273,11 +329,11 @@ export const DocumentsScreen: React.FC = () => {
           [{ text: 'OK' }]
         );
       }
-    } catch (error) {
-      console.error('Share error:', error);
+    } catch (error: any) {
+      console.error('[DocumentShare] Error:', error);
       Alert.alert(
         t.common.error,
-        t.documents.shareError,
+        `Impossibile condividere "${doc.file_name}".\n\nDettaglio: ${error?.message || t.documents.shareError}`,
         [{ text: t.common.ok }]
       );
     } finally {
