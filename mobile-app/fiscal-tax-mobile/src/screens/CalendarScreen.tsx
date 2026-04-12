@@ -29,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 import { CardSkeleton, Skeleton } from '../components/UIStates';
@@ -70,6 +71,7 @@ const DAYS_EN = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 export const CalendarScreen: React.FC = () => {
   const { token } = useAuth();
   const { t, language } = useLanguage();
+  const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
   
   const MONTHS = language === 'en' ? MONTHS_EN : language === 'es' ? MONTHS_ES : MONTHS_IT;
@@ -371,38 +373,38 @@ export const CalendarScreen: React.FC = () => {
       <>
         {/* Stats Banner */}
         {unifiedDeadlines.length > 0 && (
-          <View style={styles.statsBar}>
+          <View style={[styles.statsBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{unifiedDeadlines.filter(d => d.status !== 'completed').length}</Text>
-              <Text style={styles.statLabel}>Attive</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{unifiedDeadlines.filter(d => d.status !== 'completed').length}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Attive</Text>
             </View>
             {urgentCount > 0 && (
               <View style={[styles.statItem, styles.statItemUrgent]}>
-                <Text style={[styles.statNumber, { color: COLORS.error }]}>{urgentCount}</Text>
-                <Text style={[styles.statLabel, { color: COLORS.error }]}>Urgenti</Text>
+                <Text style={[styles.statNumber, { color: colors.error }]}>{urgentCount}</Text>
+                <Text style={[styles.statLabel, { color: colors.error }]}>Urgenti</Text>
               </View>
             )}
             {overdueCount > 0 && (
               <View style={[styles.statItem, styles.statItemOverdue]}>
-                <Text style={[styles.statNumber, { color: COLORS.error }]}>{overdueCount}</Text>
-                <Text style={[styles.statLabel, { color: COLORS.error }]}>Scadute</Text>
+                <Text style={[styles.statNumber, { color: colors.error }]}>{overdueCount}</Text>
+                <Text style={[styles.statLabel, { color: colors.error }]}>Scadute</Text>
               </View>
             )}
           </View>
         )}
 
         {/* Calendar */}
-        <View style={styles.calendarContainer}>
+        <View style={[styles.calendarContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {/* Month Navigation */}
           <View style={styles.monthNav}>
             <TouchableOpacity onPress={previousMonth} style={styles.navButton}>
-              <ChevronLeft size={24} color={COLORS.text} />
+              <ChevronLeft size={24} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.monthTitle}>
+            <Text style={[styles.monthTitle, { color: colors.text }]}>
               {MONTHS[currentMonth.getMonth()]} {currentMonth.getFullYear()}
             </Text>
             <TouchableOpacity onPress={nextMonth} style={styles.navButton}>
-              <ChevronRight size={24} color={COLORS.text} />
+              <ChevronRight size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -410,7 +412,7 @@ export const CalendarScreen: React.FC = () => {
           <View style={styles.dayHeaders}>
             {DAYS.map((day) => (
               <View key={day} style={styles.dayHeader}>
-                <Text style={styles.dayHeaderText}>{day}</Text>
+                <Text style={[styles.dayHeaderText, { color: colors.textSecondary }]}>{day}</Text>
               </View>
             ))}
           </View>
@@ -674,22 +676,22 @@ export const CalendarScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t.deadlines.title}</Text>
-        <View style={styles.viewToggle}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t.deadlines.title}</Text>
+        <View style={[styles.viewToggle, { backgroundColor: colors.background }]}>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'calendar' && styles.toggleButtonActive]}
             onPress={() => setViewMode('calendar')}
           >
-            <Grid size={18} color={viewMode === 'calendar' ? '#fff' : COLORS.textSecondary} />
+            <Grid size={18} color={viewMode === 'calendar' ? '#fff' : colors.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
             onPress={() => setViewMode('list')}
           >
-            <List size={18} color={viewMode === 'list' ? '#fff' : COLORS.textSecondary} />
+            <List size={18} color={viewMode === 'list' ? '#fff' : colors.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -702,7 +704,7 @@ export const CalendarScreen: React.FC = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={COLORS.primary}
+            tintColor={colors.primary}
           />
         }
         showsVerticalScrollIndicator={false}

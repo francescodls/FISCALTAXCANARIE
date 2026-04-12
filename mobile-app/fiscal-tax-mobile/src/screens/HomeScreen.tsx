@@ -37,6 +37,7 @@ import {
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
 import { LanguageSelector } from '../components/LanguageSelector';
@@ -111,6 +112,7 @@ const getStorageKey = (userId?: string) => `activity_state_${userId || 'anonymou
 export const HomeScreen: React.FC = () => {
   const { user, token } = useAuth();
   const { t, language } = useLanguage();
+  const { colors, isDark } = useTheme();
   const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -512,7 +514,7 @@ export const HomeScreen: React.FC = () => {
   const hasViewedActivities = recentActivity.some(a => viewedRef.current.has(a.id));
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -520,7 +522,7 @@ export const HomeScreen: React.FC = () => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={COLORS.primary}
+            tintColor={colors.primary}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -533,23 +535,23 @@ export const HomeScreen: React.FC = () => {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.brandName}>{t.home.brandName}</Text>
+            <Text style={[styles.brandName, { color: colors.text }]}>{t.home.brandName}</Text>
           </View>
           <View style={styles.headerRight}>
             <LanguageSelector />
             <TouchableOpacity
-              style={styles.searchButton}
+              style={[styles.searchButton, { backgroundColor: colors.surface }]}
               onPress={() => navigation.navigate('Ricerca')}
             >
-              <Search size={22} color={COLORS.textSecondary} />
+              <Search size={22} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeText}>{t.home.welcome}</Text>
-          <Text style={styles.userName}>{getClientName()}</Text>
+          <Text style={[styles.welcomeText, { color: colors.textSecondary }]}>{t.home.welcome}</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>{getClientName()}</Text>
         </View>
 
         {/* AI Assistant Card */}
@@ -631,13 +633,13 @@ export const HomeScreen: React.FC = () => {
         {/* Deadlines */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t.home.upcomingDeadlines}</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.upcomingDeadlines}</Text>
             <TouchableOpacity
               style={styles.seeAllButton}
               onPress={() => navigation.navigate('Scadenze')}
             >
-              <Text style={styles.seeAllText}>{t.home.calendar}</Text>
-              <ChevronRight size={16} color={COLORS.primary} />
+              <Text style={[styles.seeAllText, { color: colors.primary }]}>{t.home.calendar}</Text>
+              <ChevronRight size={16} color={colors.primary} />
             </TouchableOpacity>
           </View>
           
@@ -646,7 +648,7 @@ export const HomeScreen: React.FC = () => {
               {deadlines.map((deadline) => (
                 <TouchableOpacity
                   key={deadline.id}
-                  style={styles.deadlineCard}
+                  style={[styles.deadlineCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
                   onPress={() => navigation.navigate('DeadlineDetail', {
                     id: deadline.id,
                     title: deadline.title,
@@ -665,67 +667,67 @@ export const HomeScreen: React.FC = () => {
                     </Text>
                   </View>
                   <View style={styles.deadlineInfo}>
-                    <Text style={styles.deadlineTitle} numberOfLines={1}>{deadline.title}</Text>
+                    <Text style={[styles.deadlineTitle, { color: colors.text }]} numberOfLines={1}>{deadline.title}</Text>
                     <Text style={[styles.deadlineDays, { color: getDeadlineColor(deadline.status) }]}>
                       {getDeadlineDaysText(deadline.daysLeft)}
                     </Text>
                   </View>
                   {deadline.status === 'urgent' && (
-                    <AlertTriangle size={20} color={COLORS.error} />
+                    <AlertTriangle size={20} color={colors.error} />
                   )}
                 </TouchableOpacity>
               ))}
             </View>
           ) : (
-            <View style={styles.emptyDeadlines}>
-              <Calendar size={32} color={COLORS.textLight} />
-              <Text style={styles.emptyText}>{t.home.noUpcomingDeadlines}</Text>
-              <Text style={styles.emptySubtext}>{t.home.allCaughtUp}</Text>
+            <View style={[styles.emptyDeadlines, { backgroundColor: colors.surface }]}>
+              <Calendar size={32} color={colors.textLight} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t.home.noUpcomingDeadlines}</Text>
+              <Text style={[styles.emptySubtext, { color: colors.textLight }]}>{t.home.allCaughtUp}</Text>
             </View>
           )}
         </View>
 
         {/* Quick Access */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.home.quickAccess}</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.quickAccess}</Text>
           <View style={styles.quickAccessGrid}>
-            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Dichiarazioni')}>
-              <View style={[styles.quickAccessIcon, { backgroundColor: COLORS.primary + '15' }]}>
-                <FileText size={24} color={COLORS.primary} />
+            <TouchableOpacity style={[styles.quickAccessCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('Dichiarazioni')}>
+              <View style={[styles.quickAccessIcon, { backgroundColor: colors.primary + '15' }]}>
+                <FileText size={24} color={colors.primary} />
               </View>
-              <Text style={styles.quickAccessTitle}>{t.practices.title}</Text>
-              <Text style={styles.quickAccessCount}>{stats.practicesInProgress} {t.home.inProgress}</Text>
+              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.practices.title}</Text>
+              <Text style={[styles.quickAccessCount, { color: colors.textSecondary }]}>{stats.practicesInProgress} {t.home.inProgress}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Documenti')}>
+            <TouchableOpacity style={[styles.quickAccessCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('Documenti')}>
               <View style={[styles.quickAccessIcon, { backgroundColor: '#8b5cf6' + '15' }]}>
                 <Folder size={24} color="#8b5cf6" />
               </View>
-              <Text style={styles.quickAccessTitle}>{t.documents.title}</Text>
+              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.documents.title}</Text>
               {stats.newDocuments > 0 && (
                 <Text style={[styles.quickAccessCount, { color: '#8b5cf6' }]}>{stats.newDocuments} {t.home.newDocs}</Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Comunicazioni')}>
-              <View style={[styles.quickAccessIcon, { backgroundColor: COLORS.info + '15' }]}>
-                <MessageSquare size={24} color={COLORS.info} />
+            <TouchableOpacity style={[styles.quickAccessCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('Comunicazioni')}>
+              <View style={[styles.quickAccessIcon, { backgroundColor: colors.info + '15' }]}>
+                <MessageSquare size={24} color={colors.info} />
               </View>
-              <Text style={styles.quickAccessTitle}>{t.tickets.tickets}</Text>
+              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.tickets.tickets}</Text>
               {stats.ticketsOpen > 0 && (
-                <View style={styles.quickAccessBadge}>
+                <View style={[styles.quickAccessBadge, { backgroundColor: colors.primary }]}>
                   <Text style={styles.quickAccessBadgeText}>{stats.ticketsOpen}</Text>
                 </View>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.quickAccessCard} onPress={() => navigation.navigate('Notifiche')}>
-              <View style={[styles.quickAccessIcon, { backgroundColor: COLORS.warning + '15' }]}>
-                <Bell size={24} color={COLORS.warning} />
+            <TouchableOpacity style={[styles.quickAccessCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('Notifiche')}>
+              <View style={[styles.quickAccessIcon, { backgroundColor: colors.warning + '15' }]}>
+                <Bell size={24} color={colors.warning} />
               </View>
-              <Text style={styles.quickAccessTitle}>{t.notifications.title}</Text>
+              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.notifications.title}</Text>
               {stats.unreadNotifications > 0 && (
-                <View style={[styles.quickAccessBadge, { backgroundColor: COLORS.warning }]}>
+                <View style={[styles.quickAccessBadge, { backgroundColor: colors.warning }]}>
                   <Text style={styles.quickAccessBadgeText}>{stats.unreadNotifications}</Text>
                 </View>
               )}
@@ -737,38 +739,38 @@ export const HomeScreen: React.FC = () => {
         {recentActivity.length > 0 && (
           <View style={styles.section}>
             <View style={styles.activityHeader}>
-              <Text style={styles.sectionTitle}>{t.home.recentActivity}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.recentActivity}</Text>
               <View style={styles.activityActions}>
                 {hasNewActivities && (
                   <TouchableOpacity style={styles.activityActionButton} onPress={markAllAsViewed}>
-                    <Eye size={14} color={COLORS.primary} />
-                    <Text style={styles.activityActionText}>{t.home.markAsRead}</Text>
+                    <Eye size={14} color={colors.primary} />
+                    <Text style={[styles.activityActionText, { color: colors.primary }]}>{t.home.markAsRead}</Text>
                   </TouchableOpacity>
                 )}
                 {hasViewedActivities && (
                   <TouchableOpacity style={styles.activityActionButton} onPress={clearAllViewed}>
-                    <Trash2 size={14} color={COLORS.textSecondary} />
-                    <Text style={[styles.activityActionText, { color: COLORS.textSecondary }]}>{t.home.clear}</Text>
+                    <Trash2 size={14} color={colors.textSecondary} />
+                    <Text style={[styles.activityActionText, { color: colors.textSecondary }]}>{t.home.clear}</Text>
                   </TouchableOpacity>
                 )}
               </View>
             </View>
-            <View style={styles.activityContainer}>
+            <View style={[styles.activityContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               {recentActivity.map((activity, index) => (
-                <View key={activity.id} style={[styles.activityItem, index < recentActivity.length - 1 && styles.activityItemBorder]}>
-                  <View style={[styles.activityDot, activity.isNew ? styles.activityDotNew : styles.activityDotViewed]} />
+                <View key={activity.id} style={[styles.activityItem, index < recentActivity.length - 1 && { borderBottomColor: colors.border }, index < recentActivity.length - 1 && styles.activityItemBorder]}>
+                  <View style={[styles.activityDot, activity.isNew ? { backgroundColor: colors.primary } : { backgroundColor: colors.textLight }]} />
                   <TouchableOpacity 
                     style={styles.activityContent} 
                     onPress={() => markAsViewed(activity.id)} 
                     activeOpacity={0.7}
                   >
                     <View style={styles.activityTextContainer}>
-                      <Text style={[styles.activityTitle, !activity.isNew && styles.activityTitleViewed]}>{activity.title}</Text>
-                      <Text style={styles.activityTime}>{formatTimeAgo(activity.timestamp)}</Text>
+                      <Text style={[styles.activityTitle, { color: colors.text }, !activity.isNew && { color: colors.textSecondary }]}>{activity.title}</Text>
+                      <Text style={[styles.activityTime, { color: colors.textLight }]}>{formatTimeAgo(activity.timestamp)}</Text>
                     </View>
                     {activity.isNew && (
-                      <View style={styles.newBadge}>
-                        <Text style={styles.newBadgeText}>{t.home.new}</Text>
+                      <View style={[styles.newBadge, { backgroundColor: colors.primary + '15' }]}>
+                        <Text style={[styles.newBadgeText, { color: colors.primary }]}>{t.home.new}</Text>
                       </View>
                     )}
                   </TouchableOpacity>

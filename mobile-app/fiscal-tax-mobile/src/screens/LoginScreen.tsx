@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff, Fingerprint, ScanFace } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { Button } from '../components/Button';
 import { TextInput } from '../components/TextInput';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
@@ -25,6 +26,7 @@ import { biometricService, BiometricConfig } from '../services/biometric';
 export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
   const { t } = useLanguage();
+  const { colors, isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -131,7 +133,7 @@ export const LoginScreen: React.FC = () => {
     if (!biometricConfig) return null;
     
     const iconSize = 28;
-    const iconColor = COLORS.primary;
+    const iconColor = colors.primary;
     
     switch (biometricConfig.biometricType) {
       case 'facial':
@@ -143,7 +145,7 @@ export const LoginScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -160,14 +162,14 @@ export const LoginScreen: React.FC = () => {
 
           {/* Logo e Header */}
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
+            <View style={[styles.logoContainer, { backgroundColor: colors.surface }]}>
               <Image
                 source={require('../../assets/logo.png')}
                 style={styles.logo}
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.subtitle}>{t.login.subtitle}</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t.login.subtitle}</Text>
           </View>
 
           {/* Biometric Quick Login */}

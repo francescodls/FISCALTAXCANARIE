@@ -48,6 +48,9 @@ from routes.notifications import router as notifications_router
 from routes.deadline_types import router as deadline_types_router, tax_models_router
 from routes.privacy_routes import get_privacy_router
 
+# Import scheduler
+from scheduler import setup_scheduler, shutdown_scheduler
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
@@ -693,6 +696,15 @@ async def startup_event():
     await init_admin_user()
     await init_default_modelli_tributari()
     await init_default_bank_entities()
+    # Avvia scheduler per promemoria automatici
+    setup_scheduler()
+    logger.info("Scheduler avviato per promemoria scadenze automatici")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    shutdown_scheduler()
+    logger.info("Scheduler fermato")
 
 # ==================== AUTH ROUTES ====================
 
