@@ -366,4 +366,18 @@ export const es: TranslationKeys = {
     spanish: 'Español',
     english: 'English',
   },
+
+  // Tax Models
+  taxModels: {
+    title: 'Guía de Modelos Fiscales',
+    subtitle: 'Descubre qué son y cómo funcionan los modelos tributarios',
+    whatIsIt: 'Para qué sirve',
+    whoMustFile: 'Quién debe presentarlo',
+    frequency: 'Periodicidad',
+    deadline: 'Fecha límite típica',
+    requiredDocs: 'Documentos necesarios',
+    notes: 'Notas operativas',
+    watchVideo: 'Ver Video Explicativo',
+    learnMore: 'Más información en el sitio oficial',
+  },
 };

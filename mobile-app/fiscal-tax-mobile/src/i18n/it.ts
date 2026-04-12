@@ -365,6 +365,20 @@ export const it = {
     spanish: 'Español',
     english: 'English',
   },
+
+  // Tax Models
+  taxModels: {
+    title: 'Guida ai Modelli Fiscali',
+    subtitle: 'Scopri cosa sono e come funzionano i modelli tributari',
+    whatIsIt: 'A cosa serve',
+    whoMustFile: 'Chi deve presentarlo',
+    frequency: 'Periodicità',
+    deadline: 'Scadenza tipica',
+    requiredDocs: 'Documenti necessari',
+    notes: 'Note operative',
+    watchVideo: 'Guarda Video Esplicativo',
+    learnMore: 'Approfondisci sul sito ufficiale',
+  },
 };
 
 export type TranslationKeys = typeof it;

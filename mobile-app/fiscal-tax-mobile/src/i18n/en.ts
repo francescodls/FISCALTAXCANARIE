@@ -366,4 +366,18 @@ export const en: TranslationKeys = {
     spanish: 'Español',
     english: 'English',
   },
+
+  // Tax Models
+  taxModels: {
+    title: 'Tax Models Guide',
+    subtitle: 'Learn what tax models are and how they work',
+    whatIsIt: 'What is it for',
+    whoMustFile: 'Who must file',
+    frequency: 'Frequency',
+    deadline: 'Typical deadline',
+    requiredDocs: 'Required documents',
+    notes: 'Operational notes',
+    watchVideo: 'Watch Explanatory Video',
+    learnMore: 'Learn more on official website',
+  },
 };

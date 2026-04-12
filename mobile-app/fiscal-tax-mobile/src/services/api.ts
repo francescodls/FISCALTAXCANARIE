@@ -196,6 +196,11 @@ class ApiService {
   async disconnectAllSessions() {
     return this.request('/api/auth/logout-all', { method: 'POST' });
   }
+
+  // Get tax models
+  async getTaxModels() {
+    return this.request('/api/modelli-tributari');
+  }
 }
 
 export const apiService = new ApiService();

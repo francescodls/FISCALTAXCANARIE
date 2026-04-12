@@ -9,6 +9,7 @@ import {
   Image,
   Dimensions,
   Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -29,6 +30,9 @@ import {
   Sparkles,
   Bot,
   ArrowRight,
+  BookOpen,
+  Play,
+  ExternalLink,
 } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
@@ -85,6 +89,22 @@ interface ActivityState {
   viewed: string[];
 }
 
+interface TaxModel {
+  id: string;
+  codice: string;
+  nome: string;
+  descrizione: string;
+  a_cosa_serve?: string;
+  chi_deve_presentarlo?: string;
+  periodicita?: string;
+  scadenza_tipica?: string;
+  documenti_necessari?: string[];
+  note_operative?: string;
+  video_youtube?: string;
+  video_thumbnail?: string;
+  link_approfondimento?: string;
+}
+
 // Generate storage key per user
 const getStorageKey = (userId?: string) => `activity_state_${userId || 'anonymous'}`;
 
@@ -104,6 +124,8 @@ export const HomeScreen: React.FC = () => {
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
+  const [taxModels, setTaxModels] = useState<TaxModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState<TaxModel | null>(null);
   
   // Use refs to always have current values in callbacks
   const dismissedRef = useRef<Set<string>>(new Set());
@@ -260,13 +282,17 @@ export const HomeScreen: React.FC = () => {
       dismissedRef.current = new Set(state.dismissed);
       viewedRef.current = new Set(state.viewed);
       
-      const [notifications, documents, declarations, tickets, deadlinesData] = await Promise.all([
+      const [notifications, documents, declarations, tickets, deadlinesData, modelsData] = await Promise.all([
         apiService.getNotifications().catch(() => []),
         apiService.getDocuments().catch(() => []),
         apiService.getDeclarations().catch(() => []),
         apiService.getTickets().catch(() => []),
         apiService.getDeadlines().catch(() => []),
+        apiService.getTaxModels().catch(() => []),
       ]);
+      
+      // Set tax models
+      setTaxModels(modelsData || []);
 
       const unread = notifications.filter((n: any) => !n.read);
       const openTickets = tickets.filter((t: any) => t.status !== 'closed');
@@ -754,6 +780,173 @@ export const HomeScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Tax Models Section */}
+        {taxModels.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{t.taxModels?.title || 'Guida ai Modelli Fiscali'}</Text>
+              <TouchableOpacity
+                style={styles.seeAllButton}
+                onPress={() => navigation.navigate('GuidaModelli')}
+              >
+                <Text style={styles.seeAllText}>{t.home.seeAll}</Text>
+                <ChevronRight size={16} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modelsSubtitle}>
+              {t.taxModels?.subtitle || 'Scopri cosa sono e come funzionano i modelli tributari'}
+            </Text>
+            
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.modelsScroll}
+            >
+              {taxModels.slice(0, 6).map((model) => (
+                <TouchableOpacity
+                  key={model.id}
+                  style={styles.modelCard}
+                  onPress={() => setSelectedModel(model)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.modelHeader}>
+                    <View style={styles.modelCodeBadge}>
+                      <Text style={styles.modelCode}>{model.codice}</Text>
+                    </View>
+                    {model.video_youtube && (
+                      <View style={styles.modelVideoBadge}>
+                        <Play size={12} color="#fff" />
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.modelName} numberOfLines={2}>{model.nome}</Text>
+                  <Text style={styles.modelDesc} numberOfLines={2}>{model.descrizione}</Text>
+                  {model.periodicita && (
+                    <View style={styles.modelPeriod}>
+                      <Calendar size={12} color={COLORS.textSecondary} />
+                      <Text style={styles.modelPeriodText}>{model.periodicita}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Model Detail Modal */}
+        {selectedModel && (
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBackdrop} 
+              activeOpacity={1} 
+              onPress={() => setSelectedModel(null)} 
+            />
+            <View style={styles.modalContent}>
+              <View style={styles.modalHandle} />
+              
+              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalCodeBadge}>
+                    <Text style={styles.modalCodeText}>{selectedModel.codice}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedModel(null)}>
+                    <X size={20} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                
+                <Text style={styles.modalTitle}>{selectedModel.nome}</Text>
+                <Text style={styles.modalDescription}>{selectedModel.descrizione}</Text>
+                
+                {/* Video Button */}
+                {selectedModel.video_youtube && (
+                  <TouchableOpacity 
+                    style={styles.videoButton}
+                    onPress={() => Linking.openURL(selectedModel.video_youtube!)}
+                  >
+                    <LinearGradient
+                      colors={['#dc2626', '#b91c1c']}
+                      style={styles.videoButtonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Play size={20} color="#fff" />
+                      <Text style={styles.videoButtonText}>Guarda Video Esplicativo</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+                
+                {/* Info Sections */}
+                {selectedModel.a_cosa_serve && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.infoLabel}>A cosa serve</Text>
+                    <Text style={styles.infoText}>{selectedModel.a_cosa_serve}</Text>
+                  </View>
+                )}
+                
+                {selectedModel.chi_deve_presentarlo && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.infoLabel}>Chi deve presentarlo</Text>
+                    <Text style={styles.infoText}>{selectedModel.chi_deve_presentarlo}</Text>
+                  </View>
+                )}
+                
+                {selectedModel.periodicita && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.infoLabel}>Periodicità</Text>
+                    <View style={styles.infoBadgeRow}>
+                      <View style={styles.infoBadge}>
+                        <Calendar size={14} color={COLORS.primary} />
+                        <Text style={styles.infoBadgeText}>{selectedModel.periodicita}</Text>
+                      </View>
+                      {selectedModel.scadenza_tipica && (
+                        <View style={[styles.infoBadge, { backgroundColor: COLORS.warning + '15' }]}>
+                          <AlertCircle size={14} color={COLORS.warning} />
+                          <Text style={[styles.infoBadgeText, { color: COLORS.warning }]}>
+                            Scadenza: {selectedModel.scadenza_tipica}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                )}
+                
+                {selectedModel.documenti_necessari && selectedModel.documenti_necessari.length > 0 && (
+                  <View style={styles.infoSection}>
+                    <Text style={styles.infoLabel}>Documenti necessari</Text>
+                    {selectedModel.documenti_necessari.map((doc, idx) => (
+                      <View key={idx} style={styles.docItem}>
+                        <View style={styles.docBullet} />
+                        <Text style={styles.docText}>{doc}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                
+                {selectedModel.note_operative && (
+                  <View style={[styles.infoSection, styles.noteSection]}>
+                    <Text style={styles.infoLabel}>Note operative</Text>
+                    <Text style={styles.noteText}>{selectedModel.note_operative}</Text>
+                  </View>
+                )}
+                
+                {selectedModel.link_approfondimento && (
+                  <TouchableOpacity 
+                    style={styles.linkButton}
+                    onPress={() => Linking.openURL(selectedModel.link_approfondimento!)}
+                  >
+                    <ExternalLink size={16} color={COLORS.primary} />
+                    <Text style={styles.linkButtonText}>Approfondisci sul sito ufficiale</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <View style={{ height: 40 }} />
+              </ScrollView>
+            </View>
+          </View>
+        )}
+
         <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
@@ -836,4 +1029,44 @@ const styles = StyleSheet.create({
   newBadgeText: { fontSize: 10, fontWeight: '700', color: '#ffffff' },
   dismissButton: { padding: 8, borderRadius: 20, backgroundColor: COLORS.background },
   activityHint: { fontSize: 11, color: COLORS.textLight, textAlign: 'center', marginTop: 8, fontStyle: 'italic' },
+  // Tax Models Section Styles
+  modelsSubtitle: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 16, lineHeight: 18 },
+  modelsScroll: { paddingRight: 24 },
+  modelCard: { width: 180, backgroundColor: '#ffffff', borderRadius: 16, padding: 16, marginRight: 12, borderWidth: 1, borderColor: '#e2e8f0' },
+  modelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  modelCodeBadge: { backgroundColor: COLORS.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  modelCode: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
+  modelVideoBadge: { backgroundColor: '#dc2626', width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  modelName: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 6, lineHeight: 18 },
+  modelDesc: { fontSize: 12, color: COLORS.textSecondary, lineHeight: 16, marginBottom: 10 },
+  modelPeriod: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  modelPeriodText: { fontSize: 11, color: COLORS.textSecondary, textTransform: 'capitalize' },
+  // Modal Styles
+  modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#ffffff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '85%', paddingTop: 12 },
+  modalHandle: { width: 40, height: 4, backgroundColor: '#e2e8f0', borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalScroll: { paddingHorizontal: 24 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalCodeBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10 },
+  modalCodeText: { fontSize: 14, fontWeight: '700', color: '#ffffff' },
+  modalClose: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center' },
+  modalTitle: { fontSize: 22, fontWeight: '700', color: COLORS.text, marginBottom: 8, letterSpacing: -0.3 },
+  modalDescription: { fontSize: 15, color: COLORS.textSecondary, lineHeight: 22, marginBottom: 20 },
+  videoButton: { marginBottom: 24, borderRadius: 14, overflow: 'hidden' },
+  videoButtonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 10 },
+  videoButtonText: { fontSize: 15, fontWeight: '600', color: '#ffffff' },
+  infoSection: { marginBottom: 20 },
+  infoLabel: { fontSize: 13, fontWeight: '700', color: COLORS.text, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
+  infoBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  infoBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary + '15', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, gap: 6 },
+  infoBadgeText: { fontSize: 13, fontWeight: '600', color: COLORS.primary },
+  docItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, gap: 10 },
+  docBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primary },
+  docText: { fontSize: 14, color: COLORS.textSecondary, flex: 1 },
+  noteSection: { backgroundColor: COLORS.warning + '10', padding: 16, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: COLORS.warning },
+  noteText: { fontSize: 14, color: COLORS.text, lineHeight: 20, fontStyle: 'italic' },
+  linkButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.primary, gap: 8 },
+  linkButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
 });
