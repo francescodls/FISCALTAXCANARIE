@@ -166,50 +166,6 @@ export const CalendarScreen: React.FC = () => {
     });
   };
 
-  const getUpcomingDeadlines = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const nextWeek = new Date(today);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    
-    return deadlines
-      .filter(d => {
-        const deadlineDate = new Date(d.date || d.due_date || '');
-        deadlineDate.setHours(0, 0, 0, 0);
-        return deadlineDate >= today && deadlineDate <= nextWeek && d.status !== 'completed';
-      })
-      .sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
-  };
-
-  const getUrgentDeadlines = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    return deadlines
-      .filter(d => {
-        const deadlineDate = new Date(d.date || d.due_date || '');
-        deadlineDate.setHours(0, 0, 0, 0);
-        const diffDays = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        return diffDays <= 3 && diffDays >= 0 && d.status !== 'completed';
-      })
-      .sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
-  };
-
-  const getNextImportantDeadline = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const upcoming = deadlines
-      .filter(d => {
-        const deadlineDate = new Date(d.date || d.due_date || '');
-        deadlineDate.setHours(0, 0, 0, 0);
-        return deadlineDate >= today && d.status !== 'completed';
-      })
-      .sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
-    
-    return upcoming[0] || null;
-  };
-
   const getFilteredDeadlines = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -306,49 +262,7 @@ export const CalendarScreen: React.FC = () => {
     });
   };
 
-  // Render Next Important Deadline Card
-  const renderNextDeadlineCard = () => {
-    const nextDeadline = getNextImportantDeadline();
-    if (!nextDeadline) return null;
-
-    const config = getStatusConfig(nextDeadline);
-    const StatusIcon = config.icon;
-    const daysUntil = getDaysUntil(nextDeadline.date || nextDeadline.due_date || '');
-
-    return (
-      <TouchableOpacity 
-        style={[styles.nextDeadlineCard, { borderLeftColor: config.color }]}
-        onPress={() => navigateToDetail(nextDeadline)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.nextDeadlineHeader}>
-          <View style={[styles.nextDeadlineBadge, { backgroundColor: config.bgColor }]}>
-            <StatusIcon size={14} color={config.color} />
-            <Text style={[styles.nextDeadlineBadgeText, { color: config.color }]}>
-              {t.deadlines.nextImportantDeadline}
-            </Text>
-          </View>
-          <View style={[styles.daysLeftBadge, { backgroundColor: config.color }]}>
-            <Text style={styles.daysLeftText}>
-              {daysUntil === 0 ? t.common.today.toUpperCase() : daysUntil < 0 ? t.deadlines.overdue.toUpperCase() : `${daysUntil}${language === 'en' ? 'd' : 'g'}`}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.nextDeadlineTitle}>{nextDeadline.title}</Text>
-        <View style={styles.nextDeadlineFooter}>
-          <Text style={styles.nextDeadlineDate}>
-            <CalendarIcon size={14} color={COLORS.textSecondary} /> {formatDate(nextDeadline.date || nextDeadline.due_date || '')}
-          </Text>
-          <View style={styles.viewDetailButton}>
-            <Text style={styles.viewDetailText}>{t.deadlines.details}</Text>
-            <ArrowRight size={14} color={COLORS.primary} />
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  // Render Deadline Card
+  // Render Deadline Card (used in list view)
   const renderDeadlineCard = (deadline: Deadline, showDate: boolean = true) => {
     const config = getStatusConfig(deadline);
     const StatusIcon = config.icon;
@@ -392,13 +306,89 @@ export const CalendarScreen: React.FC = () => {
   const renderCalendarView = () => {
     const days = getDaysInMonth();
     const selectedDateDeadlines = getSelectedDateDeadlines();
-    const upcomingDeadlines = getUpcomingDeadlines();
-    const urgentDeadlines = getUrgentDeadlines();
+    
+    // LOGICA DI DEDUPLICAZIONE: 
+    // Se l'utente ha selezionato un giorno specifico, mostriamo SOLO le scadenze di quel giorno
+    // Altrimenti, mostriamo una lista unificata delle scadenze imminenti (senza duplicazioni)
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Crea lista unificata delle scadenze attive (non completate, non scadute da più di 30 giorni)
+    const getUnifiedDeadlinesList = () => {
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      return deadlines
+        .filter(d => {
+          const deadlineDate = new Date(d.date || d.due_date || '');
+          deadlineDate.setHours(0, 0, 0, 0);
+          // Mostra scadenze future e quelle scadute negli ultimi 30 giorni
+          return deadlineDate >= thirtyDaysAgo;
+        })
+        .sort((a, b) => {
+          // Prima le urgenti, poi per data
+          const dateA = new Date(a.date || a.due_date || '');
+          const dateB = new Date(b.date || b.due_date || '');
+          const daysA = Math.ceil((dateA.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          const daysB = Math.ceil((dateB.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Priorità: scadute/oggi/urgenti prima
+          const urgencyA = daysA <= 0 ? 0 : daysA <= 3 ? 1 : daysA <= 7 ? 2 : 3;
+          const urgencyB = daysB <= 0 ? 0 : daysB <= 3 ? 1 : daysB <= 7 ? 2 : 3;
+          
+          if (urgencyA !== urgencyB) return urgencyA - urgencyB;
+          return dateA.getTime() - dateB.getTime();
+        });
+    };
+    
+    const unifiedDeadlines = getUnifiedDeadlinesList();
+    
+    // Determina se mostrare le scadenze del giorno selezionato o la lista unificata
+    const isSelectedDateToday = selectedDate && 
+      selectedDate.getDate() === today.getDate() &&
+      selectedDate.getMonth() === today.getMonth() &&
+      selectedDate.getFullYear() === today.getFullYear();
+    
+    // Se il giorno selezionato è oggi, mostriamo la lista unificata
+    // Se è un altro giorno, mostriamo solo le scadenze di quel giorno
+    const showUnifiedList = !selectedDate || isSelectedDateToday;
+    const deadlinesToShow = showUnifiedList ? unifiedDeadlines : selectedDateDeadlines;
+    
+    // Conta scadenze per categoria (per statistiche)
+    const urgentCount = unifiedDeadlines.filter(d => {
+      const daysUntil = getDaysUntil(d.date || d.due_date || '');
+      return daysUntil <= 3 && daysUntil >= 0 && d.status !== 'completed';
+    }).length;
+    
+    const overdueCount = unifiedDeadlines.filter(d => {
+      const daysUntil = getDaysUntil(d.date || d.due_date || '');
+      return daysUntil < 0 && d.status !== 'completed';
+    }).length;
 
     return (
       <>
-        {/* Next Important Deadline */}
-        {renderNextDeadlineCard()}
+        {/* Stats Banner */}
+        {unifiedDeadlines.length > 0 && (
+          <View style={styles.statsBar}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{unifiedDeadlines.filter(d => d.status !== 'completed').length}</Text>
+              <Text style={styles.statLabel}>Attive</Text>
+            </View>
+            {urgentCount > 0 && (
+              <View style={[styles.statItem, styles.statItemUrgent]}>
+                <Text style={[styles.statNumber, { color: COLORS.error }]}>{urgentCount}</Text>
+                <Text style={[styles.statLabel, { color: COLORS.error }]}>Urgenti</Text>
+              </View>
+            )}
+            {overdueCount > 0 && (
+              <View style={[styles.statItem, styles.statItemOverdue]}>
+                <Text style={[styles.statNumber, { color: COLORS.error }]}>{overdueCount}</Text>
+                <Text style={[styles.statLabel, { color: COLORS.error }]}>Scadute</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Calendar */}
         <View style={styles.calendarContainer}>
@@ -477,56 +467,50 @@ export const CalendarScreen: React.FC = () => {
               );
             })}
           </View>
+          
+          {/* Reset to today button */}
+          {selectedDate && !isSelectedDateToday && (
+            <TouchableOpacity 
+              style={styles.resetDateButton}
+              onPress={() => setSelectedDate(new Date())}
+            >
+              <Text style={styles.resetDateText}>Torna a oggi</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {/* Selected Day Deadlines */}
-        {selectedDate && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <CalendarIcon size={18} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>
-                {selectedDate.getDate()} {MONTHS[selectedDate.getMonth()]}
-              </Text>
-              <Text style={styles.sectionCount}>
-                {selectedDateDeadlines.length} scadenz{selectedDateDeadlines.length !== 1 ? 'e' : 'a'}
-              </Text>
-            </View>
-            {selectedDateDeadlines.length > 0 ? (
-              selectedDateDeadlines.map(deadline => renderDeadlineCard(deadline, false))
+        {/* Unified Deadlines Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            {showUnifiedList ? (
+              <>
+                <CalendarIcon size={18} color={COLORS.primary} />
+                <Text style={styles.sectionTitle}>Le tue scadenze</Text>
+              </>
             ) : (
-              <View style={styles.emptyState}>
-                <CalendarIcon size={32} color={COLORS.textLight} />
-                <Text style={styles.emptyStateText}>Nessuna scadenza per questo giorno</Text>
-              </View>
+              <>
+                <CalendarIcon size={18} color={COLORS.primary} />
+                <Text style={styles.sectionTitle}>
+                  {selectedDate?.getDate()} {MONTHS[selectedDate?.getMonth() || 0]}
+                </Text>
+              </>
             )}
+            <Text style={styles.sectionCount}>
+              {deadlinesToShow.length} scadenz{deadlinesToShow.length !== 1 ? 'e' : 'a'}
+            </Text>
           </View>
-        )}
-
-        {/* Urgent Deadlines */}
-        {urgentDeadlines.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <AlertTriangle size={18} color={COLORS.error} />
-              <Text style={[styles.sectionTitle, { color: COLORS.error }]}>Scadenze Urgenti</Text>
-              <View style={[styles.countBadge, { backgroundColor: COLORS.error }]}>
-                <Text style={styles.countBadgeText}>{urgentDeadlines.length}</Text>
-              </View>
+          
+          {deadlinesToShow.length > 0 ? (
+            deadlinesToShow.map(deadline => renderDeadlineCardEnhanced(deadline))
+          ) : (
+            <View style={styles.emptyState}>
+              <CalendarIcon size={32} color={COLORS.textLight} />
+              <Text style={styles.emptyStateText}>
+                {showUnifiedList ? 'Nessuna scadenza programmata' : 'Nessuna scadenza per questo giorno'}
+              </Text>
             </View>
-            {urgentDeadlines.slice(0, 3).map(deadline => renderDeadlineCard(deadline))}
-          </View>
-        )}
-
-        {/* Upcoming Deadlines */}
-        {upcomingDeadlines.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Clock size={18} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Prossimi 7 giorni</Text>
-              <Text style={styles.sectionCount}>{upcomingDeadlines.length}</Text>
-            </View>
-            {upcomingDeadlines.slice(0, 5).map(deadline => renderDeadlineCard(deadline))}
-          </View>
-        )}
+          )}
+        </View>
 
         {/* Empty State for no deadlines at all */}
         {deadlines.length === 0 && (
@@ -539,6 +523,71 @@ export const CalendarScreen: React.FC = () => {
           </View>
         )}
       </>
+    );
+  };
+
+  // Render Enhanced Deadline Card with multiple badges
+  const renderDeadlineCardEnhanced = (deadline: Deadline) => {
+    const config = getStatusConfig(deadline);
+    const StatusIcon = config.icon;
+    const daysUntil = getDaysUntil(deadline.date || deadline.due_date || '');
+    
+    // Calcola i badge da mostrare
+    const badges: { text: string; color: string; bgColor: string }[] = [];
+    
+    // Badge principale (stato)
+    badges.push({
+      text: config.badge,
+      color: config.color,
+      bgColor: config.bgColor,
+    });
+    
+    // Badge aggiuntivo "entro 7gg" se non è già urgente/scaduta/oggi
+    if (daysUntil > 3 && daysUntil <= 7 && deadline.status !== 'completed') {
+      badges.push({
+        text: 'entro 7gg',
+        color: COLORS.warning,
+        bgColor: COLORS.warning + '15',
+      });
+    }
+
+    return (
+      <TouchableOpacity
+        key={deadline._id || deadline.id}
+        style={styles.deadlineCardEnhanced}
+        onPress={() => navigateToDetail(deadline)}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.deadlineCardIcon, { backgroundColor: config.bgColor }]}>
+          <StatusIcon size={20} color={config.color} />
+        </View>
+        <View style={styles.deadlineCardContent}>
+          <Text style={styles.deadlineCardTitle} numberOfLines={1}>{deadline.title}</Text>
+          <Text style={styles.deadlineCardDate}>
+            {formatDate(deadline.date || deadline.due_date || '')}
+          </Text>
+          {deadline.description && (
+            <Text style={styles.deadlineCardDescription} numberOfLines={1}>
+              {deadline.description}
+            </Text>
+          )}
+        </View>
+        <View style={styles.deadlineCardRight}>
+          <View style={styles.badgesContainer}>
+            {badges.map((badge, index) => (
+              <View 
+                key={index}
+                style={[styles.statusBadge, { backgroundColor: badge.bgColor }]}
+              >
+                <Text style={[styles.statusBadgeText, { color: badge.color }]}>
+                  {badge.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+          <ChevronRight size={18} color={COLORS.textLight} />
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -695,67 +744,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   // Next Deadline Card
-  nextDeadlineCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderLeftWidth: 4,
-    ...SHADOWS.sm,
-  },
-  nextDeadlineHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  nextDeadlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    gap: 4,
-  },
-  nextDeadlineBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  daysLeftBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  daysLeftText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  nextDeadlineTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  nextDeadlineFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  nextDeadlineDate: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  viewDetailButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  viewDetailText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.primary,
-  },
   // Calendar
   calendarContainer: {
     backgroundColor: COLORS.surface,
@@ -879,6 +867,15 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
     ...SHADOWS.sm,
   },
+  deadlineCardEnhanced: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.sm,
+  },
   deadlineCardIcon: {
     width: 44,
     height: 44,
@@ -909,6 +906,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 4,
   },
+  badgesContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 4,
+  },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -918,6 +920,52 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textTransform: 'uppercase',
+  },
+  // Stats Bar
+  statsBar: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    justifyContent: 'space-around',
+    ...SHADOWS.sm,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statItemUrgent: {
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+    paddingLeft: SPACING.md,
+  },
+  statItemOverdue: {
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+    paddingLeft: SPACING.md,
+  },
+  statNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  resetDateButton: {
+    alignSelf: 'center',
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: RADIUS.full,
+  },
+  resetDateText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   // Filters
   filtersScroll: {
