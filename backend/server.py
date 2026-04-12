@@ -2456,6 +2456,31 @@ async def upload_document(
     }
     await db.documents.insert_one(document)
     
+    # Invia notifica push al cliente
+    try:
+        from push_service import send_document_notification
+        await send_document_notification(
+            db,
+            client_id,
+            title,
+            doc_id
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send document push notification: {e}")
+    
+    # Salva notifica in-app per il cliente
+    await db.client_notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "notification_id": str(uuid.uuid4()),
+        "client_id": client_id,
+        "subject": "Nuovo documento disponibile",
+        "body": f"È stato caricato un nuovo documento: {title}",
+        "type": "document",
+        "data": {"document_id": doc_id},
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
     # Audit log
     await log_activity("caricamento_documento", f"Documento {title} caricato per cliente {client_id}", user["id"])
     log_security_event(
@@ -2922,6 +2947,32 @@ async def upload_document_with_ai(
         document["storage_provider"] = "mongodb"
     
     await db.documents.insert_one(document)
+    
+    # Invia notifica push al cliente se assegnato
+    if final_client_id:
+        try:
+            from push_service import send_document_notification
+            await send_document_notification(
+                db,
+                final_client_id,
+                ai_result.get("descrizione", file.filename) if ai_result.get("success") else file.filename,
+                doc_id
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send document push notification: {e}")
+        
+        # Salva notifica in-app per il cliente
+        await db.client_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "notification_id": str(uuid.uuid4()),
+            "client_id": final_client_id,
+            "subject": "Nuovo documento disponibile",
+            "body": f"È stato caricato un nuovo documento: {ai_result.get('descrizione', file.filename) if ai_result.get('success') else file.filename}",
+            "type": "document",
+            "data": {"document_id": doc_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
     
     await log_activity(
         "caricamento_documento_ai", 
@@ -3477,8 +3528,10 @@ async def send_deadline_reminders_batch():
                 # Invia promemoria a tutti i clienti
                 for client in clients:
                     try:
+                        days_text = "oggi" if days_until == 0 else f"tra {days_until} giorni"
+                        
+                        # Email
                         if client.get("email"):
-                            days_text = "oggi" if days_until == 0 else f"tra {days_until} giorni"
                             await notify_deadline_reminder(
                                 client_email=client["email"],
                                 client_name=client["full_name"],
@@ -3487,6 +3540,32 @@ async def send_deadline_reminders_batch():
                                 deadline_description=f"La scadenza è {days_text}. {deadline.get('description', '')}"
                             )
                             sent_count += 1
+                        
+                        # Push notification
+                        try:
+                            await send_deadline_notification(
+                                db,
+                                client["id"],
+                                f"[Promemoria] {deadline['title']} - {days_text}",
+                                deadline["id"],
+                                deadline["due_date"]
+                            )
+                        except Exception as push_err:
+                            logger.warning(f"Push reminder failed for {client['id']}: {push_err}")
+                        
+                        # Notifica in-app
+                        await db.client_notifications.insert_one({
+                            "id": str(uuid.uuid4()),
+                            "notification_id": str(uuid.uuid4()),
+                            "client_id": client["id"],
+                            "subject": f"Promemoria scadenza",
+                            "body": f"La scadenza '{deadline['title']}' è {days_text}",
+                            "type": "deadline_reminder",
+                            "data": {"deadline_id": deadline["id"]},
+                            "read": False,
+                            "created_at": datetime.now(timezone.utc).isoformat()
+                        })
+                        
                     except Exception as e:
                         errors.append(f"{client.get('email')}: {str(e)}")
                 
