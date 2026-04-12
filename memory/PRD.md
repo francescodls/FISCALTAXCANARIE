@@ -5,7 +5,51 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 89 (12 Dicembre 2025) - COMPLETATA ✅
 
+**Completamento Piano Hardening Mobile App (11 Punti):**
+
+**Modifiche implementate:**
+
+1. **ThemeProvider integrato in App.tsx:**
+   - Context provider per dark mode wrappato correttamente nell'albero dei componenti
+   - Ordine: GestureHandler → SafeArea → Network → Theme → Language → Auth → Navigator
+
+2. **Tab Badges funzionanti:**
+   - Badge scadenze (warning color) sulla tab "Scadenze" 
+   - Badge messaggi non letti sulla tab "Comunicazioni"
+   - Stili badge aggiunti al StyleSheet di AppNavigator
+
+3. **Skeleton Loading su tutte le schermate principali:**
+   - DocumentsScreen: DocumentSkeleton durante caricamento
+   - CalendarScreen: Skeleton calendario + CardSkeleton per scadenze
+   - CommunicationsScreen: CardSkeleton durante caricamento
+
+4. **Sezione Tema in ProfileScreen:**
+   - Toggle per Light/Dark/Auto mode
+   - Icone Sun/Moon/Monitor per le opzioni
+   - Persistenza preferenza via SecureStore
+
+5. **Traduzioni completate:**
+   - IT: seeAll, appearance, themeLight, themeDark, themeAuto
+   - EN: seeAll, appearance, themeLight, themeDark, themeAuto
+   - ES: seeAll, appearance, themeLight, themeDark, themeAuto
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/App.tsx` - Aggiunto ThemeProvider
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx` - Tab badges + stili
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/DocumentsScreen.tsx` - Skeleton loading
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/CalendarScreen.tsx` - Skeleton loading
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/CommunicationsScreen.tsx` - Skeleton loading
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/ProfileScreen.tsx` - Sezione tema
+- `/app/mobile-app/fiscal-tax-mobile/src/i18n/it.ts` - Traduzioni tema
+- `/app/mobile-app/fiscal-tax-mobile/src/i18n/en.ts` - Traduzioni tema
+- `/app/mobile-app/fiscal-tax-mobile/src/i18n/es.ts` - Traduzioni tema
+
+**Test eseguiti:**
+- ✅ Backend API verification (iteration_38): tutte le API funzionanti
+- ✅ Login client e admin OK
+- ✅ Documenti, scadenze, notifiche, comunicazioni API OK
 
 ### Fase 88 (11 Aprile 2026) - COMPLETATA ✅
 
