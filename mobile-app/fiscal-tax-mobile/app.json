@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fiscaltaxcanarie.clientapp",
-      "buildNumber": "19",
+      "buildNumber": "20",
       "infoPlist": {
         "NSCameraUsageDescription": "Questa app utilizza la fotocamera per scansionare documenti.",
         "NSPhotoLibraryUsageDescription": "Questa app accede alla galleria per caricare documenti.",

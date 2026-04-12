@@ -34,7 +34,7 @@ import {
   FileType,
   Info,
 } from 'lucide-react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../context/AuthContext';
@@ -189,13 +189,14 @@ export const DocumentsScreen: React.FC = () => {
 
   // VISUALIZZA - Apre il documento in un browser/viewer
   const handlePreview = async (doc: Document) => {
-    setActionLoading(doc._id + '-preview');
+    const docId = doc.id || doc._id;
+    setActionLoading(docId + '-preview');
     try {
       // Costruisce URL preview con token come query parameter
-      const previewUrl = `${API_URL}/api/documents/${doc._id}/preview?token=${encodeURIComponent(token || '')}`;
+      const previewUrl = `${API_URL}/api/documents/${docId}/preview?token=${encodeURIComponent(token || '')}`;
       
       console.log('[DocumentPreview] Attempting to open:', {
-        documentId: doc._id,
+        documentId: docId,
         fileName: doc.file_name,
         previewUrl: previewUrl.replace(token || '', '***TOKEN***'), // Log senza token per sicurezza
       });
@@ -236,13 +237,14 @@ export const DocumentsScreen: React.FC = () => {
 
   // SCARICA - Scarica il file e lo salva/apre con opzioni iOS
   const handleDownload = async (doc: Document) => {
-    setActionLoading(doc._id + '-download');
+    const docId = doc.id || doc._id;
+    setActionLoading(docId + '-download');
     try {
       // Costruisce URL per il download con autenticazione
-      const downloadUrl = `${API_URL}/api/documents/${doc._id}/preview?token=${encodeURIComponent(token || '')}`;
+      const downloadUrl = `${API_URL}/api/documents/${docId}/preview?token=${encodeURIComponent(token || '')}`;
       
       console.log('[DocumentDownload] Starting download:', {
-        documentId: doc._id,
+        documentId: docId,
         fileName: doc.file_name,
       });
       
@@ -290,13 +292,14 @@ export const DocumentsScreen: React.FC = () => {
 
   // CONDIVIDI - Usa il foglio di condivisione nativo iOS
   const handleShare = async (doc: Document) => {
-    setActionLoading(doc._id + '-share');
+    const docId = doc.id || doc._id;
+    setActionLoading(docId + '-share');
     try {
       // Costruisce URL per il download con autenticazione
-      const downloadUrl = `${API_URL}/api/documents/${doc._id}/preview?token=${encodeURIComponent(token || '')}`;
+      const downloadUrl = `${API_URL}/api/documents/${docId}/preview?token=${encodeURIComponent(token || '')}`;
 
       console.log('[DocumentShare] Starting share:', {
-        documentId: doc._id,
+        documentId: docId,
         fileName: doc.file_name,
       });
 
@@ -381,7 +384,8 @@ export const DocumentsScreen: React.FC = () => {
   // Render Card Documento
   const renderDocumentCard = ({ item }: { item: Document }) => {
     const { icon: FileIcon, color } = getFileIcon(item.file_type);
-    const isLoading = actionLoading?.startsWith(item._id);
+    const itemId = item.id || item._id;
+    const isLoading = actionLoading?.startsWith(itemId);
 
     return (
       <View style={styles.documentCard}>
@@ -413,11 +417,11 @@ export const DocumentsScreen: React.FC = () => {
         
         <View style={styles.documentActions}>
           <TouchableOpacity
-            style={[styles.actionButton, actionLoading === item._id + '-preview' && styles.actionButtonLoading]}
+            style={[styles.actionButton, actionLoading === itemId + '-preview' && styles.actionButtonLoading]}
             onPress={() => handlePreview(item)}
             disabled={isLoading}
           >
-            {actionLoading === item._id + '-preview' ? (
+            {actionLoading === itemId + '-preview' ? (
               <ActivityIndicator size="small" color={COLORS.primary} />
             ) : (
               <Eye size={18} color={COLORS.primary} />
@@ -425,11 +429,11 @@ export const DocumentsScreen: React.FC = () => {
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.actionButton, actionLoading === item._id + '-download' && styles.actionButtonLoading]}
+            style={[styles.actionButton, actionLoading === itemId + '-download' && styles.actionButtonLoading]}
             onPress={() => handleDownload(item)}
             disabled={isLoading}
           >
-            {actionLoading === item._id + '-download' ? (
+            {actionLoading === itemId + '-download' ? (
               <ActivityIndicator size="small" color={COLORS.success} />
             ) : (
               <Download size={18} color={COLORS.success} />
@@ -437,11 +441,11 @@ export const DocumentsScreen: React.FC = () => {
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.actionButton, actionLoading === item._id + '-share' && styles.actionButtonLoading]}
+            style={[styles.actionButton, actionLoading === itemId + '-share' && styles.actionButtonLoading]}
             onPress={() => handleShare(item)}
             disabled={isLoading}
           >
-            {actionLoading === item._id + '-share' ? (
+            {actionLoading === itemId + '-share' ? (
               <ActivityIndicator size="small" color={COLORS.warning} />
             ) : (
               <Share2 size={18} color={COLORS.warning} />
@@ -532,7 +536,7 @@ export const DocumentsScreen: React.FC = () => {
           <FlatList
             data={filteredDocs}
             renderItem={renderDocumentCard}
-            keyExtractor={(item) => item._id || item.id || Math.random().toString()}
+            keyExtractor={(item) => item.id || item._id || Math.random().toString()}
             contentContainerStyle={styles.documentsList}
             showsVerticalScrollIndicator={false}
             scrollEnabled={false}
@@ -654,7 +658,7 @@ export const DocumentsScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
                 {documents.slice(0, 3).map(doc => (
-                  <View key={doc._id}>
+                  <View key={doc.id || doc._id}>
                     {renderDocumentCard({ item: doc })}
                   </View>
                 ))}
