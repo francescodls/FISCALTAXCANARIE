@@ -61,6 +61,7 @@ export const it = {
     newUpdates: 'Hai nuovi aggiornamenti da leggere',
     practiceUpdated: 'Pratica {type} aggiornata',
     newDocument: 'Nuovo documento: {name}',
+    seeAll: 'Vedi tutti',
   },
 
   // AI Assistant
@@ -317,6 +318,10 @@ export const it = {
     termsOfService: 'Termini di servizio',
     lastUpdated: 'Ultimo aggiornamento',
     openSettings: 'Apri impostazioni',
+    appearance: 'Aspetto',
+    themeLight: 'Chiaro',
+    themeDark: 'Scuro',
+    themeAuto: 'Auto',
   },
 
   // Login

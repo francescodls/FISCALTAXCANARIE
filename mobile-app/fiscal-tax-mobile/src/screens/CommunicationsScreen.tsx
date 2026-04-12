@@ -33,6 +33,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
+import { CardSkeleton } from '../components/UIStates';
 
 interface Ticket {
   _id: string;
@@ -389,8 +390,11 @@ export const CommunicationsScreen: React.FC = () => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{t.tickets.title}</Text>
+        </View>
+        <View style={{ padding: 24 }}>
+          <CardSkeleton count={5} />
         </View>
       </SafeAreaView>
     );

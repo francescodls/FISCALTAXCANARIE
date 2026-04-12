@@ -63,6 +63,7 @@ export const en: TranslationKeys = {
     newUpdates: 'You have new updates to read',
     practiceUpdated: '{type} practice updated',
     newDocument: 'New document: {name}',
+    seeAll: 'See all',
   },
 
   // AI Assistant
@@ -318,6 +319,10 @@ export const en: TranslationKeys = {
     termsOfService: 'Terms of service',
     lastUpdated: 'Last updated',
     openSettings: 'Open settings',
+    appearance: 'Appearance',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeAuto: 'Auto',
   },
 
   // Login

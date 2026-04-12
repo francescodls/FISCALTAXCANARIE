@@ -36,9 +36,13 @@ import {
   Key,
   BellRing,
   AlertCircle,
+  Moon,
+  Sun,
+  Monitor,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { COLORS } from '../config/constants';
 import { Language } from '../i18n';
 
@@ -48,6 +52,7 @@ const PUSH_ENABLED_KEY = 'push_notifications_enabled';
 export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const { t, language, setLanguage, languages } = useLanguage();
+  const { mode, setMode, isDark } = useTheme();
   const navigation = useNavigation<any>();
   
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -378,6 +383,42 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Theme / Appearance */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t.profile.appearance || 'Aspetto'}</Text>
+          <View style={styles.sectionCard}>
+            <View style={styles.themeOptions}>
+              <TouchableOpacity
+                style={[styles.themeOption, mode === 'light' && styles.themeOptionActive]}
+                onPress={() => setMode('light')}
+              >
+                <Sun size={22} color={mode === 'light' ? COLORS.primary : COLORS.textSecondary} />
+                <Text style={[styles.themeLabel, mode === 'light' && styles.themeLabelActive]}>
+                  {t.profile.themeLight || 'Chiaro'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.themeOption, mode === 'dark' && styles.themeOptionActive]}
+                onPress={() => setMode('dark')}
+              >
+                <Moon size={22} color={mode === 'dark' ? COLORS.primary : COLORS.textSecondary} />
+                <Text style={[styles.themeLabel, mode === 'dark' && styles.themeLabelActive]}>
+                  {t.profile.themeDark || 'Scuro'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.themeOption, mode === 'system' && styles.themeOptionActive]}
+                onPress={() => setMode('system')}
+              >
+                <Monitor size={22} color={mode === 'system' ? COLORS.primary : COLORS.textSecondary} />
+                <Text style={[styles.themeLabel, mode === 'system' && styles.themeLabelActive]}>
+                  {t.profile.themeAuto || 'Auto'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         {/* Language */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t.profile.language}</Text>
@@ -487,6 +528,11 @@ const styles = StyleSheet.create({
   languageFlag: { fontSize: 22 },
   languageLabel: { flex: 1, fontSize: 15, fontWeight: '500', color: COLORS.textSecondary },
   languageLabelActive: { color: COLORS.primary, fontWeight: '600' },
+  themeOptions: { flexDirection: 'row', padding: 12, gap: 10 },
+  themeOption: { flex: 1, alignItems: 'center', paddingVertical: 14, paddingHorizontal: 8, borderRadius: 12, backgroundColor: '#f8f9fb', borderWidth: 2, borderColor: 'transparent', gap: 8 },
+  themeOptionActive: { backgroundColor: COLORS.primary + '12', borderColor: COLORS.primary + '40' },
+  themeLabel: { fontSize: 13, fontWeight: '500', color: COLORS.textSecondary },
+  themeLabelActive: { color: COLORS.primary, fontWeight: '600' },
   versionContainer: { alignItems: 'center', paddingVertical: 20 },
   versionText: { fontSize: 13, color: COLORS.textLight },
   copyrightText: { fontSize: 12, color: COLORS.textLight, marginTop: 4 },

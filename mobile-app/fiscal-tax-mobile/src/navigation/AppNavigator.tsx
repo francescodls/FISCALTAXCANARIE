@@ -141,6 +141,8 @@ const MainTabs = () => {
           tabBarIcon: ({ color, focused }) => (
             <Calendar size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
+          tabBarBadge: upcomingDeadlines > 0 ? upcomingDeadlines : undefined,
+          tabBarBadgeStyle: { backgroundColor: COLORS.warning, fontSize: 10 },
         }}
       />
       <Tab.Screen
@@ -161,6 +163,8 @@ const MainTabs = () => {
           tabBarIcon: ({ color, focused }) => (
             <MessageSquare size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
+          tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
+          tabBarBadgeStyle: { backgroundColor: COLORS.primary, fontSize: 10 },
         }}
       />
       <Tab.Screen
@@ -328,5 +332,22 @@ const styles = StyleSheet.create({
   },
   loadingSpinner: {
     marginTop: 8,
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

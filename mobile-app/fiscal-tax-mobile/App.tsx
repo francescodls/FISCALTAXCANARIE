@@ -9,6 +9,7 @@ import Constants from 'expo-constants';
 import { AuthProvider } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { NetworkProvider } from './src/context/NetworkContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { COLORS } from './src/config/constants';
 
@@ -56,12 +57,14 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <NetworkProvider>
-          <LanguageProvider>
-            <AuthProvider>
-              <StatusBar style="dark" backgroundColor={COLORS.background} />
-              <AppNavigator />
-            </AuthProvider>
-          </LanguageProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <StatusBar style="dark" backgroundColor={COLORS.background} />
+                <AppNavigator />
+              </AuthProvider>
+            </LanguageProvider>
+          </ThemeProvider>
         </NetworkProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -41,6 +41,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { API_URL, COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { DocumentSkeleton } from '../components/UIStates';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -556,7 +557,13 @@ export const DocumentsScreen: React.FC = () => {
           <Text style={styles.headerTitle}>{t.documents.title}</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <View style={{ paddingHorizontal: SPACING.md, gap: SPACING.sm }}>
+            <DocumentSkeleton />
+            <DocumentSkeleton />
+            <DocumentSkeleton />
+            <DocumentSkeleton />
+            <DocumentSkeleton />
+          </View>
         </View>
       </SafeAreaView>
     );

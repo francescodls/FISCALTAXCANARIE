@@ -31,6 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+import { CardSkeleton, Skeleton } from '../components/UIStates';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DAY_WIDTH = (SCREEN_WIDTH - 48 - 6 * 4) / 7;
@@ -650,8 +651,23 @@ export const CalendarScreen: React.FC = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t.deadlines.title}</Text>
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+        <View style={{ padding: SPACING.md }}>
+          {/* Calendar skeleton */}
+          <View style={{ backgroundColor: '#fff', borderRadius: RADIUS.xl, padding: SPACING.md, marginBottom: SPACING.md }}>
+            <Skeleton width="50%" height={24} style={{ alignSelf: 'center', marginBottom: SPACING.md }} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginBottom: SPACING.sm }}>
+              {[1,2,3,4,5,6,7].map(i => <Skeleton key={i} width={30} height={14} />)}
+            </View>
+            <View style={{ gap: 8 }}>
+              {[1,2,3,4,5].map(row => (
+                <View key={row} style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                  {[1,2,3,4,5,6,7].map(d => <Skeleton key={d} width={30} height={30} borderRadius={8} />)}
+                </View>
+              ))}
+            </View>
+          </View>
+          {/* Deadline cards skeleton */}
+          <CardSkeleton count={4} />
         </View>
       </SafeAreaView>
     );
