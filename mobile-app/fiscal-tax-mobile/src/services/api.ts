@@ -201,6 +201,28 @@ class ApiService {
   async getTaxModels() {
     return this.request('/api/modelli-tributari');
   }
+
+  // Get communication threads (admin notifications with replies)
+  async getCommunicationThreads() {
+    return this.request('/api/communications/threads');
+  }
+
+  // Get single communication thread
+  async getCommunicationThread(threadId: string) {
+    return this.request(`/api/communications/threads/${threadId}`);
+  }
+
+  // Reply to communication thread
+  async replyToThread(threadId: string, content: string) {
+    const formData = new FormData();
+    formData.append('content', content);
+    
+    return this.request(`/api/communications/threads/${threadId}/reply`, {
+      method: 'POST',
+      body: formData,
+      headers: {}, // Let fetch set content-type for FormData
+    });
+  }
 }
 
 export const apiService = new ApiService();

@@ -56,6 +56,18 @@ interface Message {
   type?: string;
 }
 
+interface CommunicationThread {
+  id: string;
+  subject: string;
+  type: string;
+  status: string;
+  messages: any[];
+  created_at: string;
+  updated_at: string;
+  read_by_client: boolean;
+  created_by_name?: string;
+}
+
 const TICKET_CATEGORIES = [
   { id: 'contabilita', labelKey: 'accounting', icon: '📊' },
   { id: 'imposte', labelKey: 'taxes', icon: '💰' },
@@ -68,9 +80,10 @@ export const CommunicationsScreen: React.FC = () => {
   const { token } = useAuth();
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
-  const [activeTab, setActiveTab] = useState<'messages' | 'tickets'>('tickets');
+  const [activeTab, setActiveTab] = useState<'messages' | 'tickets'>('messages');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [threads, setThreads] = useState<CommunicationThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -90,18 +103,20 @@ export const CommunicationsScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [ticketsData, notificationsData] = await Promise.all([
+      const [ticketsData, notificationsData, threadsData] = await Promise.all([
         apiService.getTickets().catch(() => []),
         apiService.getNotifications().catch(() => []),
+        apiService.getCommunicationThreads().catch(() => []),
       ]);
       
       setTickets(ticketsData);
+      setThreads(threadsData || []);
       
       // Convert notifications to messages format
       const msgs = notificationsData.map((n: any) => ({
         _id: n._id || n.id,
-        title: n.title,
-        content: n.message,
+        title: n.subject || n.title,
+        content: n.body || n.message,
         read: n.read,
         created_at: n.created_at,
         type: n.type,
@@ -270,6 +285,78 @@ export const CommunicationsScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  // Render thread item (admin communications with replies)
+  const renderThread = ({ item }: { item: CommunicationThread }) => {
+    const lastMessage = item.messages[item.messages.length - 1];
+    const isUnread = !item.read_by_client;
+    
+    return (
+      <TouchableOpacity
+        style={[styles.threadCard, isUnread && styles.threadCardUnread]}
+        onPress={() => navigation.navigate('ThreadDetail', { threadId: item.id })}
+        activeOpacity={0.7}
+      >
+        <View style={[styles.threadIconContainer, isUnread && styles.threadIconUnread]}>
+          <MessageSquare size={20} color={isUnread ? '#fff' : COLORS.textSecondary} />
+        </View>
+        <View style={styles.threadContent}>
+          <View style={styles.threadHeaderRow}>
+            <Text style={[styles.threadSubject, isUnread && styles.threadSubjectUnread]} numberOfLines={1}>
+              {item.subject}
+            </Text>
+            {isUnread && <View style={styles.newBadge}><Text style={styles.newBadgeText}>Nuovo</Text></View>}
+          </View>
+          <Text style={styles.threadFrom}>Da: Fiscal Tax Canarie</Text>
+          <Text style={styles.threadPreview} numberOfLines={2}>
+            {lastMessage?.content || ''}
+          </Text>
+          <View style={styles.threadFooter}>
+            <Text style={styles.threadDate}>{formatDate(item.updated_at || item.created_at)}</Text>
+            <View style={styles.replyHint}>
+              <Text style={styles.replyHintText}>Tocca per rispondere</Text>
+              <ChevronRight size={14} color={COLORS.primary} />
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  // Combined data for messages tab
+  const getCombinedMessagesData = () => {
+    const combined: any[] = [];
+    
+    // Add threads first (admin communications)
+    threads.forEach(thread => {
+      combined.push({
+        ...thread,
+        _itemType: 'thread',
+        _sortDate: thread.updated_at || thread.created_at,
+      });
+    });
+    
+    // Add regular notifications
+    messages.forEach(msg => {
+      combined.push({
+        ...msg,
+        _itemType: 'message',
+        _sortDate: msg.created_at,
+      });
+    });
+    
+    // Sort by date descending
+    combined.sort((a, b) => new Date(b._sortDate).getTime() - new Date(a._sortDate).getTime());
+    
+    return combined;
+  };
+
+  const renderCombinedItem = ({ item }: { item: any }) => {
+    if (item._itemType === 'thread') {
+      return renderThread({ item });
+    }
+    return renderMessage({ item });
+  };
+
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <View style={styles.emptyIcon}>
@@ -327,6 +414,22 @@ export const CommunicationsScreen: React.FC = () => {
       {/* Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity
+          style={[styles.tab, activeTab === 'messages' && styles.tabActive]}
+          onPress={() => setActiveTab('messages')}
+        >
+          <Mail size={18} color={activeTab === 'messages' ? COLORS.primary : COLORS.textSecondary} />
+          <Text style={[styles.tabText, activeTab === 'messages' && styles.tabTextActive]}>
+            {t.tickets.messages}
+          </Text>
+          {(threads.filter(th => !th.read_by_client).length + messages.filter(m => !m.read).length) > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>
+                {threads.filter(th => !th.read_by_client).length + messages.filter(m => !m.read).length}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'tickets' && styles.tabActive]}
           onPress={() => setActiveTab('tickets')}
         >
@@ -342,28 +445,12 @@ export const CommunicationsScreen: React.FC = () => {
             </View>
           )}
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'messages' && styles.tabActive]}
-          onPress={() => setActiveTab('messages')}
-        >
-          <Mail size={18} color={activeTab === 'messages' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'messages' && styles.tabTextActive]}>
-            {t.tickets.messages}
-          </Text>
-          {messages.filter(m => !m.read).length > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>
-                {messages.filter(m => !m.read).length}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
       </View>
 
       {/* Content */}
       <FlatList
-        data={activeTab === 'tickets' ? tickets : messages as any[]}
-        renderItem={activeTab === 'tickets' ? renderTicket as any : renderMessage as any}
+        data={activeTab === 'tickets' ? tickets : getCombinedMessagesData()}
+        renderItem={activeTab === 'tickets' ? renderTicket as any : renderCombinedItem}
         keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -800,5 +887,90 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  // Thread styles
+  threadCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  threadCardUnread: {
+    borderColor: COLORS.primary,
+    borderLeftWidth: 4,
+  },
+  threadIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  threadIconUnread: {
+    backgroundColor: COLORS.primary,
+  },
+  threadContent: {
+    flex: 1,
+  },
+  threadHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
+  },
+  threadSubject: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  threadSubjectUnread: {
+    fontWeight: '700',
+  },
+  newBadge: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#ffffff',
+    textTransform: 'uppercase',
+  },
+  threadFrom: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+  },
+  threadPreview: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  threadFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  threadDate: {
+    fontSize: 11,
+    color: COLORS.textLight,
+  },
+  replyHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  replyHintText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '500',
   },
 });

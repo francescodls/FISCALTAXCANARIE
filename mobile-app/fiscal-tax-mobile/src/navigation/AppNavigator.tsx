@@ -29,6 +29,7 @@ import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
 import { DeadlineDetailScreen } from '../screens/DeadlineDetailScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { TicketDetailScreen } from '../screens/TicketDetailScreen';
+import { ThreadDetailScreen } from '../screens/ThreadDetailScreen';
 // Profile Sub-screens
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
 import { ManageDevicesScreen } from '../screens/ManageDevicesScreen';
@@ -184,8 +185,12 @@ export const AppNavigator = () => {
           break;
           
         case 'notification':
-          // Naviga al centro notifiche
-          nav.navigate('Notifiche');
+          // Naviga al centro notifiche o al thread se presente
+          if (data.thread_id) {
+            nav.navigate('ThreadDetail', { threadId: data.thread_id });
+          } else {
+            nav.navigate('Notifiche');
+          }
           break;
           
         default:
@@ -222,6 +227,7 @@ export const AppNavigator = () => {
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />
             <Stack.Screen name="Ricerca" component={SearchScreen} />
             <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
+            <Stack.Screen name="ThreadDetail" component={ThreadDetailScreen} />
             {/* Profile Sub-screens */}
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
             <Stack.Screen name="ManageDevices" component={ManageDevicesScreen} />

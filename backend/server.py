@@ -6413,7 +6413,7 @@ async def send_client_notification(
     send_email: bool = Form(False),
     user: dict = Depends(require_commercialista_or_consulente)
 ):
-    """Invia una notifica personalizzata a un cliente"""
+    """Invia una notifica personalizzata a un cliente - crea un thread di comunicazione"""
     client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
     if not client:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
@@ -6427,12 +6427,73 @@ async def send_client_notification(
     email_sent = False
     email_recipients = []
     
+    now = datetime.now(timezone.utc).isoformat()
+    thread_id = str(uuid.uuid4())
+    message_id = str(uuid.uuid4())
+    
+    # Crea il thread di comunicazione (come un ticket interno)
+    communication_thread = {
+        "id": thread_id,
+        "client_id": client_id,
+        "subject": title,
+        "type": "admin_notification",  # Distingue dalle notifiche automatiche
+        "status": "open",
+        "created_by": user["id"],
+        "created_by_name": user.get("full_name", "Amministrazione"),
+        "created_at": now,
+        "updated_at": now,
+        "messages": [{
+            "id": message_id,
+            "content": message,
+            "sender_id": user["id"],
+            "sender_name": user.get("full_name", "Fiscal Tax Canarie"),
+            "sender_role": "admin",
+            "created_at": now,
+        }],
+        "read_by_client": False,
+        "client_name": client.get("full_name", client.get("email", "Cliente")),
+    }
+    
+    # Salva il thread di comunicazione
+    await db.communication_threads.insert_one(communication_thread)
+    
+    # Salva anche nella collezione client_notifications per retrocompatibilità
+    notification_record = {
+        "id": str(uuid.uuid4()),
+        "notification_id": thread_id,  # Link al thread
+        "client_id": client_id,
+        "subject": title,
+        "body": message,
+        "type": "admin_message",
+        "data": {
+            "thread_id": thread_id,
+            "can_reply": True,
+        },
+        "read": False,
+        "created_at": now,
+    }
+    await db.client_notifications.insert_one(notification_record)
+    
+    # Invia push notification
+    try:
+        await send_custom_notification(
+            db,
+            client_id,
+            title,
+            message[:200] if len(message) > 200 else message,
+            thread_id
+        )
+        logger.info(f"Push notification sent to client {client_id}")
+    except Exception as e:
+        logger.error(f"Failed to send push notification: {e}")
+    
+    # Invia email se richiesto
     if send_email and client.get("email"):
         try:
             await send_generic_email(
                 client["email"],
                 f"[Fiscal Tax] {title}",
-                f"<h2>{title}</h2><p>{message}</p>"
+                f"<h2>{title}</h2><p>{message}</p><p style='color:#666;font-size:12px;margin-top:20px;'>Puoi rispondere a questo messaggio direttamente dall'app Fiscal Tax Canarie.</p>"
             )
             email_sent = True
             email_recipients = [client["email"]]
@@ -6450,7 +6511,137 @@ async def send_client_notification(
         email_recipients=email_recipients
     )
     
-    return {"success": True, "email_sent": email_sent}
+    return {
+        "success": True, 
+        "email_sent": email_sent,
+        "thread_id": thread_id,
+        "push_sent": True
+    }
+
+# Endpoint per ottenere i thread di comunicazione del cliente
+@api_router.get("/communications/threads")
+async def get_client_communication_threads(user: dict = Depends(get_current_user)):
+    """Ottieni tutti i thread di comunicazione per il cliente corrente"""
+    threads = await db.communication_threads.find(
+        {"client_id": user["id"]},
+        {"_id": 0}
+    ).sort("updated_at", -1).to_list(100)
+    
+    return threads
+
+# Endpoint per ottenere un singolo thread
+@api_router.get("/communications/threads/{thread_id}")
+async def get_communication_thread(thread_id: str, user: dict = Depends(get_current_user)):
+    """Ottieni un thread di comunicazione specifico"""
+    thread = await db.communication_threads.find_one(
+        {"id": thread_id},
+        {"_id": 0}
+    )
+    
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread non trovato")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and thread["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    # Marca come letto dal cliente
+    if user["role"] == "cliente" and not thread.get("read_by_client"):
+        await db.communication_threads.update_one(
+            {"id": thread_id},
+            {"$set": {"read_by_client": True}}
+        )
+        thread["read_by_client"] = True
+        
+        # Aggiorna anche client_notifications
+        await db.client_notifications.update_one(
+            {"notification_id": thread_id},
+            {"$set": {"read": True}}
+        )
+    
+    return thread
+
+# Endpoint per rispondere a un thread
+@api_router.post("/communications/threads/{thread_id}/reply")
+async def reply_to_communication_thread(
+    thread_id: str,
+    content: str = Form(...),
+    user: dict = Depends(get_current_user)
+):
+    """Aggiungi una risposta a un thread di comunicazione"""
+    thread = await db.communication_threads.find_one(
+        {"id": thread_id},
+        {"_id": 0}
+    )
+    
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread non trovato")
+    
+    # Verifica accesso
+    if user["role"] == "cliente" and thread["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    new_message = {
+        "id": str(uuid.uuid4()),
+        "content": content,
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", "Utente"),
+        "sender_role": user["role"],
+        "created_at": now,
+    }
+    
+    # Aggiorna thread
+    await db.communication_threads.update_one(
+        {"id": thread_id},
+        {
+            "$push": {"messages": new_message},
+            "$set": {
+                "updated_at": now,
+                "read_by_admin": user["role"] == "cliente",  # Se cliente risponde, non letto da admin
+                "read_by_client": user["role"] != "cliente",  # Se admin risponde, non letto da cliente
+            }
+        }
+    )
+    
+    # Se il cliente risponde, notifica all'admin
+    if user["role"] == "cliente":
+        await db.admin_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "client_reply",
+            "title": "Risposta cliente",
+            "message": f"{user.get('full_name', 'Cliente')} ha risposto alla comunicazione: {thread['subject']}",
+            "thread_id": thread_id,
+            "client_id": thread["client_id"],
+            "read": False,
+            "created_at": now
+        })
+    else:
+        # Se admin risponde, push al cliente
+        try:
+            await send_message_notification(
+                db,
+                thread["client_id"],
+                user.get("full_name", "Fiscal Tax Canarie"),
+                content[:100]
+            )
+        except Exception as e:
+            logger.error(f"Failed to send push for reply: {e}")
+        
+        # Aggiorna client_notifications
+        await db.client_notifications.update_one(
+            {"notification_id": thread_id},
+            {"$set": {"read": False}}  # Marca come non letto per nuova risposta
+        )
+    
+    # Recupera thread aggiornato
+    updated_thread = await db.communication_threads.find_one(
+        {"id": thread_id},
+        {"_id": 0}
+    )
+    
+    return updated_thread
 
 # Include router and middleware
 # Include modular routes (new refactored routes)
