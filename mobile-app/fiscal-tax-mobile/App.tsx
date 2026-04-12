@@ -1,8 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { AuthProvider } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -20,37 +23,35 @@ Notifications.setNotificationHandler({
 });
 
 export default function App() {
+  const notificationListener = useRef<Notifications.EventSubscription>();
+  const responseListener = useRef<Notifications.EventSubscription>();
+
   useEffect(() => {
-    // Richiedi permessi per le notifiche
-    registerForPushNotificationsAsync();
+    // Listener per notifiche in foreground
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log('[Push] Notification received in foreground:', notification);
+    });
+
+    // Listener per tap su notifiche
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('[Push] Notification tapped:', response);
+      // Deep linking sarà gestito in AppNavigator
+      const data = response.notification.request.content.data;
+      if (data) {
+        console.log('[Push] Notification data:', data);
+        // Il deep linking viene gestito tramite navigation
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
   }, []);
-
-  const registerForPushNotificationsAsync = async () => {
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Push notification permission not granted');
-        return;
-      }
-
-      // Ottieni il token push
-      const token = await Notifications.getExpoPushTokenAsync({
-        projectId: 'YOUR_EAS_PROJECT_ID', // Sostituire con il vero project ID
-      });
-      
-      console.log('Push token:', token.data);
-      // TODO: Inviare il token al backend
-    } catch (error) {
-      console.error('Error getting push token:', error);
-    }
-  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -64,4 +65,60 @@ export default function App() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+// Funzione per registrare push token - da chiamare dopo il login
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  let token: string | null = null;
+
+  try {
+    // Verifica che sia un dispositivo fisico
+    if (!Device.isDevice) {
+      console.log('[Push] Must use physical device for Push Notifications');
+      return null;
+    }
+
+    // Verifica permessi esistenti
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    // Richiedi permessi se non ancora concessi
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('[Push] Permission not granted');
+      return null;
+    }
+
+    // Ottieni project ID da app.json
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? 
+                      Constants.easConfig?.projectId ??
+                      'd6421bc3-ee75-4de5-8b2b-6b22646aad31';
+
+    // Ottieni token
+    const pushTokenData = await Notifications.getExpoPushTokenAsync({
+      projectId,
+    });
+    
+    token = pushTokenData.data;
+    console.log('[Push] Token obtained:', token);
+
+    // Configura canale per Android
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#0d9488',
+      });
+    }
+
+  } catch (error) {
+    console.error('[Push] Error registering for push notifications:', error);
+  }
+
+  return token;
 }

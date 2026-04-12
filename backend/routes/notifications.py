@@ -559,6 +559,13 @@ async def process_notification_send(
     
     html_content = generate_notification_html(subject, body, styles)
     
+    # Import push service
+    try:
+        from push_service import send_custom_notification
+    except ImportError:
+        send_custom_notification = None
+        logger.warning("Push service not available")
+    
     for recipient in recipients:
         try:
             # Notifica in-app
@@ -569,10 +576,25 @@ async def process_notification_send(
                     "client_id": recipient["id"],
                     "subject": subject,
                     "body": body,
+                    "type": "notification",
+                    "data": {"notification_id": notification_id},
                     "read": False,
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
                 await db.client_notifications.insert_one(inapp_notification)
+                
+                # Push notification
+                if send_custom_notification:
+                    try:
+                        await send_custom_notification(
+                            db,
+                            recipient["id"],
+                            subject,
+                            body[:200] if len(body) > 200 else body,  # Limite lunghezza push
+                            notification_id
+                        )
+                    except Exception as push_error:
+                        logger.warning(f"Push notification failed for {recipient['id']}: {push_error}")
             
             # Email
             if send_email and recipient.get("email"):

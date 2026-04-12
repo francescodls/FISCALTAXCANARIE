@@ -174,6 +174,33 @@ async def add_ticket_message(ticket_id: str, message_data: TicketMessageCreate, 
             "read": False,
             "created_at": now
         })
+    else:
+        # Admin risponde - Notifica push al cliente
+        try:
+            from push_service import send_ticket_reply_notification
+            await send_ticket_reply_notification(
+                db,
+                ticket["client_id"],
+                ticket_id,
+                ticket["subject"]
+            )
+        except Exception as e:
+            # Log error but don't fail the request
+            import logging
+            logging.error(f"Failed to send push notification: {e}")
+        
+        # Salva anche notifica in-app per il cliente
+        await db.client_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "notification_id": str(uuid.uuid4()),
+            "client_id": ticket["client_id"],
+            "subject": "Risposta al tuo ticket",
+            "body": f"Il tuo ticket '{ticket['subject']}' ha ricevuto una nuova risposta",
+            "type": "ticket",
+            "data": {"ticket_id": ticket_id},
+            "read": False,
+            "created_at": now
+        })
     
     # Recupera ticket aggiornato
     updated_ticket = await db.tickets.find_one({"id": ticket_id}, {"_id": 0})

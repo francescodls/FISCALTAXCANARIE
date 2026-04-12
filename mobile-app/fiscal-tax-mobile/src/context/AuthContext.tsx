@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { API_URL } from '../config/constants';
+import { registerForPushNotificationsAsync } from '../../App';
 
 interface User {
   id: string;
@@ -37,6 +39,53 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Helper per registrare push token sul backend
+const registerPushTokenOnBackend = async (authToken: string) => {
+  try {
+    const pushToken = await registerForPushNotificationsAsync();
+    
+    if (pushToken) {
+      console.log('[Auth] Registering push token on backend...');
+      const response = await fetch(`${API_URL}/api/push-tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          push_token: pushToken,
+          platform: Platform.OS,
+          device_name: `${Platform.OS} device`,
+        }),
+      });
+      
+      if (response.ok) {
+        console.log('[Auth] Push token registered successfully');
+      } else {
+        const error = await response.text();
+        console.warn('[Auth] Failed to register push token:', error);
+      }
+    }
+  } catch (error) {
+    console.error('[Auth] Error registering push token:', error);
+  }
+};
+
+// Helper per rimuovere push token dal backend (logout)
+const unregisterPushTokenOnBackend = async (authToken: string) => {
+  try {
+    await fetch(`${API_URL}/api/push-tokens`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    });
+    console.log('[Auth] Push token unregistered');
+  } catch (error) {
+    console.error('[Auth] Error unregistering push token:', error);
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -63,6 +112,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (!response.ok) {
           // Token non valido, logout
           await logout();
+        } else {
+          // Token valido, registra push token
+          registerPushTokenOnBackend(storedToken);
         }
       }
     } catch (error) {
@@ -102,6 +154,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(accessToken);
       setUser(userData);
 
+      // Registra push token sul backend
+      registerPushTokenOnBackend(accessToken);
+
       return { success: true };
     } catch (error) {
       console.error('Login error:', error);
@@ -111,6 +166,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
+      // Rimuovi push token dal backend prima di eliminare il token locale
+      if (token) {
+        await unregisterPushTokenOnBackend(token);
+      }
+      
       await SecureStore.deleteItemAsync('auth_token');
       await SecureStore.deleteItemAsync('user_data');
       setToken(null);

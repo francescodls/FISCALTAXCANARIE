@@ -1,5 +1,5 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect, useRef } from 'react';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
@@ -9,6 +9,7 @@ import {
   MessageSquare,
   User,
 } from 'lucide-react-native';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { COLORS } from '../config/constants';
@@ -129,13 +130,81 @@ const LoadingScreen = () => (
 
 export const AppNavigator = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const navigationRef = useRef<NavigationContainerRef<any>>(null);
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
+
+  // Gestione deep link da notifiche push
+  useEffect(() => {
+    if (lastNotificationResponse && isAuthenticated && navigationRef.current) {
+      const data = lastNotificationResponse.notification.request.content.data;
+      
+      if (data) {
+        console.log('[Navigation] Handling push notification deep link:', data);
+        
+        // Delay per assicurarsi che la navigazione sia pronta
+        setTimeout(() => {
+          handleNotificationNavigation(data);
+        }, 500);
+      }
+    }
+  }, [lastNotificationResponse, isAuthenticated]);
+
+  const handleNotificationNavigation = (data: any) => {
+    const nav = navigationRef.current;
+    if (!nav) return;
+
+    try {
+      switch (data.type) {
+        case 'document':
+          // Naviga alla sezione documenti
+          nav.navigate('Main', { screen: 'DocumentiTab' });
+          break;
+          
+        case 'deadline':
+          // Naviga al dettaglio scadenza o calendario
+          if (data.deadline_id) {
+            nav.navigate('DeadlineDetail', { id: data.deadline_id });
+          } else {
+            nav.navigate('Main', { screen: 'CalendarTab' });
+          }
+          break;
+          
+        case 'message':
+          // Naviga alla sezione comunicazioni
+          nav.navigate('Main', { screen: 'ComunicazioniTab' });
+          break;
+          
+        case 'ticket':
+          // Naviga al dettaglio ticket
+          if (data.ticket_id) {
+            nav.navigate('TicketDetail', { ticketId: data.ticket_id });
+          } else {
+            nav.navigate('Main', { screen: 'ComunicazioniTab' });
+          }
+          break;
+          
+        case 'notification':
+          // Naviga al centro notifiche
+          nav.navigate('Notifiche');
+          break;
+          
+        default:
+          // Default: vai alla home
+          nav.navigate('Main', { screen: 'HomeTab' });
+      }
+      
+      console.log('[Navigation] Navigated to:', data.type || 'home');
+    } catch (error) {
+      console.error('[Navigation] Error handling notification navigation:', error);
+    }
+  };
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator 
         screenOptions={{ 
           headerShown: false,

@@ -9,7 +9,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
@@ -2221,6 +2221,30 @@ async def upload_document_to_client(
     
     await db.documents.insert_one(document)
     
+    # Invia notifica push al cliente
+    try:
+        await send_document_notification(
+            db,
+            client_id,
+            doc_title,
+            doc_id
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send document push notification: {e}")
+    
+    # Salva notifica in-app per il cliente
+    await db.client_notifications.insert_one({
+        "id": str(uuid.uuid4()),
+        "notification_id": str(uuid.uuid4()),
+        "client_id": client_id,
+        "subject": "Nuovo documento disponibile",
+        "body": f"È stato caricato un nuovo documento: {doc_title}",
+        "type": "document",
+        "data": {"document_id": doc_id},
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
     # Log attività
     await log_activity(
         "documento_caricato_diretto",
@@ -3366,11 +3390,14 @@ async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = 
     
     await log_activity("creazione_scadenza", f"Scadenza {deadline_data.title} creata", user["id"])
     
-    # Invia notifica email ai clienti assegnati (se richiesto)
+    # Determina i clienti a cui inviare notifica
+    clients = await get_clients_for_deadline(deadline_data.client_ids, deadline_data.list_ids)
+    
+    # Invia notifica email e push ai clienti assegnati (se richiesto)
     if deadline_data.send_notification:
-        clients = await get_clients_for_deadline(deadline_data.client_ids, deadline_data.list_ids)
         for client_data in clients:
             try:
+                # Email
                 if client_data.get("email"):
                     await notify_deadline_reminder(
                         client_email=client_data["email"],
@@ -3380,8 +3407,31 @@ async def create_deadline(deadline_data: DeadlineCreateWithNotify, user: dict = 
                         deadline_description=deadline_data.description
                     )
                     logger.info(f"Email notifica scadenza inviata a {client_data['email']}")
+                
+                # Push notification
+                await send_deadline_notification(
+                    db,
+                    client_data["id"],
+                    deadline_data.title,
+                    deadline_id,
+                    deadline_data.due_date
+                )
+                
+                # Notifica in-app
+                await db.client_notifications.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "notification_id": str(uuid.uuid4()),
+                    "client_id": client_data["id"],
+                    "subject": "Nuova scadenza fiscale",
+                    "body": f"Hai una nuova scadenza: {deadline_data.title} - {deadline_data.due_date}",
+                    "type": "deadline",
+                    "data": {"deadline_id": deadline_id},
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                
             except Exception as e:
-                logger.error(f"Errore invio email notifica scadenza: {e}")
+                logger.error(f"Errore invio notifica scadenza: {e}")
     
     return DeadlineResponse(**deadline)
 
@@ -6429,6 +6479,142 @@ async def download_desktop_app(filename: str):
         filename=filename,
         media_type="application/zip"
     )
+
+# ==================== PUSH NOTIFICATIONS ====================
+
+from push_service import (
+    ExpoPushService,
+    send_document_notification,
+    send_deadline_notification,
+    send_message_notification,
+    send_ticket_reply_notification,
+    send_custom_notification,
+    get_client_push_tokens
+)
+
+class PushTokenRegister(BaseModel):
+    push_token: str
+    platform: str = "ios"  # ios, android
+    device_name: Optional[str] = None
+
+@api_router.post("/push-tokens")
+async def register_push_token(data: PushTokenRegister, user: dict = Depends(get_current_user)):
+    """Registra o aggiorna push token per l'utente corrente"""
+    
+    if not data.push_token or not data.push_token.startswith("ExponentPushToken["):
+        raise HTTPException(status_code=400, detail="Token non valido. Deve essere un Expo push token.")
+    
+    # Verifica se token già esiste
+    existing = await db.push_tokens.find_one({"token": data.push_token})
+    
+    if existing:
+        # Aggiorna il token esistente (potrebbe essere passato a un altro utente)
+        await db.push_tokens.update_one(
+            {"token": data.push_token},
+            {"$set": {
+                "client_id": user["id"],
+                "platform": data.platform,
+                "device_name": data.device_name,
+                "active": True,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+    else:
+        # Crea nuovo token
+        await db.push_tokens.insert_one({
+            "id": str(uuid.uuid4()),
+            "token": data.push_token,
+            "client_id": user["id"],
+            "platform": data.platform,
+            "device_name": data.device_name,
+            "active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    # Aggiorna anche il campo nell'utente per comodità
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"push_token": data.push_token, "push_notifications_enabled": True}}
+    )
+    
+    return {"success": True, "message": "Push token registrato"}
+
+@api_router.delete("/push-tokens")
+async def unregister_push_token(user: dict = Depends(get_current_user)):
+    """Rimuove push token dell'utente (logout)"""
+    
+    # Disattiva tutti i token dell'utente
+    await db.push_tokens.update_many(
+        {"client_id": user["id"]},
+        {"$set": {"active": False, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"success": True, "message": "Push token rimosso"}
+
+@api_router.put("/push-tokens/preferences")
+async def update_push_preferences(enabled: bool, user: dict = Depends(get_current_user)):
+    """Abilita/disabilita notifiche push per l'utente"""
+    
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"push_notifications_enabled": enabled}}
+    )
+    
+    if not enabled:
+        # Disattiva anche i token
+        await db.push_tokens.update_many(
+            {"client_id": user["id"]},
+            {"$set": {"active": False}}
+        )
+    else:
+        # Riattiva i token
+        await db.push_tokens.update_many(
+            {"client_id": user["id"]},
+            {"$set": {"active": True}}
+        )
+    
+    return {"success": True, "push_notifications_enabled": enabled}
+
+@api_router.get("/push-tokens/status")
+async def get_push_status(user: dict = Depends(get_current_user)):
+    """Ottieni stato push notifications per utente"""
+    
+    user_data = await db.users.find_one({"id": user["id"]}, {"_id": 0, "push_notifications_enabled": 1})
+    tokens_count = await db.push_tokens.count_documents({"client_id": user["id"], "active": True})
+    
+    return {
+        "enabled": user_data.get("push_notifications_enabled", True),
+        "registered_devices": tokens_count
+    }
+
+# Endpoint admin per inviare push manuale
+@api_router.post("/admin/send-push")
+async def admin_send_push(
+    client_ids: List[str],
+    title: str,
+    body: str,
+    data: Optional[Dict] = None,
+    user: dict = Depends(require_commercialista)
+):
+    """Invia push notification a clienti specifici (admin)"""
+    
+    all_tokens = []
+    for client_id in client_ids:
+        tokens = await get_client_push_tokens(db, client_id)
+        all_tokens.extend(tokens)
+    
+    if not all_tokens:
+        return {"success": False, "message": "Nessun dispositivo registrato per i clienti selezionati", "sent": 0}
+    
+    result = await ExpoPushService.send_push_notification(
+        push_tokens=all_tokens,
+        title=title,
+        body=body,
+        data=data
+    )
+    
+    return result
 
 app.include_router(api_router)
 
