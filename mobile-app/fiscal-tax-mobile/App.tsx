@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { AuthProvider } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
+import { NetworkProvider } from './src/context/NetworkContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { COLORS } from './src/config/constants';
 
@@ -35,11 +36,9 @@ export default function App() {
     // Listener per tap su notifiche
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
       console.log('[Push] Notification tapped:', response);
-      // Deep linking sarà gestito in AppNavigator
       const data = response.notification.request.content.data;
       if (data) {
         console.log('[Push] Notification data:', data);
-        // Il deep linking viene gestito tramite navigation
       }
     });
 
@@ -56,12 +55,14 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <LanguageProvider>
-          <AuthProvider>
-            <StatusBar style="dark" backgroundColor={COLORS.background} />
-            <AppNavigator />
-          </AuthProvider>
-        </LanguageProvider>
+        <NetworkProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <StatusBar style="dark" backgroundColor={COLORS.background} />
+              <AppNavigator />
+            </AuthProvider>
+          </LanguageProvider>
+        </NetworkProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

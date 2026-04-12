@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { COLORS, SHADOWS } from '../config/constants';
 import { View, ActivityIndicator, StyleSheet, Image, Text } from 'react-native';
+import { apiService } from '../services/api';
 
 // Screens
 import { LoginScreen } from '../screens/LoginScreen';
@@ -41,8 +42,62 @@ import { TermsConditionsScreen } from '../screens/TermsConditionsScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Badge component for tab icons
+const TabBadge: React.FC<{ count: number }> = ({ count }) => {
+  if (count <= 0) return null;
+  
+  return (
+    <View style={styles.badge}>
+      <Text style={styles.badgeText}>{count > 99 ? '99+' : count}</Text>
+    </View>
+  );
+};
+
 const MainTabs = () => {
   const { t } = useLanguage();
+  const { token } = useAuth();
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState(0);
+
+  // Fetch badge counts
+  const fetchBadgeCounts = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      const [notifications, threads, deadlines] = await Promise.all([
+        apiService.getNotifications().catch(() => []),
+        apiService.getCommunicationThreads().catch(() => []),
+        apiService.getDeadlines().catch(() => []),
+      ]);
+      
+      // Count unread messages
+      const unreadNotifs = notifications.filter((n: any) => !n.read).length;
+      const unreadThreads = threads.filter((t: any) => !t.read_by_client).length;
+      setUnreadMessages(unreadNotifs + unreadThreads);
+      
+      // Count upcoming deadlines (next 7 days)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      
+      const upcoming = deadlines.filter((d: any) => {
+        const deadlineDate = new Date(d.date || d.due_date);
+        return deadlineDate >= today && deadlineDate <= nextWeek && d.status !== 'completed';
+      }).length;
+      setUpcomingDeadlines(upcoming);
+      
+    } catch (error) {
+      console.error('[NavBadge] Error fetching counts:', error);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchBadgeCounts();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchBadgeCounts, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBadgeCounts]);
 
   return (
     <Tab.Navigator

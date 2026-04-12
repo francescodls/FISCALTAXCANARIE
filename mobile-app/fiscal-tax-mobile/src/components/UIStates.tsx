@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
-import { AlertCircle, RefreshCw, WifiOff, Clock } from 'lucide-react-native';
+import { AlertCircle, RefreshCw, WifiOff, Clock, Inbox } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
 
 interface ErrorStateProps {
@@ -29,7 +31,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       case 'timeout':
         return <Clock size={48} color={COLORS.warning} />;
       case 'empty':
-        return null;
+        return <Inbox size={48} color={COLORS.textLight} />;
       default:
         return <AlertCircle size={48} color={COLORS.error} />;
     }
@@ -55,7 +57,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       <Text style={styles.title}>{getTitle()}</Text>
       <Text style={styles.message}>{message}</Text>
       {onRetry && (
-        <TouchableOpacity style={styles.retryButton} onPress={onRetry}>
+        <TouchableOpacity style={styles.retryButton} onPress={onRetry} activeOpacity={0.8}>
           <RefreshCw size={18} color="#fff" />
           <Text style={styles.retryText}>Riprova</Text>
         </TouchableOpacity>
@@ -95,18 +97,18 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   onAction,
 }) => (
   <View style={styles.container}>
-    {icon}
+    {icon || <Inbox size={48} color={COLORS.textLight} />}
     <Text style={styles.title}>{title}</Text>
     <Text style={styles.message}>{message}</Text>
     {actionLabel && onAction && (
-      <TouchableOpacity style={styles.actionButton} onPress={onAction}>
+      <TouchableOpacity style={styles.actionButton} onPress={onAction} activeOpacity={0.8}>
         <Text style={styles.actionText}>{actionLabel}</Text>
       </TouchableOpacity>
     )}
   </View>
 );
 
-// Skeleton loading placeholder
+// Animated Skeleton component
 interface SkeletonProps {
   width?: number | string;
   height?: number;
@@ -119,24 +121,96 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   height = 20,
   borderRadius = 8,
   style,
-}) => (
-  <View
-    style={[
-      styles.skeleton,
-      { width, height, borderRadius },
-      style,
-    ]}
-  />
-);
+}) => {
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const shimmer = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnim, {
+          toValue: 0,
+          duration: 1000,
+          easing: Easing.ease,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    shimmer.start();
+    return () => shimmer.stop();
+  }, []);
+
+  const opacity = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.7],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.skeleton,
+        { width, height, borderRadius, opacity },
+        style,
+      ]}
+    />
+  );
+};
 
 // Card skeleton for lists
-export const CardSkeleton: React.FC = () => (
-  <View style={styles.cardSkeleton}>
-    <Skeleton width={50} height={50} borderRadius={12} />
-    <View style={styles.cardSkeletonContent}>
-      <Skeleton width="70%" height={16} />
-      <Skeleton width="50%" height={12} style={{ marginTop: 8 }} />
+export const CardSkeleton: React.FC<{ count?: number }> = ({ count = 1 }) => (
+  <>
+    {Array.from({ length: count }).map((_, i) => (
+      <View key={i} style={styles.cardSkeleton}>
+        <Skeleton width={50} height={50} borderRadius={12} />
+        <View style={styles.cardSkeletonContent}>
+          <Skeleton width="70%" height={16} />
+          <Skeleton width="50%" height={12} style={{ marginTop: 8 }} />
+        </View>
+      </View>
+    ))}
+  </>
+);
+
+// Dashboard stat skeleton
+export const StatSkeleton: React.FC = () => (
+  <View style={styles.statSkeleton}>
+    <Skeleton width={60} height={32} borderRadius={8} />
+    <Skeleton width={80} height={14} style={{ marginTop: 6 }} />
+  </View>
+);
+
+// Full page skeleton (for documents, deadlines, etc)
+export const PageSkeleton: React.FC<{ hasHeader?: boolean }> = ({ hasHeader = true }) => (
+  <View style={styles.pageSkeleton}>
+    {hasHeader && (
+      <View style={styles.pageSkeletonHeader}>
+        <Skeleton width={150} height={24} borderRadius={8} />
+        <Skeleton width={80} height={32} borderRadius={16} />
+      </View>
+    )}
+    <View style={styles.pageSkeletonStats}>
+      <StatSkeleton />
+      <StatSkeleton />
+      <StatSkeleton />
     </View>
+    <CardSkeleton count={4} />
+  </View>
+);
+
+// Document list skeleton
+export const DocumentSkeleton: React.FC = () => (
+  <View style={styles.documentSkeleton}>
+    <Skeleton width={44} height={44} borderRadius={12} />
+    <View style={styles.documentSkeletonContent}>
+      <Skeleton width="80%" height={16} />
+      <Skeleton width="40%" height={12} style={{ marginTop: 6 }} />
+    </View>
+    <Skeleton width={60} height={28} borderRadius={14} />
   </View>
 );
 
@@ -169,13 +243,14 @@ const styles = StyleSheet.create({
     marginTop: SPACING.sm,
     textAlign: 'center',
     lineHeight: 20,
+    maxWidth: 280,
   },
   retryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.sm + 2,
     borderRadius: RADIUS.full,
     marginTop: SPACING.lg,
     gap: 8,
@@ -192,7 +267,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.sm + 2,
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.primary,
     marginTop: SPACING.lg,
@@ -214,6 +289,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardSkeletonContent: {
+    flex: 1,
+    marginLeft: SPACING.md,
+  },
+  statSkeleton: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  pageSkeleton: {
+    padding: SPACING.md,
+  },
+  pageSkeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  pageSkeletonStats: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  documentSkeleton: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    alignItems: 'center',
+  },
+  documentSkeletonContent: {
     flex: 1,
     marginLeft: SPACING.md,
   },

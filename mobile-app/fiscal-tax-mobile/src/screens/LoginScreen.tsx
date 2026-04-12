@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,18 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
+  Alert,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, Fingerprint, ScanFace } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Button } from '../components/Button';
 import { TextInput } from '../components/TextInput';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { biometricService, BiometricConfig } from '../services/biometric';
 
 export const LoginScreen: React.FC = () => {
   const { login } = useAuth();
@@ -26,7 +29,67 @@ export const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
   const [error, setError] = useState('');
+  const [biometricConfig, setBiometricConfig] = useState<BiometricConfig | null>(null);
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  
+  // Animation for biometric button
+  const biometricScale = useState(new Animated.Value(1))[0];
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    const config = await biometricService.checkAvailability();
+    setBiometricConfig(config);
+    
+    // Auto-trigger biometric if enabled and has credentials
+    if (config.isAvailable && config.isEnabled) {
+      const hasCredentials = await biometricService.hasStoredCredentials();
+      if (hasCredentials) {
+        setShowBiometricPrompt(true);
+        // Small delay for UX
+        setTimeout(() => handleBiometricLogin(), 500);
+      }
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    if (!biometricConfig?.isAvailable) return;
+    
+    setBiometricLoading(true);
+    setError('');
+    
+    // Animate button press
+    Animated.sequence([
+      Animated.timing(biometricScale, { toValue: 0.95, duration: 100, useNativeDriver: true }),
+      Animated.timing(biometricScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+
+    const biometricName = biometricService.getBiometricName(biometricConfig.biometricType);
+    const result = await biometricService.authenticateAndGetCredentials(
+      `Accedi con ${biometricName}`
+    );
+
+    if (result.success && result.credentials) {
+      // Login with stored credentials
+      const loginResult = await login(result.credentials.email, result.credentials.password);
+      
+      if (!loginResult.success) {
+        setError(loginResult.error || 'Errore di autenticazione. Prova con email e password.');
+        // If credentials are invalid, disable biometric
+        await biometricService.disable();
+        setBiometricConfig(prev => prev ? { ...prev, isEnabled: false } : null);
+      }
+    } else if (result.error && result.error !== 'Autenticazione annullata') {
+      setError(result.error);
+    }
+
+    setBiometricLoading(false);
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -39,11 +102,44 @@ export const LoginScreen: React.FC = () => {
 
     const result = await login(email.trim(), password);
 
-    if (!result.success) {
+    if (result.success) {
+      // After successful login, offer to enable biometric
+      if (biometricConfig?.isAvailable && !biometricConfig.isEnabled) {
+        const biometricName = biometricService.getBiometricName(biometricConfig.biometricType);
+        Alert.alert(
+          `Attiva ${biometricName}`,
+          `Vuoi attivare l'accesso rapido con ${biometricName} per i prossimi login?`,
+          [
+            { text: 'Non ora', style: 'cancel' },
+            {
+              text: 'Attiva',
+              onPress: async () => {
+                await biometricService.enable(email.trim(), password);
+              },
+            },
+          ]
+        );
+      }
+    } else {
       setError(result.error || t.login.loginError);
     }
 
     setLoading(false);
+  };
+
+  const getBiometricIcon = () => {
+    if (!biometricConfig) return null;
+    
+    const iconSize = 28;
+    const iconColor = COLORS.primary;
+    
+    switch (biometricConfig.biometricType) {
+      case 'facial':
+        return <ScanFace size={iconSize} color={iconColor} />;
+      case 'fingerprint':
+      default:
+        return <Fingerprint size={iconSize} color={iconColor} />;
+    }
   };
 
   return (
@@ -73,6 +169,28 @@ export const LoginScreen: React.FC = () => {
             </View>
             <Text style={styles.subtitle}>{t.login.subtitle}</Text>
           </View>
+
+          {/* Biometric Quick Login */}
+          {biometricConfig?.isAvailable && biometricConfig.isEnabled && (
+            <Animated.View style={[styles.biometricContainer, { transform: [{ scale: biometricScale }] }]}>
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                disabled={biometricLoading}
+                activeOpacity={0.8}
+              >
+                {getBiometricIcon()}
+                <Text style={styles.biometricText}>
+                  {biometricLoading ? 'Verifica in corso...' : `Accedi con ${biometricService.getBiometricName(biometricConfig.biometricType)}`}
+                </Text>
+              </TouchableOpacity>
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>oppure</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </Animated.View>
+          )}
 
           {/* Form */}
           <View style={styles.form}>
@@ -174,7 +292,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: SPACING.xl + SPACING.md,
+    marginBottom: SPACING.xl,
   },
   logoContainer: {
     marginBottom: SPACING.md,
@@ -187,6 +305,42 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: COLORS.textSecondary,
     fontWeight: '500',
+  },
+  biometricContainer: {
+    marginBottom: SPACING.lg,
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary + '10',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    gap: 12,
+  },
+  biometricText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: COLORS.border,
+  },
+  dividerText: {
+    paddingHorizontal: SPACING.md,
+    color: COLORS.textSecondary,
+    fontSize: 13,
   },
   form: {
     marginBottom: SPACING.xl,
