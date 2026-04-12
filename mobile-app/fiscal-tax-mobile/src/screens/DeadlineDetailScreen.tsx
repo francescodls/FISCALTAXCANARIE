@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Linking,
+  Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -19,8 +23,16 @@ import {
   Info,
   Bell,
   FileText,
+  Mail,
+  Phone,
+  X,
 } from 'lucide-react-native';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
+
+// Contatti studio
+const STUDIO_EMAIL = 'info@fiscaltaxcanary.com';
+const STUDIO_PHONE = '+34658071848'; // Formato per tel:
+const STUDIO_PHONE_DISPLAY = '+34 658 071 848'; // Formato per visualizzazione
 
 interface DeadlineParams {
   id: string;
@@ -37,6 +49,7 @@ export const DeadlineDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const params = route.params as DeadlineParams;
+  const [showContactSheet, setShowContactSheet] = useState(false);
 
   const handleGoBack = () => {
     if (navigation.canGoBack()) {
@@ -179,6 +192,95 @@ export const DeadlineDetailScreen: React.FC = () => {
 
   const urgency = getUrgencyMessage();
 
+  // Formatta data per email
+  const formatDateForEmail = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('it-IT', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Gestione contatto studio
+  const handleContactStudio = () => {
+    setShowContactSheet(true);
+  };
+
+  // Invia email
+  const handleSendEmail = async () => {
+    setShowContactSheet(false);
+    
+    const subject = encodeURIComponent(`Richiesta assistenza su scadenza: ${params.title}`);
+    const body = encodeURIComponent(
+      `Gentile Studio Fiscal Tax Canarie,\n\n` +
+      `Vi contatto in merito alla seguente scadenza:\n\n` +
+      `📋 Scadenza: ${params.title}\n` +
+      `📅 Data: ${formatDateForEmail(params.due_date)}\n` +
+      `📁 Categoria: ${getCategoryLabel(params.category)}\n` +
+      `⚡ Stato: ${getStatusConfig(params.status).text}\n\n` +
+      `Descrizione: ${params.description || 'N/A'}\n\n` +
+      `---\n` +
+      `Richiesta:\n\n\n\n` +
+      `Cordiali saluti`
+    );
+    
+    const mailtoUrl = `mailto:${STUDIO_EMAIL}?subject=${subject}&body=${body}`;
+    
+    try {
+      const canOpen = await Linking.canOpenURL(mailtoUrl);
+      if (canOpen) {
+        await Linking.openURL(mailtoUrl);
+        console.log('[DeadlineDetail] Email client opened successfully');
+      } else {
+        Alert.alert(
+          'Email non disponibile',
+          `Non è possibile aprire il client email. Puoi scrivere manualmente a:\n\n${STUDIO_EMAIL}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('[DeadlineDetail] Error opening email:', error);
+      Alert.alert(
+        'Errore',
+        `Impossibile aprire il client email. Contatta lo studio a:\n\n${STUDIO_EMAIL}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Avvia chiamata
+  const handleCall = async () => {
+    setShowContactSheet(false);
+    
+    const phoneUrl = `tel:${STUDIO_PHONE}`;
+    
+    try {
+      const canOpen = await Linking.canOpenURL(phoneUrl);
+      if (canOpen) {
+        await Linking.openURL(phoneUrl);
+        console.log('[DeadlineDetail] Phone dialer opened successfully');
+      } else {
+        Alert.alert(
+          'Chiamata non disponibile',
+          `Non è possibile avviare la chiamata. Puoi chiamare manualmente:\n\n${STUDIO_PHONE_DISPLAY}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('[DeadlineDetail] Error opening phone:', error);
+      Alert.alert(
+        'Errore',
+        `Impossibile avviare la chiamata. Contatta lo studio al:\n\n${STUDIO_PHONE_DISPLAY}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -309,12 +411,78 @@ export const DeadlineDetailScreen: React.FC = () => {
           </Text>
           <TouchableOpacity
             style={styles.helpButton}
-            onPress={() => navigation.navigate('Comunicazioni')}
+            onPress={handleContactStudio}
+            activeOpacity={0.8}
           >
+            <Phone size={18} color="#ffffff" style={{ marginRight: 8 }} />
             <Text style={styles.helpButtonText}>Contatta lo studio</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Contact Action Sheet Modal */}
+      <Modal
+        visible={showContactSheet}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowContactSheet(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowContactSheet(false)}
+        >
+          <View style={styles.actionSheet}>
+            {/* Header */}
+            <View style={styles.actionSheetHeader}>
+              <View style={styles.actionSheetHandle} />
+              <Text style={styles.actionSheetTitle}>Contatta lo studio</Text>
+              <Text style={styles.actionSheetSubtitle}>
+                Scegli come vuoi contattarci
+              </Text>
+            </View>
+
+            {/* Email Option */}
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={handleSendEmail}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionSheetIcon, { backgroundColor: COLORS.info + '15' }]}>
+                <Mail size={24} color={COLORS.info} />
+              </View>
+              <View style={styles.actionSheetOptionInfo}>
+                <Text style={styles.actionSheetOptionTitle}>Invia email</Text>
+                <Text style={styles.actionSheetOptionSubtitle}>{STUDIO_EMAIL}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Phone Option */}
+            <TouchableOpacity
+              style={styles.actionSheetOption}
+              onPress={handleCall}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.actionSheetIcon, { backgroundColor: COLORS.success + '15' }]}>
+                <Phone size={24} color={COLORS.success} />
+              </View>
+              <View style={styles.actionSheetOptionInfo}>
+                <Text style={styles.actionSheetOptionTitle}>Chiama ora</Text>
+                <Text style={styles.actionSheetOptionSubtitle}>{STUDIO_PHONE_DISPLAY}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={styles.actionSheetCancel}
+              onPress={() => setShowContactSheet(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.actionSheetCancelText}>Annulla</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -535,10 +703,89 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.full,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   helpButtonText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  // Modal / Action Sheet Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  actionSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: RADIUS.xl,
+    borderTopRightRadius: RADIUS.xl,
+    paddingBottom: Platform.OS === 'ios' ? 34 : SPACING.lg,
+  },
+  actionSheetHeader: {
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    marginBottom: SPACING.md,
+  },
+  actionSheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+  },
+  actionSheetSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  actionSheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  actionSheetIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  actionSheetOptionInfo: {
+    flex: 1,
+  },
+  actionSheetOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  actionSheetOptionSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  actionSheetCancel: {
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    backgroundColor: COLORS.background,
+    borderRadius: RADIUS.lg,
+  },
+  actionSheetCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
   },
 });
