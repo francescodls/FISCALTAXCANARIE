@@ -241,13 +241,16 @@ export const ProfileScreen: React.FC = () => {
     return t.profile.clientTypes.individual;
   };
 
+  // Colori dinamici dal tema
+  const { colors } = useTheme();
+
   const SettingItem = ({
     icon: Icon,
     title,
     subtitle,
     onPress,
     rightElement,
-    color = COLORS.text,
+    color = colors.text,
     showArrow = true,
   }: {
     icon: any;
@@ -259,7 +262,7 @@ export const ProfileScreen: React.FC = () => {
     showArrow?: boolean;
   }) => (
     <TouchableOpacity
-      style={styles.settingItem}
+      style={[styles.settingItem, { borderBottomColor: colors.border }]}
       onPress={onPress}
       disabled={!onPress && !rightElement}
       activeOpacity={onPress ? 0.7 : 1}
@@ -269,44 +272,44 @@ export const ProfileScreen: React.FC = () => {
       </View>
       <View style={styles.settingContent}>
         <Text style={[styles.settingTitle, { color }]}>{title}</Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        {subtitle && <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
       </View>
-      {rightElement || (onPress && showArrow && <ChevronRight size={20} color={COLORS.textLight} />)}
+      {rightElement || (onPress && showArrow && <ChevronRight size={20} color={colors.textLight} />)}
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t.profile.title}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t.profile.title}</Text>
         </View>
 
         {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
+        <View style={[styles.profileCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
             <Text style={styles.avatarText}>
               {getProfileName().charAt(0).toUpperCase()}
             </Text>
           </View>
-          <Text style={styles.profileName}>{getProfileName()}</Text>
-          <Text style={styles.profileEmail}>{user?.email}</Text>
-          <View style={styles.profileBadge}>
-            <Text style={styles.profileBadgeText}>{getClientType()}</Text>
+          <Text style={[styles.profileName, { color: colors.text }]}>{getProfileName()}</Text>
+          <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
+          <View style={[styles.profileBadge, { backgroundColor: colors.primary + '15' }]}>
+            <Text style={[styles.profileBadgeText, { color: colors.primary }]}>{getClientType()}</Text>
           </View>
         </View>
 
         {/* Account Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.personalInfo}</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t.profile.personalInfo}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <SettingItem icon={Mail} title={t.profile.email} subtitle={user?.email} showArrow={false} />
             {user?.phone && (
               <SettingItem icon={Phone} title={t.profile.phone} subtitle={user.phone} showArrow={false} />
@@ -320,8 +323,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Security */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.security}</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t.profile.security}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             {biometricAvailable ? (
               <SettingItem
                 icon={Fingerprint}
@@ -331,8 +334,8 @@ export const ProfileScreen: React.FC = () => {
                   <Switch
                     value={biometricEnabled}
                     onValueChange={handleBiometricToggle}
-                    trackColor={{ false: '#e2e8f0', true: COLORS.primary + '50' }}
-                    thumbColor={biometricEnabled ? COLORS.primary : '#f4f4f5'}
+                    trackColor={{ false: colors.border, true: colors.primary + '50' }}
+                    thumbColor={biometricEnabled ? colors.primary : '#f4f4f5'}
                   />
                 }
               />
@@ -341,7 +344,7 @@ export const ProfileScreen: React.FC = () => {
                 icon={Fingerprint}
                 title={t.profile.biometric}
                 subtitle={t.profile.biometricNotAvailable}
-                color={COLORS.textLight}
+                color={colors.textLight}
                 showArrow={false}
               />
             )}
@@ -360,8 +363,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Notifications */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.notifications}</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t.profile.notifications}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <SettingItem
               icon={BellRing}
               title={t.profile.pushNotifications}
@@ -370,8 +373,8 @@ export const ProfileScreen: React.FC = () => {
                 <Switch
                   value={pushEnabled && pushPermission !== 'denied'}
                   onValueChange={handlePushToggle}
-                  trackColor={{ false: '#e2e8f0', true: COLORS.primary + '50' }}
-                  thumbColor={pushEnabled && pushPermission !== 'denied' ? COLORS.primary : '#f4f4f5'}
+                  trackColor={{ false: colors.border, true: colors.primary + '50' }}
+                  thumbColor={pushEnabled && pushPermission !== 'denied' ? colors.primary : '#f4f4f5'}
                 />
               }
             />
@@ -385,33 +388,33 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Theme / Appearance */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.appearance || 'Aspetto'}</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t.profile.appearance || 'Aspetto'}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.themeOptions}>
               <TouchableOpacity
-                style={[styles.themeOption, mode === 'light' && styles.themeOptionActive]}
+                style={[styles.themeOption, { backgroundColor: colors.surfaceAlt }, mode === 'light' && { backgroundColor: colors.primary + '12', borderColor: colors.primary + '40' }]}
                 onPress={() => setMode('light')}
               >
-                <Sun size={22} color={mode === 'light' ? COLORS.primary : COLORS.textSecondary} />
-                <Text style={[styles.themeLabel, mode === 'light' && styles.themeLabelActive]}>
+                <Sun size={22} color={mode === 'light' ? colors.primary : colors.textSecondary} />
+                <Text style={[styles.themeLabel, { color: colors.textSecondary }, mode === 'light' && { color: colors.primary }]}>
                   {t.profile.themeLight || 'Chiaro'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.themeOption, mode === 'dark' && styles.themeOptionActive]}
+                style={[styles.themeOption, { backgroundColor: colors.surfaceAlt }, mode === 'dark' && { backgroundColor: colors.primary + '12', borderColor: colors.primary + '40' }]}
                 onPress={() => setMode('dark')}
               >
-                <Moon size={22} color={mode === 'dark' ? COLORS.primary : COLORS.textSecondary} />
-                <Text style={[styles.themeLabel, mode === 'dark' && styles.themeLabelActive]}>
+                <Moon size={22} color={mode === 'dark' ? colors.primary : colors.textSecondary} />
+                <Text style={[styles.themeLabel, { color: colors.textSecondary }, mode === 'dark' && { color: colors.primary }]}>
                   {t.profile.themeDark || 'Scuro'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.themeOption, mode === 'system' && styles.themeOptionActive]}
+                style={[styles.themeOption, { backgroundColor: colors.surfaceAlt }, mode === 'system' && { backgroundColor: colors.primary + '12', borderColor: colors.primary + '40' }]}
                 onPress={() => setMode('system')}
               >
-                <Monitor size={22} color={mode === 'system' ? COLORS.primary : COLORS.textSecondary} />
-                <Text style={[styles.themeLabel, mode === 'system' && styles.themeLabelActive]}>
+                <Monitor size={22} color={mode === 'system' ? colors.primary : colors.textSecondary} />
+                <Text style={[styles.themeLabel, { color: colors.textSecondary }, mode === 'system' && { color: colors.primary }]}>
                   {t.profile.themeAuto || 'Auto'}
                 </Text>
               </TouchableOpacity>
@@ -421,27 +424,29 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Language */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.language}</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t.profile.language}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.languageOptions}>
               {languages.map((lang) => (
                 <TouchableOpacity
                   key={lang.code}
                   style={[
                     styles.languageOption,
-                    language === lang.code && styles.languageOptionActive,
+                    { backgroundColor: colors.surfaceAlt },
+                    language === lang.code && { backgroundColor: colors.primary + '12', borderColor: colors.primary + '40' },
                   ]}
                   onPress={() => handleLanguageChange(lang.code)}
                 >
                   <Text style={styles.languageFlag}>{lang.flag}</Text>
                   <Text style={[
                     styles.languageLabel,
-                    language === lang.code && styles.languageLabelActive,
+                    { color: colors.textSecondary },
+                    language === lang.code && { color: colors.primary },
                   ]}>
                     {lang.name}
                   </Text>
                   {language === lang.code && (
-                    <Check size={16} color={COLORS.primary} />
+                    <Check size={16} color={colors.primary} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -451,8 +456,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Support */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t.profile.help}</Text>
-          <View style={styles.sectionCard}>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{t.profile.help}</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <SettingItem
               icon={HelpCircle}
               title={t.profile.helpCenter}
@@ -473,17 +478,17 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Logout & Disconnect */}
         <View style={styles.section}>
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <SettingItem
               icon={AlertCircle}
               title={t.profile.disconnectAll}
-              color={COLORS.warning}
+              color={colors.warning}
               onPress={handleDisconnectAll}
             />
             <SettingItem
               icon={LogOut}
               title={t.profile.logout}
-              color={COLORS.error}
+              color={colors.error}
               onPress={handleLogout}
             />
           </View>
@@ -491,8 +496,8 @@ export const ProfileScreen: React.FC = () => {
 
         {/* Version */}
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>Fiscal Tax Canarie v1.0.0</Text>
-          <Text style={styles.copyrightText}>© 2026 Fiscal Tax Canarie S.L.</Text>
+          <Text style={[styles.versionText, { color: colors.textLight }]}>Fiscal Tax Canarie v1.0.0</Text>
+          <Text style={[styles.copyrightText, { color: colors.textLight }]}>© 2026 Fiscal Tax Canarie S.L.</Text>
         </View>
 
         <View style={{ height: 100 }} />

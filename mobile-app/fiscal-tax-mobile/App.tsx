@@ -2,16 +2,15 @@ import React, { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { AuthProvider } from './src/context/AuthContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { NetworkProvider } from './src/context/NetworkContext';
-import { ThemeProvider } from './src/context/ThemeContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import { COLORS } from './src/config/constants';
 
 // Configura le notifiche
 Notifications.setNotificationHandler({
@@ -23,6 +22,18 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
+
+// Componente interno che usa il tema
+const ThemedApp: React.FC = () => {
+  const { isDark, colors } = useTheme();
+  
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.background} />
+      <AppNavigator />
+    </View>
+  );
+};
 
 export default function App() {
   const notificationListener = useRef<Notifications.EventSubscription>();
@@ -60,8 +71,7 @@ export default function App() {
           <ThemeProvider>
             <LanguageProvider>
               <AuthProvider>
-                <StatusBar style="dark" backgroundColor={COLORS.background} />
-                <AppNavigator />
+                <ThemedApp />
               </AuthProvider>
             </LanguageProvider>
           </ThemeProvider>

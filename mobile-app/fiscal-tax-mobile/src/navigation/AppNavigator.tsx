@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
@@ -12,7 +12,8 @@ import {
 import * as Notifications from 'expo-notifications';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { COLORS, SHADOWS } from '../config/constants';
+import { useTheme } from '../context/ThemeContext';
+import { SHADOWS } from '../config/constants';
 import { View, ActivityIndicator, StyleSheet, Image, Text } from 'react-native';
 import { apiService } from '../services/api';
 
@@ -56,6 +57,7 @@ const TabBadge: React.FC<{ count: number }> = ({ count }) => {
 const MainTabs = () => {
   const { t } = useLanguage();
   const { token } = useAuth();
+  const { colors, isDark } = useTheme();
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [upcomingDeadlines, setUpcomingDeadlines] = useState(0);
 
@@ -103,10 +105,10 @@ const MainTabs = () => {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textLight,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textLight,
         tabBarStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: colors.surface,
           borderTopWidth: 0,
           paddingTop: 10,
           paddingBottom: 28,
@@ -142,7 +144,7 @@ const MainTabs = () => {
             <Calendar size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
           tabBarBadge: upcomingDeadlines > 0 ? upcomingDeadlines : undefined,
-          tabBarBadgeStyle: { backgroundColor: COLORS.warning, fontSize: 10 },
+          tabBarBadgeStyle: { backgroundColor: colors.warning, fontSize: 10 },
         }}
       />
       <Tab.Screen
@@ -164,7 +166,7 @@ const MainTabs = () => {
             <MessageSquare size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
           tabBarBadge: unreadMessages > 0 ? unreadMessages : undefined,
-          tabBarBadgeStyle: { backgroundColor: COLORS.primary, fontSize: 10 },
+          tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 10 },
         }}
       />
       <Tab.Screen
@@ -181,22 +183,51 @@ const MainTabs = () => {
   );
 };
 
-const LoadingScreen = () => (
-  <View style={styles.loadingContainer}>
-    <Image
-      source={require('../../assets/logo.png')}
-      style={styles.loadingLogo}
-      resizeMode="contain"
-    />
-    <Text style={styles.loadingBrand}>Fiscal Tax Canarie</Text>
-    <ActivityIndicator size="large" color={COLORS.primary} style={styles.loadingSpinner} />
-  </View>
-);
+const LoadingScreen = () => {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+      <Image
+        source={require('../../assets/logo.png')}
+        style={styles.loadingLogo}
+        resizeMode="contain"
+      />
+      <Text style={[styles.loadingBrand, { color: colors.text }]}>Fiscal Tax Canarie</Text>
+      <ActivityIndicator size="large" color={colors.primary} style={styles.loadingSpinner} />
+    </View>
+  );
+};
 
 export const AppNavigator = () => {
   const { isAuthenticated, isLoading } = useAuth();
+  const { colors, isDark } = useTheme();
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
+
+  // Tema dinamico per NavigationContainer
+  const navTheme = isDark ? {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.notification,
+    },
+  } : {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.text,
+      border: colors.border,
+      notification: colors.notification,
+    },
+  };
 
   // Gestione deep link da notifiche push
   useEffect(() => {
@@ -273,11 +304,11 @@ export const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
       <Stack.Navigator 
         screenOptions={{ 
           headerShown: false,
-          contentStyle: { backgroundColor: '#f8f9fb' },
+          contentStyle: { backgroundColor: colors.background },
           animation: 'slide_from_right',
         }}
       >
@@ -327,7 +358,7 @@ const styles = StyleSheet.create({
   loadingBrand: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.text,
+    color: '#0f172a',
     marginBottom: 24,
   },
   loadingSpinner: {
@@ -337,7 +368,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -4,
     right: -8,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#0d9488',
     borderRadius: 10,
     minWidth: 18,
     height: 18,
