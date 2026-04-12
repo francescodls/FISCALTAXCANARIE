@@ -1,59 +1,169 @@
 import { API_URL } from '../config/constants';
 
+// Constants
+const REQUEST_TIMEOUT = 15000; // 15 seconds
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 1000;
+
+interface ApiError extends Error {
+  status?: number;
+  isNetworkError?: boolean;
+  isTimeout?: boolean;
+}
+
 class ApiService {
   private token: string | null = null;
+  private requestCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cacheTimeout = 30000; // 30 seconds
 
   setToken(token: string | null) {
     this.token = token;
+    if (!token) {
+      this.requestCache.clear(); // Clear cache on logout
+    }
   }
 
+  // Utility: Create fetch with timeout
+  private async fetchWithTimeout(url: string, options: RequestInit, timeout: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  // Utility: Delay for retry
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Improved request with retry, timeout, and caching
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    useCache: boolean = false,
+    cacheKey?: string
   ): Promise<T> {
+    const fullCacheKey = cacheKey || endpoint;
+    
+    // Check cache for GET requests
+    if (useCache && (!options.method || options.method === 'GET')) {
+      const cached = this.requestCache.get(fullCacheKey);
+      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+        return cached.data;
+      }
+    }
+
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
       ...options.headers,
     };
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    let lastError: ApiError | null = null;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Errore sconosciuto' }));
-      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.fetchWithTimeout(
+          `${API_URL}${endpoint}`,
+          { ...options, headers },
+          REQUEST_TIMEOUT
+        );
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ detail: 'Errore sconosciuto' }));
+          const apiError: ApiError = new Error(error.detail || `Errore HTTP: ${response.status}`);
+          apiError.status = response.status;
+          
+          // Don't retry on client errors (4xx) except 408 (timeout) and 429 (rate limit)
+          if (response.status >= 400 && response.status < 500 && 
+              response.status !== 408 && response.status !== 429) {
+            throw apiError;
+          }
+          
+          lastError = apiError;
+          if (attempt < MAX_RETRIES) {
+            await this.delay(RETRY_DELAY * (attempt + 1));
+            continue;
+          }
+          throw apiError;
+        }
+
+        const data = await response.json();
+        
+        // Cache successful GET responses
+        if (useCache && (!options.method || options.method === 'GET')) {
+          this.requestCache.set(fullCacheKey, { data, timestamp: Date.now() });
+        }
+        
+        return data;
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          const timeoutError: ApiError = new Error('La richiesta ha impiegato troppo tempo. Riprova.');
+          timeoutError.isTimeout = true;
+          lastError = timeoutError;
+        } else if (error.message?.includes('Network') || error.message?.includes('fetch')) {
+          const networkError: ApiError = new Error('Errore di connessione. Verifica la tua connessione internet.');
+          networkError.isNetworkError = true;
+          lastError = networkError;
+        } else {
+          lastError = error;
+        }
+
+        if (attempt < MAX_RETRIES && (lastError.isTimeout || lastError.isNetworkError)) {
+          await this.delay(RETRY_DELAY * (attempt + 1));
+          continue;
+        }
+        
+        throw lastError;
+      }
     }
 
-    return response.json();
+    throw lastError || new Error('Errore sconosciuto');
+  }
+
+  // Clear specific cache entry
+  clearCache(endpoint?: string) {
+    if (endpoint) {
+      this.requestCache.delete(endpoint);
+    } else {
+      this.requestCache.clear();
+    }
   }
 
   // Dashboard
   async getDashboardStats() {
-    return this.request('/api/client/dashboard');
+    return this.request('/api/client/dashboard', {}, true); // cached
   }
 
   // Documenti
   async getDocuments() {
-    return this.request<any[]>('/api/documents');
+    return this.request<any[]>('/api/documents', {}, true); // cached
   }
 
   async getDocumentFolders() {
-    return this.request<any[]>('/api/folder-categories');
+    return this.request<any[]>('/api/folder-categories', {}, true); // cached
   }
 
   async downloadDocument(documentId: string) {
-    const response = await fetch(`${API_URL}/api/documents/${documentId}/download`, {
-      headers: { Authorization: `Bearer ${this.token}` },
-    });
+    const response = await this.fetchWithTimeout(
+      `${API_URL}/api/documents/${documentId}/download`,
+      { headers: { Authorization: `Bearer ${this.token}` } },
+      30000 // 30 seconds for downloads
+    );
     return response.blob();
   }
 
   // Dichiarazioni
   async getDeclarations() {
-    return this.request<any[]>('/api/declarations/tax-returns');
+    return this.request<any[]>('/api/declarations/tax-returns', {}, true); // cached
   }
 
   async getDeclarationDetails(id: string) {
@@ -69,20 +179,22 @@ class ApiService {
 
   // Notifiche
   async getNotifications() {
-    return this.request<any[]>('/api/notifications');
+    return this.request<any[]>('/api/notifications', {}, true); // cached
   }
 
   async markNotificationRead(id: string) {
+    this.clearCache('/api/notifications'); // Invalidate cache
     return this.request(`/api/notifications/${id}/read`, { method: 'PUT' });
   }
 
   async markAllNotificationsRead() {
+    this.clearCache('/api/notifications'); // Invalidate cache
     return this.request('/api/notifications/read-all', { method: 'PUT' });
   }
 
   // Ticket
   async getTickets() {
-    return this.request<any[]>('/api/tickets');
+    return this.request<any[]>('/api/tickets', {}, true); // cached
   }
 
   async getTicketDetails(ticketId: string) {
@@ -90,6 +202,7 @@ class ApiService {
   }
 
   async createTicket(data: { subject: string; message: string; category?: string; priority?: string }) {
+    this.clearCache('/api/tickets'); // Invalidate cache
     return this.request('/api/tickets', {
       method: 'POST',
       body: JSON.stringify({ 
@@ -104,6 +217,7 @@ class ApiService {
   }
 
   async sendTicketMessage(ticketId: string, message: string) {
+    this.clearCache('/api/tickets'); // Invalidate cache
     return this.request(`/api/tickets/${ticketId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ content: message }),
@@ -112,12 +226,12 @@ class ApiService {
 
   // Scadenze
   async getDeadlines() {
-    return this.request<any[]>('/api/deadlines');
+    return this.request<any[]>('/api/deadlines', {}, true); // cached
   }
 
   // Onorari/Fatture
   async getFees() {
-    return this.request<any[]>('/api/client/fees');
+    return this.request<any[]>('/api/client/fees', {}, true); // cached
   }
 
   // Privacy
@@ -199,12 +313,12 @@ class ApiService {
 
   // Get tax models
   async getTaxModels() {
-    return this.request('/api/modelli-tributari');
+    return this.request('/api/modelli-tributari', {}, true); // cached
   }
 
   // Get communication threads (admin notifications with replies)
   async getCommunicationThreads() {
-    return this.request('/api/communications/threads');
+    return this.request('/api/communications/threads', {}, true); // cached
   }
 
   // Get single communication thread
@@ -214,14 +328,22 @@ class ApiService {
 
   // Reply to communication thread
   async replyToThread(threadId: string, content: string) {
-    const formData = new FormData();
-    formData.append('content', content);
-    
+    this.clearCache('/api/communications/threads'); // Invalidate cache
     return this.request(`/api/communications/threads/${threadId}/reply`, {
       method: 'POST',
-      body: formData,
-      headers: {}, // Let fetch set content-type for FormData
+      body: JSON.stringify({ content }),
     });
+  }
+
+  // Force refresh all cached data
+  async refreshAll() {
+    this.clearCache();
+    await Promise.all([
+      this.getDocuments().catch(() => []),
+      this.getDeadlines().catch(() => []),
+      this.getNotifications().catch(() => []),
+      this.getTickets().catch(() => []),
+    ]);
   }
 }
 

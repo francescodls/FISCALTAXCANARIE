@@ -113,6 +113,8 @@ export const HomeScreen: React.FC = () => {
   const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<DashboardStats>({
     practicesInProgress: 0,
     practicesCompleted: 0,
@@ -277,6 +279,8 @@ export const HomeScreen: React.FC = () => {
   // Load data using current refs for dismissed/viewed state
   const loadData = useCallback(async () => {
     try {
+      setError(null);
+      
       // First ensure we have latest state from storage
       const state = await loadActivityState();
       dismissedRef.current = new Set(state.dismissed);
@@ -432,7 +436,8 @@ export const HomeScreen: React.FC = () => {
   useEffect(() => {
     if (token) {
       apiService.setToken(token);
-      loadData();
+      setLoading(true);
+      loadData().finally(() => setLoading(false));
     }
   }, [token, loadData]);
 
@@ -447,6 +452,7 @@ export const HomeScreen: React.FC = () => {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setError(null);
     await loadData();
     setRefreshing(false);
   }, [loadData]);

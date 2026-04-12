@@ -12,7 +12,7 @@ import {
 import * as Notifications from 'expo-notifications';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { COLORS } from '../config/constants';
+import { COLORS, SHADOWS } from '../config/constants';
 import { View, ActivityIndicator, StyleSheet, Image, Text } from 'react-native';
 
 // Screens
@@ -49,19 +49,14 @@ const MainTabs = () => {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarInactiveTintColor: COLORS.textLight,
         tabBarStyle: {
           backgroundColor: '#ffffff',
-          borderTopColor: '#e2e8f0',
-          borderTopWidth: 1,
-          paddingTop: 8,
-          paddingBottom: 8,
-          height: 70,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.05,
-          shadowRadius: 12,
-          elevation: 10,
+          borderTopWidth: 0,
+          paddingTop: 10,
+          paddingBottom: 28,
+          height: 82,
+          ...SHADOWS.lg,
         },
         tabBarLabelStyle: {
           fontSize: 11,
@@ -69,7 +64,7 @@ const MainTabs = () => {
           marginTop: 4,
         },
         tabBarIconStyle: {
-          marginBottom: -2,
+          marginBottom: 0,
         },
       }}
     >
@@ -78,7 +73,9 @@ const MainTabs = () => {
         component={HomeScreen}
         options={{
           tabBarLabel: t.nav.home,
-          tabBarIcon: ({ color }) => <Home size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Home size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
@@ -86,7 +83,9 @@ const MainTabs = () => {
         component={CalendarScreen}
         options={{
           tabBarLabel: t.nav.deadlines,
-          tabBarIcon: ({ color }) => <Calendar size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <Calendar size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
@@ -94,7 +93,9 @@ const MainTabs = () => {
         component={DocumentsScreen}
         options={{
           tabBarLabel: t.nav.documents,
-          tabBarIcon: ({ color }) => <FileText size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <FileText size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
@@ -102,7 +103,9 @@ const MainTabs = () => {
         component={CommunicationsScreen}
         options={{
           tabBarLabel: t.nav.messages,
-          tabBarIcon: ({ color }) => <MessageSquare size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <MessageSquare size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
       <Tab.Screen
@@ -110,7 +113,9 @@ const MainTabs = () => {
         component={ProfileScreen}
         options={{
           tabBarLabel: t.nav.profile,
-          tabBarIcon: ({ color }) => <User size={22} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <User size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
         }}
       />
     </Tab.Navigator>
