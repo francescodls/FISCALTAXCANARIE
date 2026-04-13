@@ -46,7 +46,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
   // Handler per errori sicuro
   const safeErrorToast = (message) => {
     try {
-      safeErrorToast(String(message || 'Errore sconosciuto'));
+      toast.error(String(message || 'Errore sconosciuto'));
     } catch (e) {
       console.error('Toast error:', message);
     }
@@ -249,6 +249,73 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       safeErrorToast('Errore durante il download ZIP');
     } finally {
       setDownloadingZip(false);
+    }
+  };
+
+  // Download PDF riepilogativo
+  const downloadSummaryPdf = async () => {
+    try {
+      toast.info('Generazione PDF in corso...');
+      const res = await fetch(
+        `${API_URL}/api/declarations/tax-returns/${declaration.id}/summary-pdf`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Errore generazione PDF');
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `riepilogo_${declaration.anno_fiscale}_${declaration.client_name?.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('PDF riepilogo scaricato');
+    } catch (error) {
+      console.error('Errore download PDF:', error);
+      safeErrorToast('Errore durante la generazione del PDF');
+    }
+  };
+
+  // Download tutti i documenti allegati
+  const downloadAllDocuments = async () => {
+    if (!declaration.documentos || declaration.documentos.length === 0) {
+      safeErrorToast('Nessun documento allegato da scaricare');
+      return;
+    }
+    
+    try {
+      toast.info('Preparazione ZIP in corso...');
+      const res = await fetch(
+        `${API_URL}/api/declarations/tax-returns/${declaration.id}/download-all`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || 'Errore download');
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tutti_documenti_${declaration.anno_fiscale}_${declaration.client_name?.replace(/\s+/g, '_')}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Tutti i documenti scaricati');
+    } catch (error) {
+      console.error('Errore download tutti documenti:', error);
+      safeErrorToast('Errore durante il download dei documenti');
     }
   };
 
@@ -785,6 +852,31 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
                   <Trash2 className="w-4 h-4 mr-1" />
                   Elimina
                 </Button>
+              )}
+              
+              {/* Pulsanti Download (solo admin) */}
+              {isAdmin && (
+                <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-200">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={downloadSummaryPdf}
+                    className="text-teal-600 border-teal-200 hover:bg-teal-50"
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    PDF Riepilogo
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={downloadAllDocuments}
+                    disabled={!declaration.documentos || declaration.documentos.length === 0}
+                    className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Scarica Allegati
+                  </Button>
+                </div>
               )}
             </div>
           </div>

@@ -830,6 +830,403 @@ async def download_authorization_pdf(tax_return_id: str, user: dict = Depends(re
     )
 
 
+@router.get("/tax-returns/{tax_return_id}/summary-pdf")
+async def download_summary_pdf(tax_return_id: str, user: dict = Depends(require_commercialista)):
+    """Genera e scarica il PDF riepilogativo della dichiarazione con tutti i dati compilati"""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Recupera dati cliente
+    client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
+    
+    # Crea PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=2*cm, rightMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=18, textColor=colors.HexColor('#0d9488'), spaceAfter=20, alignment=TA_CENTER)
+    section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#0d9488'), spaceBefore=20, spaceAfter=10)
+    subsection_style = ParagraphStyle('Subsection', parent=styles['Heading3'], fontSize=12, textColor=colors.HexColor('#334155'), spaceBefore=15, spaceAfter=8)
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'), spaceAfter=6)
+    label_style = ParagraphStyle('Label', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#64748b'), spaceAfter=2)
+    value_style = ParagraphStyle('Value', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'), spaceAfter=8)
+    
+    elements = []
+    
+    # ===== INTESTAZIONE =====
+    elements.append(Paragraph("RIEPILOGO DICHIARAZIONE DEI REDDITI", title_style))
+    elements.append(Paragraph(f"Anno Fiscale: {tax_return.get('anno_fiscale', 'N/D')}", ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=12, alignment=TA_CENTER, spaceAfter=5)))
+    elements.append(Paragraph(f"Stato: {tax_return.get('stato', 'N/D').upper()}", ParagraphStyle('Status', parent=styles['Normal'], fontSize=11, alignment=TA_CENTER, spaceAfter=20)))
+    elements.append(Spacer(1, 10))
+    
+    # ===== DATI PERSONALI =====
+    elements.append(Paragraph("1. DATI PERSONALI", section_style))
+    datos = tax_return.get('datos_personales') or {}
+    if datos:
+        data_table = [
+            ["Nome Completo:", f"{datos.get('nombre', '')} {datos.get('apellidos', '')}".strip() or "Non compilato"],
+            ["Codice Fiscale (NIE/NIF):", datos.get('nie_nif', 'Non compilato')],
+            ["Data di Nascita:", datos.get('fecha_nacimiento', 'Non compilato')],
+            ["Nazionalità:", datos.get('nacionalidad', 'Non compilato')],
+            ["Indirizzo:", f"{datos.get('direccion', '')} {datos.get('numero', '')}".strip() or "Non compilato"],
+            ["Città:", f"{datos.get('municipio', '')} ({datos.get('provincia', '')})".strip(' ()') or "Non compilato"],
+            ["CAP:", datos.get('codigo_postal', 'Non compilato')],
+            ["Telefono:", datos.get('telefono', 'Non compilato')],
+            ["Email:", datos.get('email', 'Non compilato')],
+            ["Stato Civile:", datos.get('estado_civil', 'Non compilato')],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1e293b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(t)
+    else:
+        elements.append(Paragraph("Sezione non compilata", normal_style))
+    
+    # ===== SITUAZIONE FAMILIARE =====
+    elements.append(Paragraph("2. SITUAZIONE FAMILIARE", section_style))
+    familia = tax_return.get('situacion_familiar') or {}
+    if familia:
+        data_table = [
+            ["Stato Civile:", familia.get('estado_civil', 'Non compilato')],
+            ["Data Matrimonio:", familia.get('fecha_matrimonio', 'Non compilato')],
+            ["Regime Patrimoniale:", familia.get('regimen_matrimonial', 'Non compilato')],
+            ["Coniuge - Nome:", familia.get('conyuge_nombre', 'Non compilato')],
+            ["Coniuge - NIE/NIF:", familia.get('conyuge_nie_nif', 'Non compilato')],
+            ["Coniuge - Reddito Annuo:", f"€ {familia.get('conyuge_ingresos', 'N/D')}"],
+            ["Numero Figli:", str(familia.get('numero_hijos', 0))],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(t)
+        
+        # Figli
+        hijos = familia.get('hijos', [])
+        if hijos:
+            elements.append(Paragraph("Figli a carico:", subsection_style))
+            for i, hijo in enumerate(hijos, 1):
+                elements.append(Paragraph(f"  {i}. {hijo.get('nombre', 'N/D')} - Nato: {hijo.get('fecha_nacimiento', 'N/D')} - CF: {hijo.get('nie_nif', 'N/D')}", normal_style))
+    else:
+        elements.append(Paragraph("Sezione non compilata", normal_style))
+    
+    # ===== REDDITI DA LAVORO =====
+    elements.append(Paragraph("3. REDDITI DA LAVORO DIPENDENTE", section_style))
+    rentas = tax_return.get('rentas_trabajo') or {}
+    if rentas and rentas.get('tiene_rentas_trabajo'):
+        data_table = [
+            ["Ha redditi da lavoro:", "Sì"],
+            ["Reddito Lordo Annuo:", f"€ {rentas.get('ingresos_brutos', 'N/D')}"],
+            ["Ritenute:", f"€ {rentas.get('retenciones', 'N/D')}"],
+            ["Contributi Previdenza:", f"€ {rentas.get('cotizaciones_ss', 'N/D')}"],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(t)
+        
+        # Datori di lavoro
+        empleadores = rentas.get('empleadores', [])
+        if empleadores:
+            elements.append(Paragraph("Datori di lavoro:", subsection_style))
+            for i, emp in enumerate(empleadores, 1):
+                elements.append(Paragraph(f"  {i}. {emp.get('nombre', 'N/D')} - CIF: {emp.get('cif', 'N/D')} - Lordo: € {emp.get('ingresos_brutos', 'N/D')}", normal_style))
+    else:
+        elements.append(Paragraph("Nessun reddito da lavoro dipendente dichiarato", normal_style))
+    
+    # ===== ATTIVITÀ AUTONOMA =====
+    elements.append(Paragraph("4. ATTIVITÀ ECONOMICA / AUTONOMO", section_style))
+    autonomo = tax_return.get('autonomo') or {}
+    if autonomo and autonomo.get('tiene_actividad'):
+        data_table = [
+            ["Ha attività economica:", "Sì"],
+            ["Tipo Attività:", autonomo.get('tipo_actividad', 'N/D')],
+            ["Codice IAE:", autonomo.get('epigrafe_iae', 'N/D')],
+            ["Regime Fiscale:", autonomo.get('regimen_fiscal', 'N/D')],
+            ["Fatturato Annuo:", f"€ {autonomo.get('ingresos', 'N/D')}"],
+            ["Spese Deducibili:", f"€ {autonomo.get('gastos', 'N/D')}"],
+            ["Utile Netto:", f"€ {autonomo.get('beneficio_neto', 'N/D')}"],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(t)
+    else:
+        elements.append(Paragraph("Nessuna attività economica dichiarata", normal_style))
+    
+    elements.append(PageBreak())
+    
+    # ===== IMMOBILI =====
+    elements.append(Paragraph("5. IMMOBILI DI PROPRIETÀ", section_style))
+    inmuebles = tax_return.get('inmuebles') or {}
+    propiedades = inmuebles.get('propiedades', []) if isinstance(inmuebles, dict) else []
+    if propiedades:
+        elements.append(Paragraph(f"Numero immobili dichiarati: {len(propiedades)}", normal_style))
+        for i, prop in enumerate(propiedades, 1):
+            elements.append(Paragraph(f"Immobile {i}:", subsection_style))
+            data_table = [
+                ["Tipo:", prop.get('tipo', 'N/D')],
+                ["Uso:", prop.get('uso', 'N/D')],
+                ["Indirizzo:", prop.get('direccion', 'N/D')],
+                ["Riferimento Catastale:", prop.get('referencia_catastral', 'N/D')],
+                ["Valore Catastale:", f"€ {prop.get('valor_catastral', 'N/D')}"],
+                ["% Proprietà:", f"{prop.get('porcentaje_propiedad', 100)}%"],
+                ["Data Acquisto:", prop.get('fecha_adquisicion', 'N/D')],
+            ]
+            t = Table(data_table, colWidths=[5*cm, 10*cm])
+            t.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            elements.append(t)
+    else:
+        elements.append(Paragraph("Nessun immobile dichiarato", normal_style))
+    
+    # ===== CANONI LOCAZIONE RICEVUTI =====
+    elements.append(Paragraph("6. CANONI DI LOCAZIONE RICEVUTI", section_style))
+    alquileres = tax_return.get('alquileres_cobrados') or {}
+    contratos = alquileres.get('contratos', []) if isinstance(alquileres, dict) else []
+    if contratos:
+        elements.append(Paragraph(f"Numero contratti: {len(contratos)}", normal_style))
+        for i, c in enumerate(contratos, 1):
+            elements.append(Paragraph(f"  {i}. Immobile: {c.get('inmueble_direccion', 'N/D')} - Canone: € {c.get('renta_mensual', 'N/D')}/mese - Inquilino: {c.get('inquilino_nombre', 'N/D')}", normal_style))
+    else:
+        elements.append(Paragraph("Nessun canone di locazione dichiarato", normal_style))
+    
+    # ===== AFFITTO PAGATO =====
+    elements.append(Paragraph("7. AFFITTO PAGATO (ABITAZIONE PRINCIPALE)", section_style))
+    alquiler_pagado = tax_return.get('alquiler_pagado') or {}
+    if alquiler_pagado and alquiler_pagado.get('paga_alquiler'):
+        data_table = [
+            ["Paga affitto:", "Sì"],
+            ["Canone Mensile:", f"€ {alquiler_pagado.get('importe_mensual', 'N/D')}"],
+            ["Totale Annuo:", f"€ {alquiler_pagado.get('total_anual', 'N/D')}"],
+            ["Proprietario:", alquiler_pagado.get('arrendador_nombre', 'N/D')],
+            ["NIF Proprietario:", alquiler_pagado.get('arrendador_nif', 'N/D')],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(t)
+    else:
+        elements.append(Paragraph("Non paga affitto per abitazione principale", normal_style))
+    
+    # ===== INVESTIMENTI =====
+    elements.append(Paragraph("8. INVESTIMENTI E RENDITE FINANZIARIE", section_style))
+    inversiones = tax_return.get('inversiones') or {}
+    if inversiones and inversiones.get('tiene_inversiones'):
+        data_table = [
+            ["Ha investimenti:", "Sì"],
+            ["Dividendi ricevuti:", f"€ {inversiones.get('dividendos', 'N/D')}"],
+            ["Interessi:", f"€ {inversiones.get('intereses', 'N/D')}"],
+            ["Plusvalenze:", f"€ {inversiones.get('ganancias', 'N/D')}"],
+            ["Minusvalenze:", f"€ {inversiones.get('perdidas', 'N/D')}"],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(t)
+    else:
+        elements.append(Paragraph("Nessun investimento dichiarato", normal_style))
+    
+    # ===== CRIPTOVALUTE =====
+    elements.append(Paragraph("9. CRIPTOVALUTE", section_style))
+    cripto = tax_return.get('criptomonedas') or {}
+    if cripto and cripto.get('tiene_cripto'):
+        data_table = [
+            ["Possiede criptovalute:", "Sì"],
+            ["Valore totale al 31/12:", f"€ {cripto.get('valor_total', 'N/D')}"],
+            ["Plusvalenze realizzate:", f"€ {cripto.get('ganancias', 'N/D')}"],
+            ["Minusvalenze realizzate:", f"€ {cripto.get('perdidas', 'N/D')}"],
+        ]
+        t = Table(data_table, colWidths=[5*cm, 10*cm])
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748b')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(t)
+        
+        # Dettaglio criptovalute
+        criptos = cripto.get('criptomonedas', [])
+        if criptos:
+            elements.append(Paragraph("Dettaglio criptovalute:", subsection_style))
+            for i, c in enumerate(criptos, 1):
+                elements.append(Paragraph(f"  {i}. {c.get('nombre', 'N/D')} ({c.get('simbolo', '')}) - Quantità: {c.get('cantidad', 'N/D')} - Valore: € {c.get('valor', 'N/D')}", normal_style))
+    else:
+        elements.append(Paragraph("Nessuna criptovaluta dichiarata", normal_style))
+    
+    # ===== DEDUZIONI =====
+    elements.append(Paragraph("10. DEDUZIONI E SPESE DEDUCIBILI", section_style))
+    deducciones = tax_return.get('deducciones') or {}
+    if deducciones:
+        items = []
+        if deducciones.get('vivienda_habitual'): items.append(f"Mutuo abitazione principale: € {deducciones.get('vivienda_habitual')}")
+        if deducciones.get('plan_pensiones'): items.append(f"Fondo pensione: € {deducciones.get('plan_pensiones')}")
+        if deducciones.get('donativos'): items.append(f"Donazioni: € {deducciones.get('donativos')}")
+        if deducciones.get('maternidad'): items.append(f"Deduzione maternità: € {deducciones.get('maternidad')}")
+        if deducciones.get('familia_numerosa'): items.append(f"Famiglia numerosa: € {deducciones.get('familia_numerosa')}")
+        if deducciones.get('discapacidad'): items.append(f"Disabilità: € {deducciones.get('discapacidad')}")
+        if deducciones.get('alquiler_vivienda'): items.append(f"Affitto abitazione: € {deducciones.get('alquiler_vivienda')}")
+        
+        if items:
+            for item in items:
+                elements.append(Paragraph(f"• {item}", normal_style))
+        else:
+            elements.append(Paragraph("Nessuna deduzione applicabile", normal_style))
+    else:
+        elements.append(Paragraph("Sezione non compilata", normal_style))
+    
+    # ===== DEDUZIONI CANARIE =====
+    elements.append(Paragraph("11. DEDUZIONI SPECIFICHE CANARIE", section_style))
+    ded_canarias = tax_return.get('deducciones_canarias') or {}
+    if ded_canarias:
+        items = []
+        if ded_canarias.get('nacimiento_adopcion'): items.append(f"Nascita/Adozione: € {ded_canarias.get('nacimiento_adopcion')}")
+        if ded_canarias.get('gastos_guarderia'): items.append(f"Spese asilo: € {ded_canarias.get('gastos_guarderia')}")
+        if ded_canarias.get('material_escolar'): items.append(f"Materiale scolastico: € {ded_canarias.get('material_escolar')}")
+        if ded_canarias.get('estudios_superiores'): items.append(f"Studi superiori: € {ded_canarias.get('estudios_superiores')}")
+        if ded_canarias.get('alquiler_vivienda_canarias'): items.append(f"Affitto Canarie: € {ded_canarias.get('alquiler_vivienda_canarias')}")
+        if ded_canarias.get('inversion_vivienda'): items.append(f"Investimento abitazione: € {ded_canarias.get('inversion_vivienda')}")
+        if ded_canarias.get('donaciones_culturales'): items.append(f"Donazioni culturali: € {ded_canarias.get('donaciones_culturales')}")
+        
+        if items:
+            for item in items:
+                elements.append(Paragraph(f"• {item}", normal_style))
+        else:
+            elements.append(Paragraph("Nessuna deduzione canaria applicabile", normal_style))
+    else:
+        elements.append(Paragraph("Sezione non compilata", normal_style))
+    
+    # ===== NOTE DEL CLIENTE =====
+    elements.append(Paragraph("12. NOTE DEL CLIENTE", section_style))
+    notas = tax_return.get('notas_cliente', [])
+    if notas:
+        for nota in notas:
+            elements.append(Paragraph(f"• [{nota.get('created_at', '')[:10]}] {nota.get('contenuto', nota.get('testo', 'N/D'))}", normal_style))
+    else:
+        elements.append(Paragraph("Nessuna nota inserita dal cliente", normal_style))
+    
+    # ===== DOCUMENTI ALLEGATI =====
+    elements.append(Paragraph("13. DOCUMENTI ALLEGATI", section_style))
+    docs = tax_return.get('documentos', [])
+    if docs:
+        elements.append(Paragraph(f"Numero documenti allegati: {len(docs)}", normal_style))
+        for i, d in enumerate(docs, 1):
+            elements.append(Paragraph(f"  {i}. {d.get('nombre', d.get('file_name', 'N/D'))} - Categoria: {d.get('categoria', 'N/D')} - Caricato: {d.get('uploaded_at', '')[:10]}", normal_style))
+    else:
+        elements.append(Paragraph("Nessun documento allegato", normal_style))
+    
+    # ===== FOOTER =====
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph(f"Documento generato il {datetime.now(timezone.utc).strftime('%d/%m/%Y alle %H:%M')} UTC", ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94a3b8'), alignment=TA_CENTER)))
+    elements.append(Paragraph("Fiscal Tax Canarie SLP - CIF B44653517", ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.HexColor('#94a3b8'), alignment=TA_CENTER)))
+    
+    # Build PDF
+    doc.build(elements)
+    
+    buffer.seek(0)
+    filename = f"riepilogo_dichiarazione_{tax_return['anno_fiscale']}_{tax_return_id[:8]}.pdf"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/tax-returns/{tax_return_id}/download-all")
+async def download_all_documents_zip(tax_return_id: str, user: dict = Depends(require_commercialista)):
+    """Scarica tutti i documenti allegati alla pratica in un file ZIP"""
+    import zipfile
+    
+    db = get_db()
+    
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    docs = tax_return.get('documentos', [])
+    if not docs:
+        raise HTTPException(status_code=404, detail="Nessun documento allegato alla pratica")
+    
+    # Crea ZIP in memoria
+    buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for doc in docs:
+            file_data = doc.get('file_data')
+            if file_data:
+                # Decodifica base64 se necessario
+                if isinstance(file_data, str):
+                    import base64
+                    try:
+                        file_bytes = base64.b64decode(file_data)
+                    except:
+                        continue
+                else:
+                    file_bytes = file_data
+                
+                # Nome file con categoria come prefisso
+                categoria = doc.get('categoria', 'altro').replace(' ', '_')
+                file_name = doc.get('nombre', doc.get('file_name', f'documento_{doc.get("id", "unknown")}'))
+                safe_name = f"{categoria}/{file_name}"
+                
+                zf.writestr(safe_name, file_bytes)
+    
+    buffer.seek(0)
+    
+    client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0, "full_name": 1})
+    client_name = (client.get("full_name", "cliente") if client else "cliente").replace(" ", "_")
+    filename = f"documenti_{client_name}_{tax_return['anno_fiscale']}.zip"
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
 # ==================== DOCUMENTI ====================
 
 @router.post("/tax-returns/{tax_return_id}/documents")
