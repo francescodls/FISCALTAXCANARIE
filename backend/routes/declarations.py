@@ -35,6 +35,29 @@ router = APIRouter(prefix="/declarations", tags=["declarations"])
 DEFAULT_AUTHORIZATION_TEXT = """Autorizzo espressamente Fiscal Tax Canarie SLP, con CIF B44653517, con sede in Las Palmas de Gran Canaria, Calle Domingo J. Navarro n. 1, Planta 2, Oficina 5, a predisporre e presentare in mio nome e per mio conto la dichiarazione dei redditi, sulla base dei dati e dei documenti da me forniti. Dichiaro che le informazioni trasmesse sono veritiere e complete per quanto a mia conoscenza e autorizzo il trattamento dei dati esclusivamente per le finalità connesse all'incarico professionale."""
 
 
+async def get_tax_return_with_access_check(tax_return_id: str, user: dict, allow_deleted: bool = False):
+    """
+    Helper per recuperare una dichiarazione verificando accesso e stato.
+    Solleva HTTPException se non trovata, eliminata (per clienti), o accesso non autorizzato.
+    """
+    db = get_db()
+    tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
+    
+    if not tax_return:
+        raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Verifica se eliminata
+    if tax_return.get("stato") == "eliminata" and not allow_deleted:
+        if user["role"] == "cliente":
+            raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Verifica accesso cliente
+    if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato")
+    
+    return tax_return
+
+
 # ==================== DECLARATION TYPES ====================
 
 @router.get("/types", response_model=List[DeclarationTypeResponse])
@@ -131,11 +154,12 @@ async def create_tax_return(data: TaxReturnCreate, user: dict = Depends(get_curr
     else:
         raise HTTPException(status_code=400, detail="Solo i clienti possono creare pratiche")
     
-    # Verifica che non esista già una pratica per lo stesso anno
+    # Verifica che non esista già una pratica attiva per lo stesso anno
+    # (esclude pratiche archiviate o eliminate)
     existing = await db.tax_returns.find_one({
         "client_id": client_id,
         "anno_fiscale": data.anno_fiscale,
-        "stato": {"$ne": "archiviata"}
+        "stato": {"$nin": ["archiviata", "eliminata"]}
     })
     if existing:
         raise HTTPException(status_code=400, detail=f"Esiste già una pratica per l'anno {data.anno_fiscale}")
@@ -208,12 +232,17 @@ async def get_tax_returns(
     has_crypto: Optional[bool] = None,
     has_inmuebles: Optional[bool] = None,
     has_autonomo: Optional[bool] = None,
+    include_deleted: bool = False,
     user: dict = Depends(get_current_user)
 ):
     """Recupera lista pratiche (filtrate per ruolo)"""
     db = get_db()
     
     query = {}
+    
+    # Escludi dichiarazioni eliminate (a meno che non sia richiesto esplicitamente dall'admin)
+    if not include_deleted or user["role"] == "cliente":
+        query["stato"] = {"$nin": ["eliminata", "archiviata"]}
     
     if user["role"] == "cliente":
         query["client_id"] = user["id"]
@@ -223,7 +252,7 @@ async def get_tax_returns(
     if anno_fiscale:
         query["anno_fiscale"] = anno_fiscale
     
-    if stato:
+    if stato and stato not in ["eliminata", "archiviata"]:
         query["stato"] = stato
     
     tax_returns = await db.tax_returns.find(query, {"_id": 0}).sort("updated_at", -1).to_list(1000)
@@ -291,6 +320,12 @@ async def get_tax_return(tax_return_id: str, user: dict = Depends(get_current_us
     tax_return = await db.tax_returns.find_one({"id": tax_return_id}, {"_id": 0})
     if not tax_return:
         raise HTTPException(status_code=404, detail="Pratica non trovata")
+    
+    # Verifica se la pratica è stata eliminata
+    if tax_return.get("stato") == "eliminata":
+        # Solo admin può vedere pratiche eliminate
+        if user["role"] == "cliente":
+            raise HTTPException(status_code=404, detail="Pratica non trovata")
     
     # Verifica accesso
     if user["role"] == "cliente" and tax_return["client_id"] != user["id"]:
@@ -1264,8 +1299,11 @@ async def get_clients_with_declarations(
     
     clients = await db.users.find(client_query, {"_id": 0}).to_list(10000)
     
-    # Recupera tutte le dichiarazioni
-    tax_returns = await db.tax_returns.find({}, {"_id": 0}).to_list(10000)
+    # Recupera tutte le dichiarazioni (escluse le eliminate)
+    tax_returns = await db.tax_returns.find(
+        {"stato": {"$nin": ["eliminata", "archiviata"]}}, 
+        {"_id": 0}
+    ).to_list(10000)
     
     # Raggruppa dichiarazioni per cliente
     client_returns = {}
