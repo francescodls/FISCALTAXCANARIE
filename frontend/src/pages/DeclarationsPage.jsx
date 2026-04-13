@@ -13,7 +13,7 @@ import {
   ArrowLeft, LogOut
 } from 'lucide-react';
 import { toast } from 'sonner';
-import TaxReturnForm from '../components/TaxReturnForm';
+import TaxReturnFormWizard from '../components/TaxReturnFormWizard';
 import AdminDeclarationsView from '../components/AdminDeclarationsView';
 import DeclarationDetailView from '../components/DeclarationDetailView';
 import LanguageSelector from '../components/LanguageSelector';
@@ -23,7 +23,7 @@ const API_URL = process.env.REACT_APP_BACKEND_URL;
 // Helper per toast sicuro
 const safeToastError = (msg) => {
   try {
-    safeToastError(String(msg || 'Errore'));
+    toast.error(String(msg || 'Errore'));
   } catch (e) {
     console.error('Error:', msg);
   }
@@ -312,7 +312,7 @@ const DeclarationsPage = () => {
           </div>
         </header>
         <main className="max-w-7xl mx-auto px-6 py-8">
-          <TaxReturnForm 
+          <TaxReturnFormWizard 
             taxReturn={selectedReturn}
             token={token}
             user={user}

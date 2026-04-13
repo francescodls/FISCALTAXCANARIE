@@ -421,6 +421,9 @@ class TaxReturnResponse(BaseModel):
     declaration_fee_notified_at: Optional[str] = None
     declaration_fee_notification_text: Optional[str] = None
     
+    # Stati delle sezioni per il wizard di compilazione
+    section_statuses: Optional[Dict[str, str]] = None  # es: {"datos_personales": "completed", "inmuebles": "not_applicable"}
+    
     # Metadata
     status_logs: List[TaxReturnStatusLog] = []
     created_at: str

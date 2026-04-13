@@ -382,7 +382,7 @@ async def update_tax_return_section(
         "secciones_habilitadas", "datos_personales", "situacion_familiar",
         "rentas_trabajo", "autonomo", "inmuebles", "alquileres_cobrados",
         "alquiler_pagado", "inversiones", "criptomonedas", "ganancias_patrimoniales",
-        "deducciones", "deducciones_canarias"
+        "deducciones", "deducciones_canarias", "section_statuses"
     ]
     
     if section_name not in valid_sections:
