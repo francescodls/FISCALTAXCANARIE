@@ -1,5 +1,9 @@
-// Configurazione API - Usa variabile ambiente o default produzione
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://app.fiscaltaxcanarie.com';
+// Configurazione API - Usa variabile ambiente (obbligatoria)
+const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+if (!apiUrl) {
+  console.warn('EXPO_PUBLIC_API_URL not set, using default production URL');
+}
+export const API_URL = apiUrl || 'https://app.fiscaltaxcanarie.com';
 
 // Colori del brand - Fiscal Tax Canarie
 export const COLORS = {
