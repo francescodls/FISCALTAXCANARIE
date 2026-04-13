@@ -1,94 +1,108 @@
-# Fiscal Tax Canarie - PRD Aggiornato
+# Fiscal Tax Canarie - PRD
 
 ## Problem Statement
 App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. Gestione clienti, documenti fiscali, scadenze tributarie, onorari e comunicazioni.
 
 ## What's Been Implemented
 
+### Fase 91 (13 Aprile 2026) - COMPLETATA ✅
+
+**Wizard Compilazione Dichiarazione dei Redditi Guidato**
+
+Implementato un sistema wizard completo che obbliga il cliente a compilare correttamente ogni sezione della dichiarazione.
+
+**Funzionalità implementate:**
+
+1. **Navigazione Sequenziale Obbligatoria**
+   - Il cliente NON può saltare sezioni non completate
+   - Lo stepper mostra stati: completata (✓), in corso (●), bloccata (grigio)
+   - Progress bar percentuale (0% → 100%)
+   - Pulsante "Conferma e Prosegui" per avanzare
+
+2. **Opzione "Non Applicabile" per ogni sezione**
+   - Box con messaggio specifico per sezione (es. "Non ho avuto canoni di locazione nel periodo fiscale")
+   - Pulsante "Conferma: questa sezione non mi riguarda"
+   - Badge "Non applicabile" visibile nel riepilogo
+   - Possibilità di modificare la scelta
+
+3. **Auto-save Automatico**
+   - Salvataggio automatico dopo 1.5 secondi di inattività
+   - Toast discreto "Salvato automaticamente"
+   - Nessun rischio di perdere dati
+
+4. **Stati Sezione Visibili**
+   - `not_started` (🔴 Da compilare)
+   - `in_progress` (🟡 In compilazione)
+   - `completed` (🟢 Completata e salvata)
+   - `not_applicable` (⚪ Non applicabile)
+
+5. **Riepilogo Finale con Controllo Completezza**
+   - Lista tutte le sezioni con relativi stati
+   - Blocca l'invio se anche solo una sezione è incompleta
+   - Mostra messaggio chiaro se mancano sezioni
+
+6. **Firma Obbligatoria Finale**
+   - Checkbox consenso con testo legale completo
+   - Canvas per firma digitale (disegno con mouse/dito)
+   - Pulsante "Cancella" per rifare la firma
+   - Blocco invio senza firma E consenso
+
+**Sezioni del Wizard:**
+1. Introduzione (istruzioni)
+2. Dati Personali (obbligatori, non saltabili)
+3. Situazione Familiare
+4. Redditi da Lavoro
+5. Lavoro Autonomo
+6. Immobili
+7. Canoni Locazione
+8. Affitto Pagato
+9. Investimenti
+10. Criptomonete
+11. Plusvalenze
+12. Spese Deducibili
+13. Deduzioni Canarie
+14. Documenti
+15. Riepilogo
+16. Firma e Invio
+
+**File modificati/creati:**
+- `/app/frontend/src/components/TaxReturnFormWizard.jsx` (NUOVO - 2155 linee)
+- `/app/frontend/src/pages/DeclarationsPage.jsx` (import aggiornato)
+- `/app/backend/routes/declarations.py` (aggiunto `section_statuses` alle sezioni valide)
+- `/app/backend/routes/declaration_models.py` (aggiunto campo `section_statuses`)
+
+**Test eseguiti:**
+- ✅ Backend: 13/13 test passati (100%)
+- ✅ Frontend: Tutti i flussi wizard verificati (100%)
+- ✅ API `PUT /api/declarations/tax-returns/{id}/sections/section_statuses` funzionante
+
+---
+
 ### Fase 90 (13 Aprile 2026) - COMPLETATA ✅
 
-**Investigazione Bug P0: Admin non vede dati dichiarazioni clienti**
+**Investigazione Bug P0: Admin non vede dati dichiarazioni**
 
-**Problema segnalato:** L'amministratore non riusciva a visualizzare i dati delle Dichiarazioni dei Redditi compilati dai clienti nel pannello admin.
-
-**Investigazione effettuata:**
-1. Analizzato il flusso dati completo:
-   - `TaxReturnForm.jsx` (client) → salva dati tramite `PUT /api/declarations/tax-returns/{id}/sections/{section_name}`
-   - `declarations.py` (backend) → persiste in MongoDB con `$set: {section_name: data}`
-   - `GET /api/declarations/tax-returns/{id}` → recupera dati dal DB
-   - `DeclarationDetailView.jsx` (admin) → visualizza con `renderSectionData()`
-
-2. Test API E2E:
-   - Creato dati di test: `PUT .../sections/datos_personales` con nome "Mario Rossi"
-   - Verificato salvataggio: API ritorna `{"message":"Sezione datos_personales aggiornata"}`
-   - Verificato recupero come cliente: dati presenti nella risposta GET
-   - Verificato recupero come admin: dati identici visibili
-
-3. Test Frontend:
-   - Screenshot del pannello admin → i dati di "Mario Rossi" sono visibili nel tab "Dati Inseriti"
-   - La sezione "Situazione Familiare" mostra correttamente "Non compilato" per sezioni vuote
-
-**Conclusione:** Il sistema funziona correttamente! 
-- Le dichiarazioni esistenti (es. 2025 "inviata") non contenevano dati perché il cliente non li aveva mai salvati prima di inviare
-- NON è un bug del codice, ma dati di test/produzione vuoti
-- Il flusso backend e frontend è stato verificato come funzionante
-
-**Raccomandazione:** Aggiungere validazione lato client per impedire l'invio di pratiche completamente vuote, oppure mostrare un avviso all'admin quando una pratica inviata ha sezioni vuote.
+- Tracciato flusso completo: TaxReturnForm → PUT API → MongoDB → GET API → DeclarationDetailView
+- **Conclusione:** Sistema funzionante correttamente. Le dichiarazioni esistenti erano vuote perché il cliente non aveva salvato i dati prima di inviare.
+- **Raccomandazione implementata:** Wizard obbliga ora a completare tutte le sezioni prima dell'invio.
 
 ---
 
 ### Fase 89 (12 Dicembre 2025) - COMPLETATA ✅
 
-**Completamento Piano Hardening Mobile App (11 Punti):**
-
-**Modifiche implementate:**
-
-1. **ThemeProvider integrato in App.tsx:**
-   - Context provider per dark mode wrappato correttamente nell'albero dei componenti
-   - Ordine: GestureHandler → SafeArea → Network → Theme → Language → Auth → Navigator
-
-2. **Tab Badges funzionanti:**
-   - Badge scadenze (warning color) sulla tab "Scadenze" 
-   - Badge messaggi non letti sulla tab "Comunicazioni"
-   - Stili badge aggiunti al StyleSheet di AppNavigator
-
-3. **Skeleton Loading su tutte le schermate principali:**
-   - DocumentsScreen: DocumentSkeleton durante caricamento
-   - CalendarScreen: Skeleton calendario + CardSkeleton per scadenze
-   - CommunicationsScreen: CardSkeleton durante caricamento
-
-4. **Sezione Tema in ProfileScreen:**
-   - Toggle per Light/Dark/Auto mode
-   - Icone Sun/Moon/Monitor per le opzioni
-   - Persistenza preferenza via SecureStore
-
-5. **Traduzioni completate:**
-   - IT: seeAll, appearance, themeLight, themeDark, themeAuto
-   - EN: seeAll, appearance, themeLight, themeDark, themeAuto
-   - ES: seeAll, appearance, themeLight, themeDark, themeAuto
-
-**File modificati:**
-- `/app/mobile-app/fiscal-tax-mobile/App.tsx` - Aggiunto ThemeProvider
-- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx` - Tab badges + stili
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/DocumentsScreen.tsx` - Skeleton loading
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/CalendarScreen.tsx` - Skeleton loading
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/CommunicationsScreen.tsx` - Skeleton loading
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/ProfileScreen.tsx` - Sezione tema
-- `/app/mobile-app/fiscal-tax-mobile/src/i18n/it.ts` - Traduzioni tema
-- `/app/mobile-app/fiscal-tax-mobile/src/i18n/en.ts` - Traduzioni tema
-- `/app/mobile-app/fiscal-tax-mobile/src/i18n/es.ts` - Traduzioni tema
-
-**Test eseguiti:**
-- ✅ Backend API verification (iteration_38): tutte le API funzionanti
-- ✅ Login client e admin OK
-- ✅ Documenti, scadenze, notifiche, comunicazioni API OK
+**Piano Hardening Mobile App (primi 5 punti):**
+- ThemeProvider integrato in App.tsx
+- Dark Mode funzionante
+- Tab Badges per scadenze e messaggi
+- Skeleton Loading su tutte le schermate
+- Biometric auto-login
 
 ---
 
 ## Prioritized Backlog
 
 ### P0 - Critico
-- ✅ RISOLTO: Bug visibilità dati dichiarazioni (era falso positivo - dati vuoti, non bug)
+- ✅ RISOLTO: Wizard compilazione dichiarazioni obbligatorio
 
 ### P1 - In Progress
 - **Piano Hardening Mobile (punti rimanenti):**
@@ -104,6 +118,7 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 ### P2 - Future
 - Integrazione firma digitale Namirial/Aruba
 - Integrazione Dropbox/Google Drive per sync documenti
+- Reminder automatico per dichiarazioni incomplete
 
 ### P3 - Backlog
 - App Desktop Windows (Electron o simile)
@@ -123,28 +138,20 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 │   ├── security.py (Rate limiting, audit)
 │   ├── server.py (~6800 lines - needs refactoring)
 │   └── routes/
-│       ├── declarations.py ✅ (Refactored)
-│       ├── declaration_models.py
-│       ├── auth.py ✅ (Refactored)
-│       ├── clients.py (Placeholder - needs population)
-│       ├── fees_routes.py
-│       ├── deadline_types.py
-│       ├── notifications.py
-│       └── privacy_routes.py
+│       ├── declarations.py ✅ (Refactored, section_statuses added)
+│       ├── declaration_models.py ✅ (section_statuses field added)
+│       ├── auth.py ✅
+│       ├── clients.py (Placeholder)
+│       └── ...
 ├── frontend/ (Web Admin/Client)
+│   ├── src/components/TaxReturnFormWizard.jsx ✅ (NEW)
+│   ├── src/components/TaxReturnForm.jsx (legacy, kept for reference)
 │   ├── src/components/DeclarationDetailView.jsx
-│   ├── src/components/TaxReturnForm.jsx
-│   ├── src/components/AdminDeclarationsView.jsx
-│   └── src/pages/DeclarationsPage.jsx
+│   ├── src/pages/DeclarationsPage.jsx ✅ (updated import)
+│   └── ...
 └── mobile-app/
     └── fiscal-tax-mobile/
-        ├── App.tsx (with ThemeProvider)
-        ├── app.json
-        └── src/
-            ├── hooks/useThemedColors.ts
-            ├── context/ThemeContext.tsx
-            ├── context/LanguageContext.tsx
-            └── screens/
+        └── ...
 ```
 
 ---
@@ -157,10 +164,9 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 | `/api/declarations/tax-returns` | POST | Crea nuova dichiarazione |
 | `/api/declarations/tax-returns/{id}` | GET | Dettaglio dichiarazione |
 | `/api/declarations/tax-returns/{id}/sections/{name}` | PUT | Salva sezione dati |
+| `/api/declarations/tax-returns/{id}/sections/section_statuses` | PUT | **NEW** Salva stati sezioni |
 | `/api/declarations/tax-returns/{id}/status` | PUT | Cambia stato |
 | `/api/declarations/tax-returns/{id}/sign` | POST | Firma autorizzazione |
-| `/api/declarations/tax-returns/{id}/summary-pdf` | GET | PDF riepilogativo |
-| `/api/declarations/tax-returns/{id}/download-all` | GET | ZIP allegati |
 
 ---
 
@@ -171,11 +177,10 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ---
 
-## Known Issues
+## Test Reports
 
-1. **Dichiarazione 2025 vuota:** La dichiarazione di test per il 2025 è stata "inviata" senza dati. Non è un bug - il cliente semplicemente non ha compilato i campi prima di inviare.
-
-2. **Offline Mode:** Il `NetworkContext` esiste ma il caching locale non è completamente funzionale.
+- `/app/test_reports/iteration_39.json` - Wizard tests (100% passed)
+- `/app/backend/tests/test_wizard_iteration39.py` - Backend pytest
 
 ---
 
