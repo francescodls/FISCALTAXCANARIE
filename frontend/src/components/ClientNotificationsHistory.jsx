@@ -77,6 +77,8 @@ const ClientNotificationsHistory = ({ token, clientId, clientName }) => {
       
       if (response.data.email_sent) {
         toast.success("Notifica inviata e email spedita");
+      } else if (response.data.success) {
+        toast.success("Notifica salvata (email non inviata - controlla Brevo API)");
       } else {
         toast.success("Notifica salvata");
       }

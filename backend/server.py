@@ -6581,15 +6581,19 @@ async def send_client_notification(
     # Invia email se richiesto
     if send_email and client.get("email"):
         try:
-            await send_generic_email(
+            result = await send_generic_email(
                 client["email"],
                 f"[Fiscal Tax] {title}",
                 f"<h2>{title}</h2><p>{message}</p><p style='color:#666;font-size:12px;margin-top:20px;'>Puoi rispondere a questo messaggio direttamente dall'app Fiscal Tax Canarie.</p>"
             )
-            email_sent = True
-            email_recipients = [client["email"]]
+            if result.get("success"):
+                email_sent = True
+                email_recipients = [client["email"]]
+            else:
+                logger.warning(f"Email non inviata: {result.get('error')}")
         except Exception as e:
             logger.error(f"Errore invio email: {e}")
+            # Non propaghiamo l'errore - la notifica in-app e push sono già state inviate
     
     # Salva nella cronologia
     await log_client_notification(
@@ -6606,7 +6610,8 @@ async def send_client_notification(
         "success": True, 
         "email_sent": email_sent,
         "thread_id": thread_id,
-        "push_sent": True
+        "push_sent": True,
+        "message": "Comunicazione inviata" + (" (email inviata)" if email_sent else " (email non inviata - controlla configurazione Brevo)")
     }
 
 # Endpoint per ottenere i thread di comunicazione del cliente
