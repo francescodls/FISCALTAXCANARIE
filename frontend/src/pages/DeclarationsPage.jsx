@@ -20,6 +20,15 @@ import LanguageSelector from '../components/LanguageSelector';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+// Helper per toast sicuro
+const safeToastError = (msg) => {
+  try {
+    safeToastError(String(msg || 'Errore'));
+  } catch (e) {
+    console.error('Error:', msg);
+  }
+};
+
 const DeclarationsPage = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuth();
@@ -119,7 +128,7 @@ const DeclarationsPage = () => {
       fetchTaxReturns();
     } catch (error) {
       console.error('createNewReturn error:', error);
-      toast.error(error.message || 'Errore creazione pratica');
+      safeToastError(error.message || 'Errore creazione pratica');
     }
   };
 
@@ -139,7 +148,7 @@ const DeclarationsPage = () => {
         } catch {
           // Ignora errori di parsing
         }
-        toast.error(String(errorMessage));
+        safeToastError(String(errorMessage));
         return;
       }
       
@@ -160,7 +169,7 @@ const DeclarationsPage = () => {
       console.error('openReturn error:', error);
       // Assicurati che il toast riceva sempre una stringa
       const errorMsg = error instanceof Error ? error.message : String(error);
-      toast.error(errorMsg || 'Errore caricamento pratica');
+      safeToastError(errorMsg || 'Errore caricamento pratica');
     }
   };
 
@@ -196,7 +205,7 @@ const DeclarationsPage = () => {
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      toast.error(error.message);
+      safeToastError(error.message);
     }
   };
 

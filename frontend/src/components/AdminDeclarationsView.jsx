@@ -25,6 +25,15 @@ import { useLanguage } from '../i18n/LanguageContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+// Helper per toast sicuro
+const safeToastError = (msg) => {
+  try {
+    safeToastError(String(msg || 'Errore'));
+  } catch (e) {
+    console.error('Toast error:', msg);
+  }
+};
+
 const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
   const { t } = useLanguage();
   const [clients, setClients] = useState([]);
@@ -79,7 +88,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
       setClients(data);
     } catch (error) {
       console.error('Errore caricamento clienti:', error);
-      toast.error('Errore caricamento clienti');
+      safeToastError('Errore caricamento clienti');
     } finally {
       setLoading(false);
     }
@@ -125,11 +134,11 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
           fetchClientDeclarations(selectedClient.client_id);
         }
       } else {
-        toast.error(t('messages.saveError'));
+        safeToastError(t('messages.saveError'));
       }
     } catch (error) {
       console.error('Errore:', error);
-      toast.error(t('messages.saveError'));
+      safeToastError(t('messages.saveError'));
     }
   };
 
@@ -151,11 +160,11 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
           fetchClientDeclarations(selectedClient.client_id);
         }
       } else {
-        toast.error(t('messages.deleteError'));
+        safeToastError(t('messages.deleteError'));
       }
     } catch (error) {
       console.error('Errore:', error);
-      toast.error(t('messages.deleteError'));
+      safeToastError(t('messages.deleteError'));
     }
   };
 

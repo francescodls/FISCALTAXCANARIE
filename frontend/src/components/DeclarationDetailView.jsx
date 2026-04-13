@@ -34,12 +34,23 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
   // Sanitizza i dati in ingresso per evitare problemi di serializzazione
   const declaration = useMemo(() => {
     try {
-      return JSON.parse(JSON.stringify(rawDeclaration));
+      // Deep clone per rimuovere qualsiasi riferimento non serializzabile
+      const cleanData = JSON.parse(JSON.stringify(rawDeclaration || {}));
+      return cleanData;
     } catch (e) {
-      console.error('Errore sanitizzazione declaration:', e);
+      console.error('Errore sanitizzazione declaration:', e?.message || 'Unknown error');
       return rawDeclaration || {};
     }
   }, [rawDeclaration]);
+  
+  // Handler per errori sicuro
+  const safeErrorToast = (message) => {
+    try {
+      safeErrorToast(String(message || 'Errore sconosciuto'));
+    } catch (e) {
+      console.error('Toast error:', message);
+    }
+  };
   
   const [activeTab, setActiveTab] = useState('overview');
   const [messages, setMessages] = useState(declaration?.conversazione || []);
@@ -138,7 +149,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       toast.success('Download completato');
     } catch (error) {
       console.error('Errore download:', error);
-      toast.error('Errore durante il download');
+      safeErrorToast('Errore durante il download');
     }
   };
 
@@ -174,7 +185,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       setShowPreviewDialog(true);
     } catch (error) {
       console.error('Errore preview:', error);
-      toast.error('Errore durante il caricamento dell\'anteprima');
+      safeErrorToast('Errore durante il caricamento dell\'anteprima');
     } finally {
       setPreviewLoading(false);
     }
@@ -201,7 +212,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
   // Download ZIP dei documenti selezionati
   const downloadSelectedAsZip = async () => {
     if (selectedDocs.length === 0) {
-      toast.error('Seleziona almeno un documento');
+      safeErrorToast('Seleziona almeno un documento');
       return;
     }
     
@@ -235,7 +246,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       setSelectedDocs([]);
     } catch (error) {
       console.error('Errore download ZIP:', error);
-      toast.error('Errore durante il download ZIP');
+      safeErrorToast('Errore durante il download ZIP');
     } finally {
       setDownloadingZip(false);
     }
@@ -290,7 +301,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       setMessageAttachments([]);
       toast.success(messageAttachments.length > 0 ? 'Messaggio con allegati inviato' : 'Messaggio inviato');
     } catch (error) {
-      toast.error('Errore invio messaggio');
+      safeErrorToast('Errore invio messaggio');
     } finally {
       setSendingMessage(false);
     }
@@ -310,13 +321,13 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       for (const file of files) {
         // Verifica tipo
         if (!allowedTypes.includes(file.type)) {
-          toast.error(`${file.name}: formato non supportato. Usa PDF, JPEG o PNG.`);
+          safeErrorToast(`${file.name}: formato non supportato. Usa PDF, JPEG o PNG.`);
           continue;
         }
         
         // Verifica dimensione
         if (file.size > maxSize) {
-          toast.error(`${file.name}: file troppo grande (max 10MB)`);
+          safeErrorToast(`${file.name}: file troppo grande (max 10MB)`);
           continue;
         }
         
@@ -335,7 +346,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
         }]);
       }
     } catch (error) {
-      toast.error('Errore caricamento file');
+      safeErrorToast('Errore caricamento file');
     } finally {
       setUploadingAttachment(false);
       if (attachmentInputRef.current) {
@@ -365,7 +376,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      toast.error('Errore download allegato');
+      safeErrorToast('Errore download allegato');
     }
   };
 
@@ -381,7 +392,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
 
   const handleSaveFee = async () => {
     if (!feeForm.amount || parseFloat(feeForm.amount) <= 0) {
-      toast.error('Inserisci un importo valido');
+      safeErrorToast('Inserisci un importo valido');
       return;
     }
     
@@ -407,7 +418,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       setShowFeeDialog(false);
       if (onUpdate) onUpdate();
     } catch (error) {
-      toast.error('Errore nel salvataggio dell\'onorario');
+      safeErrorToast('Errore nel salvataggio dell\'onorario');
     } finally {
       setSavingFee(false);
     }
@@ -435,7 +446,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       setShowNotifyDialog(false);
       if (onUpdate) onUpdate();
     } catch (error) {
-      toast.error('Errore nell\'invio della notifica');
+      safeErrorToast('Errore nell\'invio della notifica');
     } finally {
       setSendingNotify(false);
     }
@@ -453,7 +464,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       toast.success('Onorario segnato come pagato');
       if (onUpdate) onUpdate();
     } catch (error) {
-      toast.error('Errore');
+      safeErrorToast('Errore');
     }
   };
 
@@ -461,7 +472,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
 
   const sendIntegrationRequest = async () => {
     if (!integrationRequest.seccion || !integrationRequest.mensaje) {
-      toast.error('Compila sezione e messaggio');
+      safeErrorToast('Compila sezione e messaggio');
       return;
     }
     
@@ -484,7 +495,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       // Ricarica dichiarazione
       if (onUpdate) onUpdate();
     } catch (error) {
-      toast.error('Errore invio richiesta');
+      safeErrorToast('Errore invio richiesta');
     }
   };
 
@@ -504,7 +515,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       toast.success(`Stato aggiornato a: ${getStatusLabel(newStatus)}`);
       if (onUpdate) onUpdate();
     } catch (error) {
-      toast.error('Errore aggiornamento stato');
+      safeErrorToast('Errore aggiornamento stato');
     }
   };
 
@@ -522,7 +533,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       setShowDeleteDialog(false);
       onBack(); // Torna alla lista
     } catch (error) {
-      toast.error('Errore eliminazione pratica');
+      safeErrorToast('Errore eliminazione pratica');
     } finally {
       setDeleting(false);
     }
@@ -552,7 +563,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
         onUpdate(JSON.parse(JSON.stringify(updatedData)));
       }
     } catch (error) {
-      toast.error('Errore nell\'assegnazione della pratica');
+      safeErrorToast('Errore nell\'assegnazione della pratica');
     } finally {
       setAssigningPratica(false);
     }
@@ -585,7 +596,7 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
       a.download = `autorizzazione_${declaration.anno_fiscale}_${declaration.client_name}.pdf`;
       a.click();
     } catch (error) {
-      toast.error('Errore download PDF');
+      safeErrorToast('Errore download PDF');
     }
   };
 
