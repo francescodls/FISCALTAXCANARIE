@@ -75,10 +75,13 @@ ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 if not ADMIN_PASSWORD:
     raise ValueError("ADMIN_PASSWORD must be set in environment variables")
 
-# Super Admin predefiniti
+# Super Admin predefiniti - password da environment
+FRANCESCO_PASSWORD = os.environ.get("FRANCESCO_PASSWORD", "")
+BRUNO_PASSWORD = os.environ.get("BRUNO_PASSWORD", "")
+
 SUPER_ADMINS = [
-    {"email": "francesco@fiscaltaxcanarie.com", "first_name": "Francesco", "last_name": "De Liso", "password": "Lanzarote1"},
-    {"email": "bruno@fiscaltaxcanarie.com", "first_name": "Bruno", "last_name": "Ferraiuolo", "password": "Lanzarote1"}
+    {"email": "francesco@fiscaltaxcanarie.com", "first_name": "Francesco", "last_name": "De Liso", "password": FRANCESCO_PASSWORD},
+    {"email": "bruno@fiscaltaxcanarie.com", "first_name": "Bruno", "last_name": "Ferraiuolo", "password": BRUNO_PASSWORD}
 ]
 
 # Dominio ammesso per ruoli amministrativi (importato da security.py)
