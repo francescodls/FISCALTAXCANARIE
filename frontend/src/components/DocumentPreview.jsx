@@ -311,6 +311,7 @@ const DocumentPreview = ({
                   className="w-full h-full border-0"
                   title={fileName}
                   data-testid="pdf-preview-iframe"
+                  sandbox="allow-same-origin allow-scripts"
                 />
               )}
               {isImage && (
@@ -329,6 +330,7 @@ const DocumentPreview = ({
                   className="w-full h-full border-0 bg-white"
                   title={fileName}
                   data-testid="text-preview-iframe"
+                  sandbox="allow-same-origin"
                 />
               )}
             </div>

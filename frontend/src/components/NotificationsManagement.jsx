@@ -1024,6 +1024,7 @@ const NotificationsManagement = ({ token }) => {
               srcDoc={previewHtml}
               className="w-full h-[500px]"
               title="Anteprima Email"
+              sandbox="allow-same-origin"
             />
           </div>
           <DialogFooter>

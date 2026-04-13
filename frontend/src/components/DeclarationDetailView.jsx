@@ -151,13 +151,26 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       
-      if (!res.ok) throw new Error('Errore preview');
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || 'Errore preview');
+      }
       
       const data = await res.json();
-      setPreviewDoc({
-        ...doc,
-        ...data
-      });
+      
+      // Crea un nuovo oggetto pulito senza riferimenti a Response/Request
+      const previewData = {
+        id: doc.id,
+        nombre: doc.nombre || doc.file_name,
+        file_name: doc.nombre || doc.file_name,
+        tipo: doc.tipo || data.mime_type,
+        file_type: doc.tipo || data.mime_type,
+        data_url: data.data_url || null,
+        is_previewable: data.is_previewable || false,
+        mime_type: data.mime_type || 'application/octet-stream'
+      };
+      
+      setPreviewDoc(previewData);
       setShowPreviewDialog(true);
     } catch (error) {
       console.error('Errore preview:', error);
