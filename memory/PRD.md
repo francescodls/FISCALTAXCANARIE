@@ -5,76 +5,50 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 92 (13 Aprile 2026) - COMPLETATA ✅
+
+**Fix Notifiche Dichiarazione - Push + Email Obbligatori**
+
+Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non arrivavano correttamente sia come push che come email.
+
+**Soluzione implementata:**
+
+1. **Creata funzione helper `send_declaration_notification()`**
+   - Invia automaticamente PUSH + EMAIL al cliente
+   - Gestisce errori separatamente per ciascun canale
+   - Log dettagliati per debugging
+   - Supporta extra_data per deep linking nell'app
+
+2. **Endpoint aggiornati:**
+   - `POST /api/declarations/tax-returns/{id}/messages` → Push + Email
+   - `POST /api/declarations/tax-returns/{id}/integration-requests` → Push + Email  
+   - `POST /api/declarations/tax-returns/{id}/fee/notify` → Push + Email
+
+**File modificati:**
+- `/app/backend/routes/declarations.py`
+
+**Test eseguiti:**
+- ✅ Invio messaggio conversazione: Push + Email tentati
+- ✅ Richiesta integrazione: Push + Email tentati
+- ✅ Log mostrano entrambe le notifiche partono simultaneamente
+
+**Nota:** L'email richiede che l'IP del server (104.198.214.223) sia nella whitelist Brevo: https://app.brevo.com/security/authorised_ips
+
+---
+
 ### Fase 91 (13 Aprile 2026) - COMPLETATA ✅
 
 **Wizard Compilazione Dichiarazione dei Redditi Guidato**
 
-Implementato un sistema wizard completo che obbliga il cliente a compilare correttamente ogni sezione della dichiarazione.
+- Navigazione sequenziale obbligatoria (non si possono saltare sezioni)
+- Opzione "Non Applicabile" per ogni sezione
+- Auto-save automatico con debounce 1.5s
+- Stati sezione visibili (da compilare, in corso, completata, non applicabile)
+- Firma finale obbligatoria (checkbox + canvas firma)
+- Progress bar e stepper visivo
 
-**Funzionalità implementate:**
-
-1. **Navigazione Sequenziale Obbligatoria**
-   - Il cliente NON può saltare sezioni non completate
-   - Lo stepper mostra stati: completata (✓), in corso (●), bloccata (grigio)
-   - Progress bar percentuale (0% → 100%)
-   - Pulsante "Conferma e Prosegui" per avanzare
-
-2. **Opzione "Non Applicabile" per ogni sezione**
-   - Box con messaggio specifico per sezione (es. "Non ho avuto canoni di locazione nel periodo fiscale")
-   - Pulsante "Conferma: questa sezione non mi riguarda"
-   - Badge "Non applicabile" visibile nel riepilogo
-   - Possibilità di modificare la scelta
-
-3. **Auto-save Automatico**
-   - Salvataggio automatico dopo 1.5 secondi di inattività
-   - Toast discreto "Salvato automaticamente"
-   - Nessun rischio di perdere dati
-
-4. **Stati Sezione Visibili**
-   - `not_started` (🔴 Da compilare)
-   - `in_progress` (🟡 In compilazione)
-   - `completed` (🟢 Completata e salvata)
-   - `not_applicable` (⚪ Non applicabile)
-
-5. **Riepilogo Finale con Controllo Completezza**
-   - Lista tutte le sezioni con relativi stati
-   - Blocca l'invio se anche solo una sezione è incompleta
-   - Mostra messaggio chiaro se mancano sezioni
-
-6. **Firma Obbligatoria Finale**
-   - Checkbox consenso con testo legale completo
-   - Canvas per firma digitale (disegno con mouse/dito)
-   - Pulsante "Cancella" per rifare la firma
-   - Blocco invio senza firma E consenso
-
-**Sezioni del Wizard:**
-1. Introduzione (istruzioni)
-2. Dati Personali (obbligatori, non saltabili)
-3. Situazione Familiare
-4. Redditi da Lavoro
-5. Lavoro Autonomo
-6. Immobili
-7. Canoni Locazione
-8. Affitto Pagato
-9. Investimenti
-10. Criptomonete
-11. Plusvalenze
-12. Spese Deducibili
-13. Deduzioni Canarie
-14. Documenti
-15. Riepilogo
-16. Firma e Invio
-
-**File modificati/creati:**
-- `/app/frontend/src/components/TaxReturnFormWizard.jsx` (NUOVO - 2155 linee)
-- `/app/frontend/src/pages/DeclarationsPage.jsx` (import aggiornato)
-- `/app/backend/routes/declarations.py` (aggiunto `section_statuses` alle sezioni valide)
-- `/app/backend/routes/declaration_models.py` (aggiunto campo `section_statuses`)
-
-**Test eseguiti:**
-- ✅ Backend: 13/13 test passati (100%)
-- ✅ Frontend: Tutti i flussi wizard verificati (100%)
-- ✅ API `PUT /api/declarations/tax-returns/{id}/sections/section_statuses` funzionante
+**File creati:**
+- `/app/frontend/src/components/TaxReturnFormWizard.jsx`
 
 ---
 
@@ -82,48 +56,37 @@ Implementato un sistema wizard completo che obbliga il cliente a compilare corre
 
 **Investigazione Bug P0: Admin non vede dati dichiarazioni**
 
-- Tracciato flusso completo: TaxReturnForm → PUT API → MongoDB → GET API → DeclarationDetailView
-- **Conclusione:** Sistema funzionante correttamente. Le dichiarazioni esistenti erano vuote perché il cliente non aveva salvato i dati prima di inviare.
-- **Raccomandazione implementata:** Wizard obbliga ora a completare tutte le sezioni prima dell'invio.
-
----
-
-### Fase 89 (12 Dicembre 2025) - COMPLETATA ✅
-
-**Piano Hardening Mobile App (primi 5 punti):**
-- ThemeProvider integrato in App.tsx
-- Dark Mode funzionante
-- Tab Badges per scadenze e messaggi
-- Skeleton Loading su tutte le schermate
-- Biometric auto-login
+- Sistema funzionante correttamente
+- Le dichiarazioni erano vuote perché il cliente non aveva salvato i dati
+- Risolto con wizard obbligatorio
 
 ---
 
 ## Prioritized Backlog
 
 ### P0 - Critico
-- ✅ RISOLTO: Wizard compilazione dichiarazioni obbligatorio
+- ✅ RISOLTO: Notifiche dichiarazione push + email
+- ✅ RISOLTO: Wizard compilazione dichiarazioni
 
 ### P1 - In Progress
+- **Aggiungere IP server a whitelist Brevo** (azione utente): `104.198.214.223`
 - **Piano Hardening Mobile (punti rimanenti):**
   - Punto 6: Global Search
   - Punto 7: Dashboard Widgets
   - Punto 10: Gesture Navigation  
   - Punto 11: AI Assistant chat
 
-- **Refactoring server.py:**
-  - Spostare ~38 endpoint client in routes/clients.py
-  - File attuale: ~6800 righe
+- **Refactoring server.py** (~38 endpoint client)
 
 ### P2 - Future
 - Integrazione firma digitale Namirial/Aruba
-- Integrazione Dropbox/Google Drive per sync documenti
-- Reminder automatico per dichiarazioni incomplete
+- Integrazione Dropbox/Google Drive
+- Reminder automatico dichiarazioni incomplete
 
 ### P3 - Backlog
-- App Desktop Windows (Electron o simile)
-- Dashboard Analytics e Reporting per Admin
-- Offline Mode completo per mobile
+- App Desktop Windows
+- Dashboard Analytics Admin
+- Offline Mode mobile
 
 ---
 
@@ -132,41 +95,30 @@ Implementato un sistema wizard completo che obbliga il cliente a compilare corre
 ```
 /app/
 ├── backend/
-│   ├── scheduler.py (APScheduler per cron jobs)
-│   ├── email_service.py (Brevo integration)
-│   ├── push_service.py (Push notifications)
-│   ├── security.py (Rate limiting, audit)
-│   ├── server.py (~6800 lines - needs refactoring)
-│   └── routes/
-│       ├── declarations.py ✅ (Refactored, section_statuses added)
-│       ├── declaration_models.py ✅ (section_statuses field added)
-│       ├── auth.py ✅
-│       ├── clients.py (Placeholder)
-│       └── ...
-├── frontend/ (Web Admin/Client)
-│   ├── src/components/TaxReturnFormWizard.jsx ✅ (NEW)
-│   ├── src/components/TaxReturnForm.jsx (legacy, kept for reference)
-│   ├── src/components/DeclarationDetailView.jsx
-│   ├── src/pages/DeclarationsPage.jsx ✅ (updated import)
+│   ├── routes/
+│   │   ├── declarations.py ✅ (send_declaration_notification helper added)
+│   │   └── ...
+│   ├── push_service.py
+│   ├── email_service.py
+│   └── ...
+├── frontend/
+│   ├── src/components/
+│   │   ├── TaxReturnFormWizard.jsx ✅ (NEW)
+│   │   └── ...
 │   └── ...
 └── mobile-app/
-    └── fiscal-tax-mobile/
-        └── ...
+    └── ...
 ```
 
 ---
 
-## Key API Endpoints (Declarations)
+## Key API Endpoints (Declarations with Notifications)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/declarations/tax-returns` | GET | Lista dichiarazioni |
-| `/api/declarations/tax-returns` | POST | Crea nuova dichiarazione |
-| `/api/declarations/tax-returns/{id}` | GET | Dettaglio dichiarazione |
-| `/api/declarations/tax-returns/{id}/sections/{name}` | PUT | Salva sezione dati |
-| `/api/declarations/tax-returns/{id}/sections/section_statuses` | PUT | **NEW** Salva stati sezioni |
-| `/api/declarations/tax-returns/{id}/status` | PUT | Cambia stato |
-| `/api/declarations/tax-returns/{id}/sign` | POST | Firma autorizzazione |
+| Endpoint | Notifications |
+|----------|---------------|
+| `POST .../messages` | ✅ Push + Email |
+| `POST .../integration-requests` | ✅ Push + Email |
+| `POST .../fee/notify` | ✅ Push + Email |
 
 ---
 
@@ -177,17 +129,14 @@ Implementato un sistema wizard completo che obbliga il cliente a compilare corre
 
 ---
 
-## Test Reports
+## Known Issues
 
-- `/app/test_reports/iteration_39.json` - Wizard tests (100% passed)
-- `/app/backend/tests/test_wizard_iteration39.py` - Backend pytest
+1. **Email Brevo 401 Error:** L'IP del server deve essere aggiunto alla whitelist Brevo
+   - IP: `104.198.214.223`
+   - URL: https://app.brevo.com/security/authorised_ips
 
 ---
 
-## 3rd Party Integrations
+## Test Reports
 
-- **Brevo/Sendinblue:** Email notifications
-- **Expo/EAS:** Mobile app builds
-- **Apple App Store:** iOS distribution
-- **OpenAI/Gemini:** AI Assistant (Emergent LLM Key)
-- **APScheduler:** Cron jobs for deadline reminders
+- `/app/test_reports/iteration_39.json` - Wizard tests (100% passed)

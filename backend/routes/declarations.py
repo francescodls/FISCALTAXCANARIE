@@ -31,6 +31,104 @@ from .declaration_models import (
 
 router = APIRouter(prefix="/declarations", tags=["declarations"])
 
+
+# ==================== HELPER NOTIFICHE DICHIARAZIONE ====================
+
+async def send_declaration_notification(
+    db,
+    client_id: str,
+    client_email: str,
+    client_name: str,
+    anno_fiscale: int,
+    notification_type: str,
+    title: str,
+    message: str,
+    sender_name: str = "Fiscal Tax Canarie",
+    tax_return_id: str = None,
+    extra_data: dict = None
+):
+    """
+    Invia notifica al cliente sia via push che via email.
+    
+    Args:
+        db: Database instance
+        client_id: ID del cliente
+        client_email: Email del cliente
+        client_name: Nome del cliente
+        anno_fiscale: Anno fiscale della dichiarazione
+        notification_type: Tipo notifica (message, integration_request, status_change, etc.)
+        title: Titolo notifica
+        message: Contenuto del messaggio
+        sender_name: Nome del mittente (admin)
+        tax_return_id: ID della pratica (per deep linking)
+        extra_data: Dati extra per push notification
+    """
+    results = {"push": None, "email": None}
+    
+    # 1. PUSH NOTIFICATION
+    try:
+        from push_service import get_client_push_tokens, ExpoPushService
+        
+        tokens = await get_client_push_tokens(db, client_id)
+        if tokens:
+            push_data = {
+                "type": "declaration_" + notification_type,
+                "tax_return_id": tax_return_id,
+                "anno_fiscale": anno_fiscale,
+                "screen": "DeclarationDetail",
+                "action": "open_declaration",
+                **(extra_data or {})
+            }
+            
+            push_result = await ExpoPushService.send_push_notification(
+                push_tokens=tokens,
+                title=title,
+                body=message[:200] + "..." if len(message) > 200 else message,
+                data=push_data,
+                channel_id="declarations"
+            )
+            results["push"] = push_result
+            logger.info(f"Push notification sent for declaration {tax_return_id}: {push_result}")
+        else:
+            logger.info(f"No push tokens for client {client_id}")
+            results["push"] = {"success": False, "reason": "no_tokens"}
+            
+    except Exception as e:
+        logger.error(f"Error sending push notification: {e}")
+        results["push"] = {"success": False, "error": str(e)}
+    
+    # 2. EMAIL NOTIFICATION
+    try:
+        from email_service import send_generic_email
+        
+        if client_email:
+            email_result = await send_generic_email(
+                client_email,
+                f"[Fiscal Tax] {title} - Dichiarazione {anno_fiscale}",
+                f"""
+                <h2>{title}</h2>
+                <p>Gentile {client_name or 'Cliente'},</p>
+                <p>Hai ricevuto una nuova comunicazione da <strong>{sender_name}</strong> 
+                   riguardo la tua dichiarazione dei redditi {anno_fiscale}:</p>
+                <blockquote style="border-left: 3px solid #0d9488; padding-left: 15px; color: #555; white-space: pre-wrap;">
+                    {message}
+                </blockquote>
+                <p>Accedi alla piattaforma per visualizzare i dettagli e rispondere.</p>
+                <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
+                """
+            )
+            results["email"] = email_result
+            logger.info(f"Email sent for declaration {tax_return_id}: {email_result}")
+        else:
+            results["email"] = {"success": False, "reason": "no_email"}
+            
+    except Exception as e:
+        logger.error(f"Error sending email: {e}")
+        results["email"] = {"success": False, "error": str(e)}
+    
+    return results
+
+
 # Testo autorizzazione di default
 DEFAULT_AUTHORIZATION_TEXT = """Autorizzo espressamente Fiscal Tax Canarie SLP, con CIF B44653517, con sede in Las Palmas de Gran Canaria, Calle Domingo J. Navarro n. 1, Planta 2, Oficina 5, a predisporre e presentare in mio nome e per mio conto la dichiarazione dei redditi, sulla base dei dati e dei documenti da me forniti. Dichiaro che le informazioni trasmesse sono veritiere e complete per quanto a mia conoscenza e autorizzo il trattamento dei dati esclusivamente per le finalità connesse all'incarico professionale."""
 
@@ -1609,26 +1707,34 @@ async def create_integration_request(
         }
     )
     
-    # Invia email al cliente
+    # Invia PUSH + EMAIL al cliente
     try:
-        from email_service import send_generic_email
         client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
-        if client and client.get("email"):
-            await send_generic_email(
-                client["email"],
-                f"[Fiscal Tax] Richiesta documentazione da {admin_display_name} - Dichiarazione Redditi {tax_return['anno_fiscale']}",
-                f"""
-                <h2>Richiesta Integrazione Documentale</h2>
-                <p>Gentile {client.get('full_name', 'Cliente')},</p>
-                <p><strong>{admin_display_name}</strong> ha bisogno di ulteriore documentazione per la tua dichiarazione dei redditi {tax_return['anno_fiscale']}.</p>
-                <p><strong>Sezione:</strong> {data.seccion}</p>
-                <p><strong>Messaggio:</strong> {data.mensaje}</p>
-                {'<p><strong>Documenti richiesti:</strong> ' + ', '.join(data.documentos_richiesti) + '</p>' if data.documentos_richiesti else ''}
-                <p>Accedi alla piattaforma per caricare i documenti richiesti.</p>
-                <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
-                """
+        if client:
+            # Prepara messaggio
+            docs_list = ', '.join(data.documentos_richiesti) if data.documentos_richiesti else ''
+            message_text = f"Sezione: {data.seccion}\n\n{data.mensaje}"
+            if docs_list:
+                message_text += f"\n\nDocumenti richiesti: {docs_list}"
+            
+            await send_declaration_notification(
+                db=db,
+                client_id=tax_return["client_id"],
+                client_email=client.get("email"),
+                client_name=client.get("full_name", "Cliente"),
+                anno_fiscale=tax_return['anno_fiscale'],
+                notification_type="integration_request",
+                title=f"Richiesta documentazione da {admin_display_name}",
+                message=message_text,
+                sender_name=admin_display_name,
+                tax_return_id=tax_return_id,
+                extra_data={
+                    "request_id": request_id,
+                    "section": data.seccion
+                }
             )
     except Exception as e:
+        logger.error(f"Error sending integration request notification: {e}")
         pass
     
     await log_activity("richiesta_integrazione", f"Richiesta integrazione per pratica {tax_return_id}", user["id"])
@@ -1867,15 +1973,14 @@ async def add_declaration_message(
         }
     )
     
-    # Invia email di notifica
+    # Invia notifiche (push + email)
     try:
-        from email_service import send_generic_email
-        
         if is_admin:
             # Notifica al cliente - mostra nome dell'admin
             client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
             admin_display_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or user.get('full_name', 'Fiscal Tax Canarie')
-            if client and client.get("email"):
+            
+            if client:
                 # Prepara sezione allegati per email
                 attachments_html = ""
                 if processed_attachments:
@@ -1895,26 +2000,32 @@ async def add_declaration_message(
                     </div>
                     """
                 
-                await send_generic_email(
-                    client["email"],
-                    f"[Fiscal Tax] Nuovo messaggio da {admin_display_name} - Dichiarazione {tax_return['anno_fiscale']}",
-                    f"""
-                    <h2>Nuovo Messaggio sulla tua Dichiarazione</h2>
-                    <p>Gentile {client.get('full_name', 'Cliente')},</p>
-                    <p>Hai ricevuto un nuovo messaggio da <strong>{admin_display_name}</strong> riguardo la tua dichiarazione dei redditi {tax_return['anno_fiscale']}:</p>
-                    <blockquote style="border-left: 3px solid #0d9488; padding-left: 15px; color: #555;">
-                        {data.content}
-                    </blockquote>
-                    {attachments_html}
-                    <p>Accedi alla piattaforma per rispondere.</p>
-                    <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
-                    """
+                # Contenuto messaggio completo per email
+                message_content = f"{data.content}{attachments_html}"
+                
+                # Invia PUSH + EMAIL tramite helper
+                await send_declaration_notification(
+                    db=db,
+                    client_id=tax_return["client_id"],
+                    client_email=client.get("email"),
+                    client_name=client.get("full_name", "Cliente"),
+                    anno_fiscale=tax_return['anno_fiscale'],
+                    notification_type="message",
+                    title=f"Nuovo messaggio da {admin_display_name}",
+                    message=data.content,
+                    sender_name=admin_display_name,
+                    tax_return_id=tax_return_id,
+                    extra_data={
+                        "message_id": message["id"],
+                        "has_attachments": bool(processed_attachments)
+                    }
                 )
         else:
             # Notifica all'admin (il cliente ha risposto)
             pass
     except Exception as e:
-        pass  # Non bloccare se email fallisce
+        logger.error(f"Error sending declaration notification: {e}")
+        pass  # Non bloccare se notifica fallisce
     
     # Prepara risposta senza file_data
     response_message = {
@@ -2233,6 +2344,28 @@ async def notify_declaration_fee(
             "updated_at": datetime.now(timezone.utc).isoformat()
         }}
     )
+    
+    # Invia anche PUSH notification
+    try:
+        from push_service import get_client_push_tokens, ExpoPushService
+        tokens = await get_client_push_tokens(db, tax_return["client_id"])
+        if tokens:
+            await ExpoPushService.send_push_notification(
+                push_tokens=tokens,
+                title=f"Onorario Dichiarazione {anno_fiscale}",
+                body=f"L'onorario previsto per la tua dichiarazione è di {fee_display}",
+                data={
+                    "type": "declaration_fee",
+                    "tax_return_id": tax_return_id,
+                    "anno_fiscale": anno_fiscale,
+                    "screen": "DeclarationDetail",
+                    "action": "open_declaration"
+                },
+                channel_id="declarations"
+            )
+            logger.info(f"Push notification sent for fee notification {tax_return_id}")
+    except Exception as e:
+        logger.error(f"Error sending fee push notification: {e}")
     
     # Crea anche notifica in-app
     notification_id = str(uuid.uuid4())
