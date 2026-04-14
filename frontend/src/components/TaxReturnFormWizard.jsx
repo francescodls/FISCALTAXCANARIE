@@ -130,10 +130,8 @@ const SECTIONS_CONFIG = [
     id: 'datos_personales', 
     name: 'Dati Personali', 
     icon: User, 
-    required: true,
     canBeNotApplicable: false,
-    requiredFields: ['nombre', 'apellidos', 'dni_nie', 'fecha_nacimiento', 'direccion', 'municipio', 'provincia', 'codigo_postal', 'telefono', 'email', 'estado_civil'],
-    description: 'Inserisci i tuoi dati anagrafici completi'
+    description: 'Inserisci i tuoi dati anagrafici'
   },
   { 
     id: 'situacion_familiar', 
@@ -529,18 +527,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
       return;
     }
     
-    // Valida campi obbligatori per dati personali
-    if (config.requiredFields) {
-      const data = formData[sectionId];
-      const missingFields = config.requiredFields.filter(f => !data[f] || data[f] === '');
-      
-      if (missingFields.length > 0) {
-        toast.error('Compila tutti i campi obbligatori prima di procedere');
-        return;
-      }
-    }
-    
-    // Salva la sezione
+    // Salva la sezione (nessun campo è obbligatorio)
     await saveSection(sectionId, formData[sectionId]);
     
     // Marca come completata
@@ -891,7 +878,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
     <SectionWrapper sectionId="datos_personales" config={SECTIONS_CONFIG.find(s => s.id === 'datos_personales')}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label>Nome <span className="text-red-500">*</span></Label>
+          <Label>Nome</Label>
           <DebouncedInput 
             value={formData.datos_personales.nombre || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'nombre', val)}
@@ -900,7 +887,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Cognome <span className="text-red-500">*</span></Label>
+          <Label>Cognome</Label>
           <DebouncedInput 
             value={formData.datos_personales.apellidos || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'apellidos', val)}
@@ -909,7 +896,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>DNI/NIE <span className="text-red-500">*</span></Label>
+          <Label>DNI/NIE</Label>
           <DebouncedInput 
             value={formData.datos_personales.dni_nie || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'dni_nie', val)}
@@ -918,7 +905,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Data di Nascita <span className="text-red-500">*</span></Label>
+          <Label>Data di Nascita</Label>
           <Input 
             type="date"
             value={formData.datos_personales.fecha_nacimiento || ''}
@@ -927,7 +914,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div className="md:col-span-2">
-          <Label>Indirizzo di Residenza <span className="text-red-500">*</span></Label>
+          <Label>Indirizzo di Residenza</Label>
           <DebouncedInput 
             value={formData.datos_personales.direccion || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'direccion', val)}
@@ -936,7 +923,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Comune <span className="text-red-500">*</span></Label>
+          <Label>Comune</Label>
           <DebouncedInput 
             value={formData.datos_personales.municipio || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'municipio', val)}
@@ -945,7 +932,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Provincia <span className="text-red-500">*</span></Label>
+          <Label>Provincia</Label>
           <DebouncedInput 
             value={formData.datos_personales.provincia || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'provincia', val)}
@@ -954,7 +941,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>CAP <span className="text-red-500">*</span></Label>
+          <Label>CAP</Label>
           <DebouncedInput 
             value={formData.datos_personales.codigo_postal || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'codigo_postal', val)}
@@ -971,7 +958,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Telefono <span className="text-red-500">*</span></Label>
+          <Label>Telefono</Label>
           <DebouncedInput 
             value={formData.datos_personales.telefono || ''}
             onChange={(val) => handleFieldChange('datos_personales', 'telefono', val)}
@@ -980,7 +967,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Email <span className="text-red-500">*</span></Label>
+          <Label>Email</Label>
           <DebouncedInput 
             type="email"
             value={formData.datos_personales.email || user?.email || ''}
@@ -989,7 +976,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           />
         </div>
         <div>
-          <Label>Stato Civile <span className="text-red-500">*</span></Label>
+          <Label>Stato Civile</Label>
           <Select 
             value={formData.datos_personales.estado_civil || ''}
             onValueChange={(v) => handleFieldChange('datos_personales', 'estado_civil', v)}
