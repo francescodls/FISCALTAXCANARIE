@@ -180,19 +180,22 @@ const DOC_CATEGORIES = [
 const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onUpdate }) => {
   // Sanitizza i dati in ingresso
   const taxReturn = useMemo(() => {
+    if (!rawTaxReturn) return null;
     try {
       return JSON.parse(JSON.stringify(rawTaxReturn));
     } catch (e) {
       console.error('Errore sanitizzazione taxReturn:', e);
-      return rawTaxReturn || {};
+      return rawTaxReturn || null;
     }
   }, [rawTaxReturn]);
   
   const [currentSection, setCurrentSection] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   
   // Stato delle sezioni (completata, non applicabile, in corso, non iniziata)
   const [sectionStatuses, setSectionStatuses] = useState(() => {
+    if (!taxReturn) return {};
     const saved = taxReturn.section_statuses || {};
     const initial = {};
     SECTIONS_CONFIG.forEach(s => {
@@ -204,22 +207,25 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
   });
   
   // Form data per ogni sezione
-  const [formData, setFormData] = useState({
-    datos_personales: taxReturn.datos_personales || {},
-    situacion_familiar: taxReturn.situacion_familiar || {},
-    rentas_trabajo: taxReturn.rentas_trabajo || {},
-    autonomo: taxReturn.autonomo || {},
-    inmuebles: taxReturn.inmuebles || { tiene_inmuebles: false },
-    alquileres_cobrados: taxReturn.alquileres_cobrados || { tiene_alquileres: false },
-    alquiler_pagado: taxReturn.alquiler_pagado || {},
-    inversiones: taxReturn.inversiones || { tiene_inversiones: false },
-    criptomonedas: taxReturn.criptomonedas || { tiene_criptomonedas: false },
-    ganancias_patrimoniales: taxReturn.ganancias_patrimoniales || { tiene_ganancias_patrimoniales: false },
-    deducciones: taxReturn.deducciones || {},
-    deducciones_canarias: taxReturn.deducciones_canarias || {}
+  const [formData, setFormData] = useState(() => {
+    if (!taxReturn) return {};
+    return {
+      datos_personales: taxReturn.datos_personales || {},
+      situacion_familiar: taxReturn.situacion_familiar || {},
+      rentas_trabajo: taxReturn.rentas_trabajo || {},
+      autonomo: taxReturn.autonomo || {},
+      inmuebles: taxReturn.inmuebles || { tiene_inmuebles: false },
+      alquileres_cobrados: taxReturn.alquileres_cobrados || { tiene_alquileres: false },
+      alquiler_pagado: taxReturn.alquiler_pagado || {},
+      inversiones: taxReturn.inversiones || { tiene_inversiones: false },
+      criptomonedas: taxReturn.criptomonedas || { tiene_criptomonedas: false },
+      ganancias_patrimoniales: taxReturn.ganancias_patrimoniales || { tiene_ganancias_patrimoniales: false },
+      deducciones: taxReturn.deducciones || {},
+      deducciones_canarias: taxReturn.deducciones_canarias || {}
+    };
   });
   
-  const [documents, setDocuments] = useState(taxReturn.documentos || []);
+  const [documents, setDocuments] = useState(() => taxReturn?.documentos || []);
   const [uploading, setUploading] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [authText, setAuthText] = useState('');
@@ -236,19 +242,42 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
   // Carica testo autorizzazione
   useEffect(() => {
+    if (!taxReturn?.id || !token) {
+      setLoadingAuth(false);
+      return;
+    }
+    
     const fetchAuthText = async () => {
       try {
+        setLoadingAuth(true);
         const res = await fetch(`${API_URL}/api/declarations/tax-returns/${taxReturn.id}/authorization-text`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await res.json();
-        setAuthText(data.text);
+        if (res.ok) {
+          const data = await res.json();
+          setAuthText(data.text);
+        }
       } catch (error) {
         console.error('Errore caricamento testo autorizzazione:', error);
+        // Non mostrare toast per questo errore - è secondario
+      } finally {
+        setLoadingAuth(false);
       }
     };
     fetchAuthText();
-  }, [taxReturn.id, token]);
+  }, [taxReturn?.id, token]);
+  
+  // Loading state se taxReturn non è disponibile
+  if (!taxReturn || !taxReturn.id) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Caricamento dichiarazione...</p>
+        </div>
+      </div>
+    );
+  }
   
   // Salva sezione (chiamato solo al cambio step)
   const saveSection = async (sectionId, data) => {
