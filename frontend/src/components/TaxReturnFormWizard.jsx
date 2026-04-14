@@ -22,6 +22,24 @@ import ClientIntegrationRequests from './ClientIntegrationRequests';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+// Helper per toast errori sicuro - evita errori con oggetti non serializzabili
+const safeErrorToast = (error) => {
+  try {
+    if (typeof error === 'string') {
+      toast.error(error);
+    } else if (error?.message && typeof error.message === 'string') {
+      toast.error(error.message);
+    } else if (error?.detail && typeof error.detail === 'string') {
+      toast.error(error.detail);
+    } else {
+      toast.error('Si è verificato un errore');
+    }
+  } catch (e) {
+    console.error('Toast error:', e);
+    toast.error('Si è verificato un errore');
+  }
+};
+
 // Stati possibili per ogni sezione
 const SECTION_STATUS = {
   NOT_STARTED: 'not_started',
@@ -301,7 +319,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
       
       return true;
     } catch (error) {
-      toast.error(error.message);
+      safeErrorToast(error);
       return false;
     } finally {
       setSaving(false);
@@ -535,7 +553,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
       toast.success('Documento caricato');
       setDocuments(prev => [...prev, { id: data.document_id, nombre: file.name, categoria: category, seccion: sectionId }]);
     } catch (error) {
-      toast.error(error.message);
+      safeErrorToast(error);
     } finally {
       setUploading(false);
     }
@@ -591,7 +609,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
       toast.success('Dichiarazione firmata e inviata con successo!');
       onBack();
     } catch (error) {
-      toast.error(error.message);
+      safeErrorToast(error);
     }
   };
 
