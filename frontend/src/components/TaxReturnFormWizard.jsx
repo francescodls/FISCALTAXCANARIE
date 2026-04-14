@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
@@ -190,7 +190,6 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
   
   const [currentSection, setCurrentSection] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [autoSaveTimer, setAutoSaveTimer] = useState(null);
   
   // Stato delle sezioni (completata, non applicabile, in corso, non iniziata)
   const [sectionStatuses, setSectionStatuses] = useState(() => {
@@ -251,21 +250,8 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
     fetchAuthText();
   }, [taxReturn.id, token]);
   
-  // Auto-save con debounce
-  const scheduleAutoSave = useCallback((sectionId, data) => {
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer);
-    }
-    
-    const timer = setTimeout(async () => {
-      await saveSection(sectionId, data, true);
-    }, 1500); // 1.5 secondi di debounce
-    
-    setAutoSaveTimer(timer);
-  }, [autoSaveTimer]);
-  
-  // Salva sezione
-  const saveSection = async (sectionId, data, isAutoSave = false) => {
+  // Salva sezione (chiamato solo al cambio step)
+  const saveSection = async (sectionId, data) => {
     if (!isEditable) return;
     
     setSaving(true);
@@ -284,14 +270,10 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
         throw new Error(errorData.detail || 'Errore salvataggio');
       }
       
-      if (!isAutoSave) {
-        toast.success('Sezione salvata con successo');
-      } else {
-        // Toast più discreto per auto-save
-        toast.success('Salvato automaticamente', { duration: 1500 });
-      }
+      return true;
     } catch (error) {
       toast.error(error.message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -313,7 +295,7 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
     }
   };
   
-  // Gestione cambio campo
+  // Gestione cambio campo (solo aggiorna lo stato locale, salva al cambio step)
   const handleFieldChange = (section, field, value) => {
     const newSectionData = {
       ...formData[section],
@@ -329,11 +311,8 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
     if (sectionStatuses[section] === SECTION_STATUS.NOT_STARTED) {
       const newStatuses = { ...sectionStatuses, [section]: SECTION_STATUS.IN_PROGRESS };
       setSectionStatuses(newStatuses);
-      saveSectionStatuses(newStatuses);
+      // Non salviamo subito gli stati, verranno salvati al cambio step
     }
-    
-    // Schedula auto-save
-    scheduleAutoSave(section, newSectionData);
   };
   
   // Marca sezione come "Non Applicabile"
