@@ -1205,9 +1205,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note aggiuntive</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.rentas_trabajo.notas || ''}
-            onChange={(val) => handleFieldChange('rentas_trabajo', 'notas', val)}
+            onChange={(e) => handleFieldChange('rentas_trabajo', 'notas', e.target.value)}
             placeholder="Ulteriori informazioni sui redditi da lavoro..."
             disabled={!isEditable}
           />
@@ -1233,18 +1233,18 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label>Attività svolta</Label>
-              <DebouncedInput 
-            value={formData.autonomo.actividad || ''}
-            onChange={(val) => handleFieldChange('autonomo', 'actividad', val)}
+              <Input 
+                value={formData.autonomo.actividad || ''}
+                onChange={(e) => handleFieldChange('autonomo', 'actividad', e.target.value)}
                 disabled={!isEditable}
                 placeholder="Es: Consulente informatico"
               />
             </div>
             <div>
               <Label>Epígrafe IAE</Label>
-              <DebouncedInput 
-            value={formData.autonomo.epigrafe_iae || ''}
-            onChange={(val) => handleFieldChange('autonomo', 'epigrafe_iae', val)}
+              <Input 
+                value={formData.autonomo.epigrafe_iae || ''}
+                onChange={(e) => handleFieldChange('autonomo', 'epigrafe_iae', e.target.value)}
                 disabled={!isEditable}
               />
             </div>
@@ -1299,9 +1299,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.autonomo.notas || ''}
-            onChange={(val) => handleFieldChange('autonomo', 'notas', val)}
+            onChange={(e) => handleFieldChange('autonomo', 'notas', e.target.value)}
             placeholder="Ulteriori informazioni sull'attività autonoma..."
             disabled={!isEditable}
           />
@@ -1336,18 +1336,18 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <Label>Indirizzo immobile</Label>
-                <DebouncedInput 
-            value={formData.inmuebles.direccion_principal || ''}
-            onChange={(val) => handleFieldChange('inmuebles', 'direccion_principal', val)}
+                <Input 
+                  value={formData.inmuebles.direccion_principal || ''}
+                  onChange={(e) => handleFieldChange('inmuebles', 'direccion_principal', e.target.value)}
                   placeholder="Via, numero, città"
                   disabled={!isEditable}
                 />
               </div>
               <div>
                 <Label>Riferimento Catastale</Label>
-                <DebouncedInput 
-            value={formData.inmuebles.referencia_catastral || ''}
-            onChange={(val) => handleFieldChange('inmuebles', 'referencia_catastral', val)}
+                <Input 
+                  value={formData.inmuebles.referencia_catastral || ''}
+                  onChange={(e) => handleFieldChange('inmuebles', 'referencia_catastral', e.target.value)}
                   disabled={!isEditable}
                 />
               </div>
@@ -1396,9 +1396,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note sugli immobili</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.inmuebles.notas || ''}
-            onChange={(val) => handleFieldChange('inmuebles', 'notas', val)}
+            onChange={(e) => handleFieldChange('inmuebles', 'notas', e.target.value)}
             placeholder="Descrivi altri immobili o particolarità..."
             rows={4}
             disabled={!isEditable}
@@ -1425,9 +1425,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <Label>Indirizzo immobile affittato</Label>
-              <DebouncedInput 
-            value={formData.alquileres_cobrados.direccion || ''}
-            onChange={(val) => handleFieldChange('alquileres_cobrados', 'direccion', val)}
+              <Input 
+                value={formData.alquileres_cobrados.direccion || ''}
+                onChange={(e) => handleFieldChange('alquileres_cobrados', 'direccion', e.target.value)}
                 disabled={!isEditable}
               />
             </div>
@@ -1457,9 +1457,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.alquileres_cobrados.notas || ''}
-            onChange={(val) => handleFieldChange('alquileres_cobrados', 'notas', val)}
+            onChange={(e) => handleFieldChange('alquileres_cobrados', 'notas', e.target.value)}
             placeholder="Dettagli aggiuntivi sui canoni di locazione..."
             disabled={!isEditable}
           />
@@ -1495,17 +1495,17 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
             </div>
             <div>
               <Label>Nome proprietario</Label>
-              <DebouncedInput 
-            value={formData.alquiler_pagado.nombre_arrendador || ''}
-            onChange={(val) => handleFieldChange('alquiler_pagado', 'nombre_arrendador', val)}
+              <Input 
+                value={formData.alquiler_pagado.nombre_arrendador || ''}
+                onChange={(e) => handleFieldChange('alquiler_pagado', 'nombre_arrendador', e.target.value)}
                 disabled={!isEditable}
               />
             </div>
             <div>
               <Label>NIF/NIE proprietario</Label>
-              <DebouncedInput 
-            value={formData.alquiler_pagado.nif_arrendador || ''}
-            onChange={(val) => handleFieldChange('alquiler_pagado', 'nif_arrendador', val)}
+              <Input 
+                value={formData.alquiler_pagado.nif_arrendador || ''}
+                onChange={(e) => handleFieldChange('alquiler_pagado', 'nif_arrendador', e.target.value)}
                 disabled={!isEditable}
               />
             </div>
@@ -1514,9 +1514,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.alquiler_pagado.notas || ''}
-            onChange={(val) => handleFieldChange('alquiler_pagado', 'notas', val)}
+            onChange={(e) => handleFieldChange('alquiler_pagado', 'notas', e.target.value)}
             placeholder="Dettagli aggiuntivi sull'affitto..."
             disabled={!isEditable}
           />
@@ -1550,9 +1550,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Descrizione investimenti e redditi da capitale</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.inversiones.notas || ''}
-            onChange={(val) => handleFieldChange('inversiones', 'notas', val)}
+            onChange={(e) => handleFieldChange('inversiones', 'notas', e.target.value)}
             placeholder="Es: Conto deposito Banca X - interessi €500; Fondo Y - dividendi €200..."
             rows={5}
             disabled={!isEditable}
@@ -1612,9 +1612,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Descrizione operazioni crypto</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.criptomonedas.notas || ''}
-            onChange={(val) => handleFieldChange('criptomonedas', 'notas', val)}
+            onChange={(e) => handleFieldChange('criptomonedas', 'notas', e.target.value)}
             placeholder="Indica gli exchange utilizzati, le crypto possedute, le operazioni effettuate..."
             rows={5}
             disabled={!isEditable}
@@ -1649,9 +1649,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Descrizione plusvalenze/minusvalenze</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.ganancias_patrimoniales.notas || ''}
-            onChange={(val) => handleFieldChange('ganancias_patrimoniales', 'notas', val)}
+            onChange={(e) => handleFieldChange('ganancias_patrimoniales', 'notas', e.target.value)}
             placeholder="Descrivi le operazioni che hanno generato plusvalenze o minusvalenze..."
             rows={5}
             disabled={!isEditable}
@@ -1721,9 +1721,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note sulle deduzioni</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.deducciones.notas || ''}
-            onChange={(val) => handleFieldChange('deducciones', 'notas', val)}
+            onChange={(e) => handleFieldChange('deducciones', 'notas', e.target.value)}
             placeholder="Descrivi le spese deducibili..."
             disabled={!isEditable}
           />
@@ -1792,9 +1792,9 @@ const TaxReturnFormWizard = ({ taxReturn: rawTaxReturn, token, user, onBack, onU
 
         <div>
           <Label>Note sulle deduzioni canarie</Label>
-          <DebouncedTextarea
+          <Textarea
             value={formData.deducciones_canarias.notas || ''}
-            onChange={(val) => handleFieldChange('deducciones_canarias', 'notas', val)}
+            onChange={(e) => handleFieldChange('deducciones_canarias', 'notas', e.target.value)}
             placeholder="Altre deduzioni regionali..."
             disabled={!isEditable}
           />
