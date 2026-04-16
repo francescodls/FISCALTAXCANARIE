@@ -39,6 +39,9 @@ import { EmailNotificationsScreen } from '../screens/EmailNotificationsScreen';
 import { HelpCenterScreen } from '../screens/HelpCenterScreen';
 import { PrivacyConsentScreen } from '../screens/PrivacyConsentScreen';
 import { TermsConditionsScreen } from '../screens/TermsConditionsScreen';
+// Auth screens (for native registration/password recovery - Apple Store compliance)
+import { RegisterScreen } from '../screens/RegisterScreen';
+import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -332,11 +335,23 @@ export const AppNavigator = () => {
             <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
           </>
         ) : (
-          <Stack.Screen 
-            name="Login" 
-            component={LoginScreen}
-            options={{ animation: 'fade' }}
-          />
+          <>
+            <Stack.Screen 
+              name="Login" 
+              component={LoginScreen}
+              options={{ animation: 'fade' }}
+            />
+            <Stack.Screen 
+              name="Register" 
+              component={RegisterScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen 
+              name="ForgotPassword" 
+              component={ForgotPasswordScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

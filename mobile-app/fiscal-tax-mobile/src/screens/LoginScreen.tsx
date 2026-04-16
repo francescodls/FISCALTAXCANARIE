@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff, Fingerprint, ScanFace } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
@@ -24,6 +25,7 @@ import { LanguageSelector } from '../components/LanguageSelector';
 import { biometricService, BiometricConfig } from '../services/biometric';
 
 export const LoginScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { login } = useAuth();
   const { t } = useLanguage();
   const { colors, isDark } = useTheme();
@@ -242,7 +244,7 @@ export const LoginScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.forgotPassword}
-              onPress={() => Linking.openURL('https://fiscaltaxcanarie.com')}
+              onPress={() => navigation.navigate('ForgotPassword')}
             >
               <Text style={styles.forgotPasswordText}>
                 {t.login.forgotPassword}
@@ -256,7 +258,7 @@ export const LoginScreen: React.FC = () => {
               {t.login.noAccount}{' '}
               <Text
                 style={styles.footerLink}
-                onPress={() => Linking.openURL('https://fiscaltaxcanarie.com')}
+                onPress={() => navigation.navigate('Register')}
               >
                 {t.login.register}
               </Text>

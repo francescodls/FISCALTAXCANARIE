@@ -5,6 +5,49 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 93 (Dicembre 2025) - COMPLETATA ✅
+
+**Fix Rifiuto App Store Apple - Guideline 4 Design**
+
+Problema: L'app mobile era stata rifiutata dall'App Store perché i link di Registrazione e Recupero Password in `LoginScreen.tsx` utilizzavano `Linking.openURL()` per aprire un browser esterno invece di gestire il flusso nativamente.
+
+**Soluzione implementata:**
+
+1. **Creato `RegisterScreen.tsx`**
+   - Form nativo di registrazione con validazione
+   - Campi: Nome e Cognome, Email, Telefono (opzionale), Password, Conferma Password
+   - Checkbox accettazione termini e condizioni
+   - Chiamata API a `/api/auth/register`
+   - Schermata di successo con navigazione al login
+
+2. **Creato `ForgotPasswordScreen.tsx`**
+   - Form nativo per recupero password
+   - Validazione email
+   - Chiamata API a `/api/auth/forgot-password`
+   - Messaggio di conferma invio email
+
+3. **Aggiornato `AppNavigator.tsx`**
+   - Aggiunta rotta `Register` allo stack di navigazione non autenticato
+   - Aggiunta rotta `ForgotPassword` allo stack di navigazione non autenticato
+
+4. **Aggiornato `LoginScreen.tsx`**
+   - Rimosso `Linking.openURL()` per "Password dimenticata?" → ora usa `navigation.navigate('ForgotPassword')`
+   - Rimosso `Linking.openURL()` per "Registrati" → ora usa `navigation.navigate('Register')`
+   - Importato `useNavigation` da `@react-navigation/native`
+
+**File modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/RegisterScreen.tsx` (completato)
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/ForgotPasswordScreen.tsx` (completato)
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx` (rotte aggiunte)
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/LoginScreen.tsx` (navigazione nativa)
+
+**Test eseguiti:**
+- ✅ API `/api/auth/register` funzionante
+- ✅ API `/api/auth/forgot-password` funzionante
+- ✅ Navigazione nativa implementata (no browser esterno)
+
+---
+
 ### Fase 92 (13 Aprile 2026) - COMPLETATA ✅
 
 **Fix Notifiche Dichiarazione - Push + Email Obbligatori**
@@ -65,6 +108,7 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 ## Prioritized Backlog
 
 ### P0 - Critico
+- ✅ RISOLTO: Rifiuto App Store Apple (Guideline 4 Design) - Navigazione nativa
 - ✅ RISOLTO: Notifiche dichiarazione push + email
 - ✅ RISOLTO: Wizard compilazione dichiarazioni
 
@@ -107,7 +151,14 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 │   │   └── ...
 │   └── ...
 └── mobile-app/
-    └── ...
+    └── fiscal-tax-mobile/
+        └── src/
+            ├── screens/
+            │   ├── LoginScreen.tsx ✅ (navigazione nativa)
+            │   ├── RegisterScreen.tsx ✅ (NEW - App Store compliance)
+            │   └── ForgotPasswordScreen.tsx ✅ (NEW - App Store compliance)
+            └── navigation/
+                └── AppNavigator.tsx ✅ (rotte auth aggiunte)
 ```
 
 ---

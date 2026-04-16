@@ -29,8 +29,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
   const { colors } = useTheme();
   
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
     phone: '',
     password: '',
@@ -49,12 +48,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
   };
 
   const validateForm = (): boolean => {
-    if (!formData.firstName.trim()) {
-      setError('Inserisci il tuo nome');
-      return false;
-    }
-    if (!formData.lastName.trim()) {
-      setError('Inserisci il tuo cognome');
+    if (!formData.fullName.trim()) {
+      setError('Inserisci il tuo nome e cognome');
       return false;
     }
     if (!formData.email.trim()) {
@@ -99,10 +94,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
         body: JSON.stringify({
           email: formData.email.trim().toLowerCase(),
           password: formData.password,
-          first_name: formData.firstName.trim(),
-          last_name: formData.lastName.trim(),
+          full_name: formData.fullName.trim(),
           phone: formData.phone.trim() || undefined,
-          role: 'cliente',
         }),
       });
 
@@ -196,28 +189,14 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
 
           {/* Form */}
           <View style={styles.form}>
-            <View style={styles.row}>
-              <View style={styles.halfInput}>
-                <TextInput
-                  label="Nome"
-                  placeholder="Il tuo nome"
-                  value={formData.firstName}
-                  onChangeText={(val) => updateField('firstName', val)}
-                  autoCapitalize="words"
-                  leftIcon={<User size={20} color={COLORS.textSecondary} />}
-                />
-              </View>
-              <View style={styles.halfInput}>
-                <TextInput
-                  label="Cognome"
-                  placeholder="Il tuo cognome"
-                  value={formData.lastName}
-                  onChangeText={(val) => updateField('lastName', val)}
-                  autoCapitalize="words"
-                  leftIcon={<User size={20} color={COLORS.textSecondary} />}
-                />
-              </View>
-            </View>
+            <TextInput
+              label="Nome e Cognome"
+              placeholder="Il tuo nome completo"
+              value={formData.fullName}
+              onChangeText={(val) => updateField('fullName', val)}
+              autoCapitalize="words"
+              leftIcon={<User size={20} color={COLORS.textSecondary} />}
+            />
 
             <TextInput
               label="Email"
@@ -377,13 +356,6 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: SPACING.lg,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-  },
-  halfInput: {
-    flex: 1,
   },
   termsContainer: {
     flexDirection: 'row',
