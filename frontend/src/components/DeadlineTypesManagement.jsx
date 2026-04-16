@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
+import { toast } from '@/components/ui/sonner';
 import { 
   Calendar, Plus, Settings, FileText, Trash2, Edit, Check, X,
   Users, User, Building2, Home, Briefcase, Search, Clock,

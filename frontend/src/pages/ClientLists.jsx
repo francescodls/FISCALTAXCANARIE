@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "sonner";
+import { toast } from '@/components/ui/sonner';
 import { 
   ArrowLeft, 
   Users, 

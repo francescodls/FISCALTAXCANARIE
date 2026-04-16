@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from '@/components/ui/sonner';
 import LanguageSelector from "@/components/LanguageSelector";
 import { useLanguage } from "@/i18n/LanguageContext";
 

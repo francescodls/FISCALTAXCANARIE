@@ -9,7 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { toast } from '@/components/ui/sonner';
 import ChatBot from "@/components/ChatBot";
 import CompanyStructureSection from "@/components/CompanyStructureSection";
 import { 

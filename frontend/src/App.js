@@ -3,7 +3,7 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
-import { toast } from "sonner";
+import { toast } from '@/components/ui/sonner';
 import { LanguageProvider } from "@/i18n/LanguageContext";
 
 // Pages

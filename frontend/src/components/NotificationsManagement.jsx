@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { toast } from "sonner";
+import { toast } from '@/components/ui/sonner';
 import { 
   Bell, Send, Plus, Settings, History, FileText, Calendar,
   Users, User, Building2, Home, Briefcase, Search, X, Check,
