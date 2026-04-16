@@ -17,7 +17,7 @@ import {
   MessageSquare, FileUp, Eye, CreditCard, Clock, Bell,
   Lock, Circle, AlertTriangle, Ban, ListChecks
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import ClientIntegrationRequests from './ClientIntegrationRequests';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;

@@ -12,7 +12,7 @@ import {
   User, Calendar, FileCheck, ChevronRight, Building2,
   ArrowLeft, LogOut
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import TaxReturnFormWizard from '../components/TaxReturnFormWizard';
 import AdminDeclarationsView from '../components/AdminDeclarationsView';
 import DeclarationDetailView from '../components/DeclarationDetailView';

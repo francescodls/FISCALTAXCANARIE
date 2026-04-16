@@ -17,7 +17,7 @@ import {
   TrendingUp, Bitcoin, Receipt, MapPin, RefreshCw, Trash2, UserCheck,
   Euro, Mail, Bell, CreditCard
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import DocumentPreview from './DocumentPreview';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;

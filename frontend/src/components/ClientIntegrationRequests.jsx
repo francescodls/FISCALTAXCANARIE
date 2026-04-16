@@ -10,7 +10,7 @@ import {
   AlertCircle, CheckCircle, Clock, Send, Upload, FileText,
   MessageCircle, Paperclip, X, Eye, Download, Plus, ArrowRight, UserCheck
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 

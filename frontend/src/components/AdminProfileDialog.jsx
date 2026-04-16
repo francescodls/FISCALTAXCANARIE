@@ -8,7 +8,7 @@ import { Label } from './ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { 
   User, 
   Mail, 

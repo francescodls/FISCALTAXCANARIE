@@ -20,7 +20,7 @@ import {
   ArrowLeft, User, Calendar, Send, Paperclip, Eye, Trash2,
   Building2, LayoutList, FolderOpen, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;

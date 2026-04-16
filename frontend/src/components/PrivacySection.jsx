@@ -35,7 +35,7 @@ import {
   HelpCircle,
   MessageSquare
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/sonner';
 import { format } from 'date-fns';
 import { it } from 'date-fns/locale';
 
