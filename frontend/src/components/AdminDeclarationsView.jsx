@@ -338,11 +338,11 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
       : <ArrowDown className="w-4 h-4 ml-1 text-teal-600" />;
   };
 
-  // Componente per il selettore di stato
-  const StatusSelector = ({ declaration }) => (
+  // Componente per il selettore di stato - usa solo dati primitivi per evitare problemi di serializzazione
+  const StatusSelector = ({ declarationId, currentStatus }) => (
     <Select 
-      value={declaration.stato} 
-      onValueChange={(newStatus) => handleStatusChange(declaration.id, newStatus)}
+      value={currentStatus} 
+      onValueChange={(newStatus) => handleStatusChange(declarationId, newStatus)}
     >
       <SelectTrigger className="w-[160px] h-8 text-xs">
         <SelectValue />
@@ -717,7 +717,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                         
                         {/* Stato (modificabile) */}
                         <td className="p-3">
-                          <StatusSelector declaration={decl} />
+                          <StatusSelector declarationId={decl.id} currentStatus={decl.stato} />
                         </td>
                         
                         {/* Ultima Modifica */}
@@ -745,7 +745,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => onSelectDeclaration(decl)}
+                              onClick={() => onSelectDeclaration({ id: decl.id })}
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               {t('taxReturns.detail')}
@@ -1016,7 +1016,7 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
                 <div
                   key={decl.id}
                   className="p-4 border rounded-lg hover:border-teal-300 hover:bg-teal-50/50 cursor-pointer transition-all"
-                  onClick={() => onSelectDeclaration(decl)}
+                  onClick={() => onSelectDeclaration({ id: decl.id })}
                   data-testid={`declaration-row-${decl.id}`}
                 >
                   <div className="flex items-center justify-between">

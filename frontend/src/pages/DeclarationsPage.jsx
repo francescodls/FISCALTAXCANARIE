@@ -194,7 +194,9 @@ const DeclarationsPage = () => {
 
   // Callback per admin quando seleziona dichiarazione dalla vista clienti
   const handleSelectDeclaration = async (decl) => {
-    await openReturn(decl.id);
+    // Estrai solo l'ID per evitare problemi di serializzazione
+    const declId = typeof decl === 'object' ? decl.id : decl;
+    await openReturn(declId);
   };
 
   // Ricarica dichiarazione dopo modifica
