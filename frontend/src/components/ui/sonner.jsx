@@ -1,7 +1,6 @@
 import { useTheme } from "next-themes"
-import { Toaster as Sonner, toast as sonnerToast } from "sonner"
 
-// Sistema di notifica alternativo che non usa postMessage
+// Sistema di notifica completamente custom che NON usa postMessage
 let toastContainer = null;
 let toastId = 0;
 
@@ -9,7 +8,7 @@ const createToastElement = (message, type = 'error') => {
   if (typeof document === 'undefined') return;
   
   // Crea container se non esiste
-  if (!toastContainer) {
+  if (!toastContainer || !document.getElementById('custom-toast-container')) {
     toastContainer = document.createElement('div');
     toastContainer.id = 'custom-toast-container';
     toastContainer.style.cssText = `
@@ -26,17 +25,17 @@ const createToastElement = (message, type = 'error') => {
   }
   
   const colors = {
-    error: { bg: '#fef2f2', border: '#fecaca', text: '#dc2626' },
-    success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#16a34a' },
-    info: { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb' },
-    warning: { bg: '#fffbeb', border: '#fde68a', text: '#d97706' }
+    error: { bg: '#fef2f2', border: '#fecaca', text: '#dc2626', icon: '✕' },
+    success: { bg: '#f0fdf4', border: '#bbf7d0', text: '#16a34a', icon: '✓' },
+    info: { bg: '#eff6ff', border: '#bfdbfe', text: '#2563eb', icon: 'ℹ' },
+    warning: { bg: '#fffbeb', border: '#fde68a', text: '#d97706', icon: '⚠' }
   };
   
   const color = colors[type] || colors.error;
   
-  const toast = document.createElement('div');
-  toast.id = `toast-${++toastId}`;
-  toast.style.cssText = `
+  const toastEl = document.createElement('div');
+  toastEl.id = `toast-${++toastId}`;
+  toastEl.style.cssText = `
     background: ${color.bg};
     border: 1px solid ${color.border};
     color: ${color.text};
@@ -47,20 +46,27 @@ const createToastElement = (message, type = 'error') => {
     font-size: 14px;
     font-family: system-ui, -apple-system, sans-serif;
     pointer-events: auto;
-    animation: slideIn 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: toastSlideIn 0.3s ease;
   `;
-  toast.textContent = String(message || 'Errore');
   
-  // Aggiungi animazione CSS
-  if (!document.getElementById('toast-styles')) {
+  toastEl.innerHTML = `
+    <span style="font-weight: bold; font-size: 16px;">${color.icon}</span>
+    <span>${String(message || 'Errore')}</span>
+  `;
+  
+  // Aggiungi animazione CSS se non esiste
+  if (!document.getElementById('toast-animation-styles')) {
     const style = document.createElement('style');
-    style.id = 'toast-styles';
+    style.id = 'toast-animation-styles';
     style.textContent = `
-      @keyframes slideIn {
+      @keyframes toastSlideIn {
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
       }
-      @keyframes slideOut {
+      @keyframes toastSlideOut {
         from { transform: translateX(0); opacity: 1; }
         to { transform: translateX(100%); opacity: 0; }
       }
@@ -68,16 +74,20 @@ const createToastElement = (message, type = 'error') => {
     document.head.appendChild(style);
   }
   
-  toastContainer.appendChild(toast);
+  toastContainer.appendChild(toastEl);
   
   // Auto-remove dopo 5 secondi
   setTimeout(() => {
-    toast.style.animation = 'slideOut 0.3s ease forwards';
-    setTimeout(() => toast.remove(), 300);
+    toastEl.style.animation = 'toastSlideOut 0.3s ease forwards';
+    setTimeout(() => {
+      if (toastEl.parentNode) toastEl.remove();
+    }, 300);
   }, 5000);
+  
+  return toastId;
 };
 
-// Wrapper sicuro per toast che previene errori di serializzazione
+// Helper per convertire qualsiasi valore in stringa sicura
 const safeStringify = (value) => {
   if (value === null || value === undefined) return 'Errore';
   if (typeof value === 'string') return value;
@@ -95,82 +105,19 @@ const safeStringify = (value) => {
   return String(value);
 };
 
-// Toast wrapper con doppio fallback: sonner + custom
+// Toast API completamente custom - NO sonner, NO postMessage
 const toast = {
-  success: (msg, opts) => {
-    const safeMsg = safeStringify(msg);
-    try {
-      sonnerToast.success(safeMsg, opts);
-    } catch (e) {
-      createToastElement(safeMsg, 'success');
-    }
-  },
-  error: (msg, opts) => {
-    const safeMsg = safeStringify(msg);
-    try {
-      sonnerToast.error(safeMsg, opts);
-    } catch (e) {
-      createToastElement(safeMsg, 'error');
-    }
-  },
-  info: (msg, opts) => {
-    const safeMsg = safeStringify(msg);
-    try {
-      sonnerToast.info(safeMsg, opts);
-    } catch (e) {
-      createToastElement(safeMsg, 'info');
-    }
-  },
-  warning: (msg, opts) => {
-    const safeMsg = safeStringify(msg);
-    try {
-      sonnerToast.warning(safeMsg, opts);
-    } catch (e) {
-      createToastElement(safeMsg, 'warning');
-    }
-  },
-  loading: (msg, opts) => {
-    const safeMsg = safeStringify(msg);
-    try {
-      return sonnerToast.loading(safeMsg, opts);
-    } catch (e) {
-      createToastElement(safeMsg, 'info');
-      return null;
-    }
-  },
-  dismiss: (id) => {
-    try {
-      sonnerToast.dismiss(id);
-    } catch (e) {
-      // Ignore
-    }
-  },
-  promise: sonnerToast.promise,
-  custom: sonnerToast.custom,
+  success: (msg) => createToastElement(safeStringify(msg), 'success'),
+  error: (msg) => createToastElement(safeStringify(msg), 'error'),
+  info: (msg) => createToastElement(safeStringify(msg), 'info'),
+  warning: (msg) => createToastElement(safeStringify(msg), 'warning'),
+  loading: (msg) => createToastElement(safeStringify(msg), 'info'),
+  dismiss: () => {},
+  promise: () => {},
+  custom: () => {},
 };
 
-const Toaster = ({
-  ...props
-}) => {
-  const { theme = "system" } = useTheme()
-
-  return (
-    <Sonner
-      theme={theme}
-      className="toaster group"
-      toastOptions={{
-        classNames: {
-          toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
-          actionButton:
-            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton:
-            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
-        },
-      }}
-      {...props} />
-  );
-}
+// Toaster component vuoto - non usiamo più sonner
+const Toaster = () => null;
 
 export { Toaster, toast }

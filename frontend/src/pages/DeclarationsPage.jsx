@@ -175,15 +175,30 @@ const DeclarationsPage = () => {
       const responseText = await res.text();
       const data = JSON.parse(responseText);
       
-      // Sanitizza ulteriormente i dati
-      const sanitizedData = JSON.parse(JSON.stringify(data));
-      
-      setSelectedReturn(sanitizedData);
-      if (isAdmin) {
-        setShowAdminDetail(true);
-      } else {
-        setShowForm(true);
+      // Crea un oggetto completamente nuovo con solo i dati primitivi
+      const sanitizedData = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (value === null || value === undefined) {
+          sanitizedData[key] = null;
+        } else if (typeof value === 'object' && !Array.isArray(value)) {
+          // Per oggetti nested, fai deep clone
+          sanitizedData[key] = JSON.parse(JSON.stringify(value));
+        } else if (Array.isArray(value)) {
+          sanitizedData[key] = JSON.parse(JSON.stringify(value));
+        } else {
+          sanitizedData[key] = value;
+        }
       }
+      
+      // Usa setTimeout per evitare problemi con React DevTools
+      setTimeout(() => {
+        setSelectedReturn(sanitizedData);
+        if (isAdmin) {
+          setShowAdminDetail(true);
+        } else {
+          setShowForm(true);
+        }
+      }, 0);
     } catch (error) {
       console.error('openReturn error:', error);
       // Assicurati che il toast riceva sempre una stringa
