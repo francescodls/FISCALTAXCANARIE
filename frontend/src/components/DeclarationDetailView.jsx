@@ -34,22 +34,41 @@ const DeclarationDetailView = ({ declaration: rawDeclaration, token, user, onBac
   // Sanitizza i dati in ingresso per evitare problemi di serializzazione
   const declaration = useMemo(() => {
     try {
+      if (!rawDeclaration) return {};
       // Deep clone per rimuovere qualsiasi riferimento non serializzabile
-      const cleanData = JSON.parse(JSON.stringify(rawDeclaration || {}));
+      const cleanData = JSON.parse(JSON.stringify(rawDeclaration));
       return cleanData;
     } catch (e) {
       console.error('Errore sanitizzazione declaration:', e?.message || 'Unknown error');
-      return rawDeclaration || {};
+      // Ritorna un oggetto vuoto sicuro invece di rawDeclaration che potrebbe avere problemi
+      return {};
     }
   }, [rawDeclaration]);
   
-  // Handler per errori sicuro
+  // Handler per errori sicuro - usa setTimeout per evitare problemi di contesto postMessage
   const safeErrorToast = (message) => {
+    let safeMsg = 'Errore sconosciuto';
     try {
-      toast.error(String(message || 'Errore sconosciuto'));
-    } catch (e) {
-      console.error('Toast error:', message);
+      if (typeof message === 'string') {
+        safeMsg = message;
+      } else if (message instanceof Error) {
+        safeMsg = message.message || 'Errore';
+      } else if (message && typeof message === 'object') {
+        safeMsg = message.detail || message.message || JSON.stringify(message);
+      } else {
+        safeMsg = String(message || 'Errore');
+      }
+    } catch {
+      safeMsg = 'Errore';
     }
+    
+    setTimeout(() => {
+      try {
+        toast.error(safeMsg);
+      } catch (e) {
+        console.error('[DeclarationDetailView] Toast error:', safeMsg);
+      }
+    }, 0);
   };
   
   const [activeTab, setActiveTab] = useState('overview');

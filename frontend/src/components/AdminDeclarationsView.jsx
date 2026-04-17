@@ -25,13 +25,30 @@ import { useLanguage } from '../i18n/LanguageContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-// Helper per toast sicuro
+// Helper per toast sicuro - usa setTimeout per evitare problemi di contesto postMessage
 const safeToastError = (msg) => {
+  let safeMsg = 'Errore sconosciuto';
   try {
-    safeToastError(String(msg || 'Errore'));
-  } catch (e) {
-    console.error('Toast error:', msg);
+    if (typeof msg === 'string') {
+      safeMsg = msg;
+    } else if (msg instanceof Error) {
+      safeMsg = msg.message || 'Errore';
+    } else if (msg && typeof msg === 'object') {
+      safeMsg = msg.detail || msg.message || msg.error || JSON.stringify(msg);
+    } else {
+      safeMsg = String(msg || 'Errore');
+    }
+  } catch {
+    safeMsg = 'Errore';
   }
+  
+  setTimeout(() => {
+    try {
+      toast.error(safeMsg);
+    } catch (e) {
+      console.error('[AdminDeclarationsView] Toast error:', safeMsg);
+    }
+  }, 0);
 };
 
 const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {

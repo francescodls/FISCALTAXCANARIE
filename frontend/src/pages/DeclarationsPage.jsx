@@ -20,13 +20,32 @@ import LanguageSelector from '../components/LanguageSelector';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
-// Helper per toast sicuro
+// Helper per toast sicuro - previene errori di serializzazione
 const safeToastError = (msg) => {
+  // Assicuriamoci che il messaggio sia sempre una stringa primitiva
+  let safeMessage = 'Errore sconosciuto';
   try {
-    toast.error(String(msg || 'Errore'));
-  } catch (e) {
-    console.error('Error:', msg);
+    if (typeof msg === 'string') {
+      safeMessage = msg;
+    } else if (msg instanceof Error) {
+      safeMessage = msg.message || 'Errore';
+    } else if (msg && typeof msg === 'object') {
+      safeMessage = msg.detail || msg.message || msg.error || JSON.stringify(msg);
+    } else {
+      safeMessage = String(msg || 'Errore');
+    }
+  } catch {
+    safeMessage = 'Errore';
   }
+  
+  // Usa setTimeout per evitare problemi di contesto
+  setTimeout(() => {
+    try {
+      toast.error(safeMessage);
+    } catch (e) {
+      console.error('[DeclarationsPage] Toast error:', safeMessage);
+    }
+  }, 0);
 };
 
 const DeclarationsPage = () => {
