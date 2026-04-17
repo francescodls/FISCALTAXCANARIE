@@ -47,9 +47,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
-import { COLORS } from '../config/constants';
+import { COLORS, API_URL } from '../config/constants';
 import { Language } from '../i18n';
-import { API_URL } from '../config/api';
 
 const BIOMETRIC_KEY = 'biometric_enabled';
 const PUSH_ENABLED_KEY = 'push_notifications_enabled';
