@@ -48,7 +48,8 @@ import {
   ShieldCheck,
   Building2,
   Home,
-  Bell
+  Bell,
+  UserCog
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -101,6 +102,7 @@ const CommercialDashboard = () => {
   const [employeeNotifCount, setEmployeeNotifCount] = useState(0); // Conteggio notifiche non lette
   const [showProfileDialog, setShowProfileDialog] = useState(false); // Dialog profilo personale
   const [declarationsStats, setDeclarationsStats] = useState({ total: 0, new_submissions: 0, has_new_activity: false }); // Statistiche dichiarazioni
+  const [teamCount, setTeamCount] = useState(0); // Conteggio membri team
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -109,7 +111,23 @@ const CommercialDashboard = () => {
     fetchClientLists();
     fetchEmployeeNotifications();
     fetchDeclarationsStats();
+    fetchTeamCount();
   }, []);
+
+  const fetchTeamCount = async () => {
+    try {
+      // Fetch consulenti + dipendenti per conteggio team
+      const [consulentiRes, employeesRes] = await Promise.all([
+        axios.get(`${API}/consulenti`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API}/employees`, { headers }).catch(() => ({ data: [] }))
+      ]);
+      const consulentiCount = Array.isArray(consulentiRes.data) ? consulentiRes.data.length : 0;
+      const employeesCount = Array.isArray(employeesRes.data) ? employeesRes.data.length : 0;
+      setTeamCount(consulentiCount + employeesCount);
+    } catch (error) {
+      console.error("Errore nel caricamento conteggio team:", error);
+    }
+  };
 
   const fetchDeclarationsStats = async () => {
     try {
@@ -544,15 +562,15 @@ const CommercialDashboard = () => {
           </Card>
           <Card 
             className="bg-white border border-slate-200 card-hover cursor-pointer"
-            onClick={() => setActiveTab("pending")}
-            data-testid="stats-documents"
+            onClick={() => setActiveTab("consulenti")}
+            data-testid="stats-team"
           >
             <CardContent className="p-4 flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center mb-2">
-                <FileText className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center mb-2">
+                <UserCog className="h-5 w-5 text-white" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">{stats.documents_count || 0}</p>
-              <p className="text-xs text-slate-500">{t("dashboard.documents")}</p>
+              <p className="text-2xl font-bold text-slate-900">{teamCount}</p>
+              <p className="text-xs text-slate-500">Team</p>
             </CardContent>
           </Card>
           <Card 
