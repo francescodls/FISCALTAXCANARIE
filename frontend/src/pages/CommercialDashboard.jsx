@@ -45,7 +45,6 @@ import {
   Trash2,
   Euro,
   MessageSquare,
-  ShieldCheck,
   Building2,
   Home,
   Bell,
@@ -59,7 +58,6 @@ import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import GlobalFeesManagement from "@/components/GlobalFeesManagement";
 import GlobalTicketManagement from "@/components/GlobalTicketManagement";
-import AdminTeamManagement from "@/components/AdminTeamManagement";
 import AdminProfileDialog from "@/components/AdminProfileDialog";
 import NotificationsManagement from "@/components/NotificationsManagement";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -724,16 +722,6 @@ const CommercialDashboard = () => {
               <MessageSquare className="h-4 w-4 mr-2" />
               {t('tickets.title')}
             </TabsTrigger>
-            {user?.role === 'super_admin' && (
-              <TabsTrigger 
-                value="team" 
-                className="text-slate-600 data-[state=active]:bg-purple-500 data-[state=active]:text-white px-4"
-                data-testid="tab-team"
-              >
-                <ShieldCheck className="h-4 w-4 mr-2" />
-                {t('admin.team')}
-              </TabsTrigger>
-            )}
           </TabsList>
 
           {/* Clients Tab */}
@@ -1644,13 +1632,6 @@ const CommercialDashboard = () => {
           <TabsContent value="tickets" className="space-y-6">
             <GlobalTicketManagement token={token} />
           </TabsContent>
-
-          {/* Team Tab - Solo per Super Admin */}
-          {user?.role === 'super_admin' && (
-            <TabsContent value="team" className="space-y-6">
-              <AdminTeamManagement token={token} />
-            </TabsContent>
-          )}
         </Tabs>
 
         {/* Global Upload Dialog */}
