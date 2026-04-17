@@ -15,8 +15,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { Button } from '../components/Button';
 import { TextInput } from '../components/TextInput';
-import { COLORS, SPACING, RADIUS } from '../config/constants';
-import { API_URL } from '../config/api';
+import { COLORS, SPACING, RADIUS, API_URL } from '../config/constants';
 
 interface ForgotPasswordScreenProps {
   navigation: any;
