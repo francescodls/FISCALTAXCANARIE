@@ -82,7 +82,8 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setAllDeclarations(data);
+      // Sanitizza i dati per evitare errori postMessage con React DevTools
+      setAllDeclarations(JSON.parse(JSON.stringify(data)));
     } catch (error) {
       console.error('Errore caricamento dichiarazioni:', error);
     }
@@ -102,7 +103,8 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setClients(data);
+      // Sanitizza i dati per evitare errori postMessage con React DevTools
+      setClients(JSON.parse(JSON.stringify(data)));
     } catch (error) {
       console.error('Errore caricamento clienti:', error);
       safeToastError('Errore caricamento clienti');
@@ -117,14 +119,16 @@ const AdminDeclarationsView = ({ token, user, onSelectDeclaration }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setClientDeclarations(data);
+      // Sanitizza i dati per evitare errori postMessage con React DevTools
+      setClientDeclarations(JSON.parse(JSON.stringify(data)));
     } catch (error) {
       console.error('Errore caricamento dichiarazioni:', error);
     }
   };
 
   const handleSelectClient = (client) => {
-    setSelectedClient(client);
+    // Sanitizza i dati del client per evitare errori postMessage
+    setSelectedClient(JSON.parse(JSON.stringify(client)));
     fetchClientDeclarations(client.client_id);
   };
 
