@@ -10,6 +10,8 @@ import {
   Platform,
   Linking,
   RefreshControl,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -39,18 +41,21 @@ import {
   Moon,
   Sun,
   Monitor,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { COLORS } from '../config/constants';
 import { Language } from '../i18n';
+import { API_URL } from '../config/api';
 
 const BIOMETRIC_KEY = 'biometric_enabled';
 const PUSH_ENABLED_KEY = 'push_notifications_enabled';
 
 export const ProfileScreen: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const { t, language, setLanguage, languages } = useLanguage();
   const { mode, setMode, isDark } = useTheme();
   const navigation = useNavigation<any>();
@@ -62,6 +67,11 @@ export const ProfileScreen: React.FC = () => {
   const [pushPermission, setPushPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
   const [refreshing, setRefreshing] = useState(false);
   const [lastAccess, setLastAccess] = useState<string>('');
+  
+  // State per cancellazione account
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     checkBiometricAvailability();
@@ -210,6 +220,57 @@ export const ProfileScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  // Funzione per eliminare l'account (richiesto da Apple App Store)
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '⚠️ Elimina Account',
+      'Sei sicuro di voler eliminare definitivamente il tuo account?\n\nQuesta azione è IRREVERSIBILE e comporterà:\n• Eliminazione di tutti i tuoi documenti\n• Eliminazione delle tue dichiarazioni\n• Eliminazione di tutti i tuoi dati personali\n\nNon sarà possibile recuperare i dati dopo l\'eliminazione.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        { 
+          text: 'Continua', 
+          style: 'destructive', 
+          onPress: () => setShowDeleteConfirm(true)
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (deleteConfirmText.toLowerCase() !== 'elimina') {
+      Alert.alert('Errore', 'Scrivi "ELIMINA" per confermare');
+      return;
+    }
+
+    setDeletingAccount(true);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/delete-account`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        Alert.alert(
+          'Account Eliminato',
+          'Il tuo account è stato eliminato con successo. Ci dispiace vederti andare via.',
+          [{ text: 'OK', onPress: () => logout() }]
+        );
+      } else {
+        const data = await response.json();
+        Alert.alert('Errore', data.detail || 'Impossibile eliminare l\'account. Riprova più tardi.');
+      }
+    } catch (error) {
+      Alert.alert('Errore', 'Errore di connessione. Verifica la tua connessione internet.');
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+    }
   };
 
   const onRefresh = useCallback(async () => {
@@ -494,9 +555,86 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Danger Zone - Delete Account (Apple App Store Requirement) */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.error }]}>Zona Pericolosa</Text>
+          <View style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.error + '30' }]}>
+            <SettingItem
+              icon={Trash2}
+              title="Elimina Account"
+              subtitle="Elimina definitivamente il tuo account e tutti i dati"
+              color={colors.error}
+              onPress={handleDeleteAccount}
+            />
+          </View>
+        </View>
+
+        {/* Delete Account Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <View style={styles.deleteOverlay}>
+            <View style={[styles.deleteDialog, { backgroundColor: colors.surface }]}>
+              <View style={styles.deleteDialogHeader}>
+                <AlertTriangle size={40} color={colors.error} />
+                <Text style={[styles.deleteDialogTitle, { color: colors.error }]}>
+                  Conferma Eliminazione
+                </Text>
+              </View>
+              
+              <Text style={[styles.deleteDialogText, { color: colors.textSecondary }]}>
+                Per confermare l'eliminazione definitiva del tuo account, scrivi{' '}
+                <Text style={{ fontWeight: '700', color: colors.error }}>ELIMINA</Text>{' '}
+                nel campo sottostante:
+              </Text>
+              
+              <TextInput
+                style={[styles.deleteInput, { 
+                  borderColor: deleteConfirmText.toLowerCase() === 'elimina' ? colors.error : colors.border,
+                  color: colors.text,
+                  backgroundColor: colors.surfaceAlt
+                }]}
+                placeholder="Scrivi ELIMINA"
+                placeholderTextColor={colors.textLight}
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                autoCapitalize="none"
+              />
+              
+              <View style={styles.deleteDialogButtons}>
+                <TouchableOpacity
+                  style={[styles.deleteDialogButton, styles.cancelButton, { borderColor: colors.border }]}
+                  onPress={() => {
+                    setShowDeleteConfirm(false);
+                    setDeleteConfirmText('');
+                  }}
+                  disabled={deletingAccount}
+                >
+                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Annulla</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.deleteDialogButton, 
+                    styles.confirmDeleteButton,
+                    { backgroundColor: colors.error },
+                    deleteConfirmText.toLowerCase() !== 'elimina' && { opacity: 0.5 }
+                  ]}
+                  onPress={confirmDeleteAccount}
+                  disabled={deletingAccount || deleteConfirmText.toLowerCase() !== 'elimina'}
+                >
+                  {deletingAccount ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.confirmDeleteButtonText}>Elimina Account</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Version */}
         <View style={styles.versionContainer}>
-          <Text style={[styles.versionText, { color: colors.textLight }]}>Fiscal Tax Canarie v1.0.0</Text>
+          <Text style={[styles.versionText, { color: colors.textLight }]}>Fiscal Tax Canarie v1.2.0</Text>
           <Text style={[styles.copyrightText, { color: colors.textLight }]}>© 2026 Fiscal Tax Canarie S.L.</Text>
         </View>
 
@@ -541,4 +679,75 @@ const styles = StyleSheet.create({
   versionContainer: { alignItems: 'center', paddingVertical: 20 },
   versionText: { fontSize: 13, color: COLORS.textLight },
   copyrightText: { fontSize: 12, color: COLORS.textLight, marginTop: 4 },
+  // Delete Account Dialog Styles
+  deleteOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+    zIndex: 1000,
+  },
+  deleteDialog: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  deleteDialogHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  deleteDialogTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  deleteDialogText: {
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  deleteInput: {
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  deleteDialogButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deleteDialogButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#ef4444',
+  },
+  confirmDeleteButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
 });

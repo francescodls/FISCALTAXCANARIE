@@ -109,8 +109,10 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 
 ### P0 - Critico
 - ✅ RISOLTO: Rifiuto App Store Apple (Guideline 4 Design) - Navigazione nativa
+- ✅ RISOLTO: Account Deletion in-app (requisito Apple)
 - ✅ RISOLTO: Notifiche dichiarazione push + email
 - ✅ RISOLTO: Wizard compilazione dichiarazioni
+- ✅ RISOLTO: Bug toast "postMessage could not be cloned"
 
 ### P1 - In Progress
 - **Aggiungere IP server a whitelist Brevo** (azione utente): `104.198.214.223`

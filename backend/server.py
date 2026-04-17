@@ -1153,6 +1153,67 @@ async def verify_reset_token(token: str):
     
     return {"valid": True, "email": reset_record["email"]}
 
+@api_router.delete("/auth/delete-account")
+async def delete_account(user: dict = Depends(get_current_user)):
+    """
+    Elimina definitivamente l'account dell'utente.
+    Richiesto da Apple App Store per la conformità alle linee guida.
+    """
+    user_id = user["id"]
+    user_email = user["email"]
+    
+    # Solo i clienti possono eliminare il proprio account
+    if user.get("role") not in ["cliente", None]:
+        raise HTTPException(status_code=403, detail="Solo i clienti possono eliminare il proprio account")
+    
+    try:
+        # 1. Elimina i documenti dell'utente
+        await db.documents.delete_many({"client_id": user_id})
+        
+        # 2. Elimina le note dell'utente
+        await db.notes.delete_many({"client_id": user_id})
+        
+        # 3. Elimina le notifiche dell'utente
+        await db.notifications.delete_many({"user_id": user_id})
+        await db.notification_history.delete_many({"user_id": user_id})
+        
+        # 4. Elimina i push tokens dell'utente
+        await db.push_tokens.delete_many({"user_id": user_id})
+        
+        # 5. Elimina le dichiarazioni (tax returns) dell'utente
+        await db.tax_returns.delete_many({"client_id": user_id})
+        
+        # 6. Elimina le scadenze personali dell'utente
+        await db.deadlines.delete_many({"client_id": user_id})
+        
+        # 7. Elimina i ticket dell'utente
+        await db.tickets.delete_many({"client_id": user_id})
+        
+        # 8. Elimina i thread di comunicazione dell'utente
+        await db.communication_threads.delete_many({"client_id": user_id})
+        
+        # 9. Elimina i reset password pendenti
+        await db.password_resets.delete_many({"user_id": user_id})
+        
+        # 10. Infine, elimina l'utente stesso
+        result = await db.users.delete_one({"id": user_id})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Account non trovato")
+        
+        # Log dell'attività
+        await log_activity("account_deleted", f"Account eliminato: {user_email}", user_id)
+        
+        logger.info(f"Account {user_email} eliminato definitivamente")
+        
+        return {"message": "Account eliminato con successo. Tutti i tuoi dati sono stati rimossi."}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Errore eliminazione account {user_email}: {e}")
+        raise HTTPException(status_code=500, detail="Errore durante l'eliminazione dell'account")
+
 # ==================== ADMIN MANAGEMENT ROUTES ====================
 
 @api_router.get("/admin/team")
