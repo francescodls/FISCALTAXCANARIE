@@ -50,7 +50,13 @@ import {
   Building2,
   User,
   Home,
-  Briefcase
+  Briefcase,
+  Send,
+  Bell,
+  Smartphone,
+  History,
+  CheckCheck,
+  XCircle
 } from 'lucide-react';
 import axios from 'axios';
 import { API } from '@/App';
@@ -132,6 +138,17 @@ const TaxPaymentsManagement = ({ token }) => {
   
   // Clienti per dropdown
   const [allClients, setAllClients] = useState([]);
+  
+  // Notifiche
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false);
+  const [notifyTarget, setNotifyTarget] = useState(null); // 'single' o 'bulk'
+  const [notifyAssignment, setNotifyAssignment] = useState(null);
+  const [notifyForm, setNotifyForm] = useState({
+    custom_message: '',
+    send_email: true,
+    send_push: true
+  });
+  const [sendingNotification, setSendingNotification] = useState(false);
   
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -381,6 +398,85 @@ const TaxPaymentsManagement = ({ token }) => {
   // TOGGLE SELECTION
   // =============================================================================
 
+  // =============================================================================
+  // NOTIFICATION HANDLERS
+  // =============================================================================
+
+  const openNotifyDialog = (target, assignment = null) => {
+    setNotifyTarget(target);
+    setNotifyAssignment(assignment);
+    setNotifyForm({ custom_message: '', send_email: true, send_push: true });
+    setShowNotifyDialog(true);
+  };
+
+  const handleSendNotification = async () => {
+    setSendingNotification(true);
+    
+    try {
+      if (notifyTarget === 'single' && notifyAssignment) {
+        // Invio singolo
+        const res = await axios.post(`${API}/tax-payments/notifications/send`, {
+          assignment_id: notifyAssignment.id,
+          custom_message: notifyForm.custom_message || null,
+          send_email: notifyForm.send_email,
+          send_push: notifyForm.send_push
+        }, { headers });
+        
+        if (res.data.success) {
+          const results = res.data.results;
+          let message = 'Notifica inviata: ';
+          if (results.email.sent) message += 'Email ✓ ';
+          if (results.push.sent) message += 'Push ✓';
+          if (!results.email.sent && !results.push.sent) message = 'Nessun canale disponibile';
+          
+          toast.success(message);
+        } else {
+          toast.error('Errore invio notifica');
+        }
+      } else if (notifyTarget === 'bulk' && selectedAssignments.length > 0) {
+        // Invio massivo
+        const res = await axios.post(`${API}/tax-payments/notifications/send-bulk`, {
+          assignment_ids: selectedAssignments,
+          custom_message: notifyForm.custom_message || null,
+          send_email: notifyForm.send_email,
+          send_push: notifyForm.send_push
+        }, { headers });
+        
+        if (res.data.success) {
+          const s = res.data.summary;
+          toast.success(
+            `Invio completato: ${s.email_sent} email, ${s.push_sent} push notification`
+          );
+          setSelectedAssignments([]);
+        }
+      }
+      
+      setShowNotifyDialog(false);
+      fetchAssignments();
+      fetchData();
+      
+    } catch (error) {
+      console.error('Errore invio notifica:', error);
+      toast.error(error.response?.data?.detail || 'Errore invio notifica');
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
+  const handleMarkAsPaid = async (assignmentIds) => {
+    const ids = Array.isArray(assignmentIds) ? assignmentIds : [assignmentIds];
+    
+    try {
+      await axios.post(`${API}/tax-payments/notifications/mark-as-paid`, ids, { headers });
+      toast.success(`${ids.length} assegnazione/i segnata/e come pagata/e`);
+      setSelectedAssignments([]);
+      fetchAssignments();
+      fetchData();
+    } catch (error) {
+      toast.error('Errore aggiornamento stato');
+    }
+  };
+
   const toggleSelectAll = () => {
     if (selectedAssignments.length === assignments.length) {
       setSelectedAssignments([]);
@@ -485,10 +581,29 @@ const TaxPaymentsManagement = ({ token }) => {
                 <CardTitle>Lista Importi Assegnati</CardTitle>
                 <div className="flex items-center gap-2">
                   {selectedAssignments.length > 0 && (
-                    <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Elimina ({selectedAssignments.length})
-                    </Button>
+                    <>
+                      <Button 
+                        variant="default" 
+                        size="sm" 
+                        className="bg-teal-600 hover:bg-teal-700"
+                        onClick={() => openNotifyDialog('bulk')}
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Invia Notifiche ({selectedAssignments.length})
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleMarkAsPaid(selectedAssignments)}
+                      >
+                        <CheckCheck className="w-4 h-4 mr-2" />
+                        Segna Pagati
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Elimina
+                      </Button>
+                    </>
                   )}
                   <Button onClick={() => { setEditingAssignment(null); setAssignmentForm({ client_id: '', tax_model_id: '', amount_due: '', due_date: '', period: '', internal_notes: '' }); setShowAssignmentDialog(true); }}>
                     <Plus className="w-4 h-4 mr-2" />
@@ -623,10 +738,32 @@ const TaxPaymentsManagement = ({ token }) => {
                             </td>
                             <td className="p-3 text-right">
                               <div className="flex items-center justify-end gap-1">
-                                <Button variant="ghost" size="icon" onClick={() => openEditAssignment(assignment)}>
+                                {assignment.notification_status !== 'pagata' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                                    onClick={() => openNotifyDialog('single', assignment)}
+                                    title="Invia notifica"
+                                  >
+                                    <Send className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {assignment.notification_status === 'inviata' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                    onClick={() => handleMarkAsPaid(assignment.id)}
+                                    title="Segna come pagato"
+                                  >
+                                    <CheckCheck className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon" onClick={() => openEditAssignment(assignment)} title="Modifica">
                                   <Edit className="w-4 h-4" />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDeleteAssignment(assignment.id)}>
+                                <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDeleteAssignment(assignment.id)} title="Elimina">
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
@@ -1076,6 +1213,126 @@ const TaxPaymentsManagement = ({ token }) => {
             <Button onClick={handleSaveAssignment} className="bg-teal-600 hover:bg-teal-700">
               <Save className="w-4 h-4 mr-2" />
               {editingAssignment ? 'Aggiorna' : 'Crea'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Invio Notifica */}
+      <Dialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-teal-600" />
+              {notifyTarget === 'single' ? 'Invia Notifica' : `Invia Notifiche (${selectedAssignments.length})`}
+            </DialogTitle>
+            <DialogDescription>
+              {notifyTarget === 'single' && notifyAssignment ? (
+                <span>
+                  Invia comunicazione a <strong>{notifyAssignment.client_name}</strong> per{' '}
+                  <strong>€{notifyAssignment.amount_due?.toLocaleString('it-IT', { minimumFractionDigits: 2 })}</strong>
+                </span>
+              ) : (
+                <span>Invia comunicazione a {selectedAssignments.length} clienti selezionati</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Preview importo per invio singolo */}
+            {notifyTarget === 'single' && notifyAssignment && (
+              <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 rounded-lg p-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-slate-500">Modello:</span>
+                    <p className="font-medium">{notifyAssignment.tax_model_name}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Periodo:</span>
+                    <p className="font-medium">{notifyAssignment.period}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Importo:</span>
+                    <p className="font-bold text-lg text-emerald-700">
+                      €{notifyAssignment.amount_due?.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Scadenza:</span>
+                    <p className="font-medium text-amber-700">
+                      {new Date(notifyAssignment.due_date).toLocaleDateString('it-IT')}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Canali di invio */}
+            <div className="space-y-3">
+              <Label>Canali di notifica</Label>
+              <div className="flex flex-col gap-3">
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                  <Checkbox 
+                    checked={notifyForm.send_email}
+                    onCheckedChange={(checked) => setNotifyForm(f => ({ ...f, send_email: checked }))}
+                  />
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium">Email</p>
+                    <p className="text-xs text-slate-500">Invia email con dettagli completi</p>
+                  </div>
+                </label>
+                
+                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                  <Checkbox 
+                    checked={notifyForm.send_push}
+                    onCheckedChange={(checked) => setNotifyForm(f => ({ ...f, send_push: checked }))}
+                  />
+                  <Smartphone className="w-5 h-5 text-purple-600" />
+                  <div>
+                    <p className="font-medium">Push Notification</p>
+                    <p className="text-xs text-slate-500">Notifica istantanea su app mobile</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+            
+            {/* Messaggio personalizzato */}
+            <div>
+              <Label>Messaggio personalizzato (opzionale)</Label>
+              <Textarea 
+                value={notifyForm.custom_message}
+                onChange={(e) => setNotifyForm(f => ({ ...f, custom_message: e.target.value }))}
+                placeholder="Aggiungi un messaggio personalizzato che apparirà nella email..."
+                rows={3}
+                className="mt-2"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Questo testo verrà inserito nell'email prima dei dettagli dell'importo
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNotifyDialog(false)} disabled={sendingNotification}>
+              Annulla
+            </Button>
+            <Button 
+              onClick={handleSendNotification} 
+              className="bg-teal-600 hover:bg-teal-700"
+              disabled={sendingNotification || (!notifyForm.send_email && !notifyForm.send_push)}
+            >
+              {sendingNotification ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Invio in corso...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  {notifyTarget === 'single' ? 'Invia Notifica' : `Invia a ${selectedAssignments.length} clienti`}
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -591,3 +591,486 @@ async def get_available_periods():
         periods.append(f"Anno {year}")
     
     return periods
+
+# =============================================================================
+# NOTIFICHE - EMAIL E PUSH
+# =============================================================================
+
+class NotificationRequest(BaseModel):
+    """Richiesta invio notifica singola"""
+    assignment_id: str
+    custom_message: Optional[str] = None
+    send_email: bool = True
+    send_push: bool = True
+
+class BulkNotificationRequest(BaseModel):
+    """Richiesta invio notifiche massive"""
+    assignment_ids: List[str]
+    custom_message: Optional[str] = None
+    send_email: bool = True
+    send_push: bool = True
+
+class NotificationTemplate(BaseModel):
+    """Template notifica personalizzabile"""
+    name: str
+    subject: str
+    body_template: str
+    is_default: bool = False
+
+
+def get_payment_email_template(
+    client_name: str,
+    tax_model_name: str,
+    period: str,
+    amount: float,
+    due_date: str,
+    custom_message: str = None
+) -> tuple:
+    """Genera template email per importo da pagare"""
+    
+    # Formatta la data
+    try:
+        date_obj = datetime.fromisoformat(due_date.replace('Z', '+00:00'))
+        formatted_date = date_obj.strftime("%d/%m/%Y")
+    except (ValueError, TypeError):
+        formatted_date = due_date
+    
+    # Formatta importo
+    formatted_amount = f"€{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    
+    subject = f"Importo da pagare: {tax_model_name} - {period}"
+    
+    custom_section = ""
+    if custom_message:
+        custom_section = f"""
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <p style="margin: 0; color: #495057;">{custom_message}</p>
+        </div>
+        """
+    
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }}
+            .content {{ background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; }}
+            .amount-box {{ background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #22c55e; border-radius: 12px; padding: 25px; text-align: center; margin: 25px 0; }}
+            .amount {{ font-size: 36px; font-weight: bold; color: #166534; margin: 10px 0; }}
+            .details {{ background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+            .detail-row {{ display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }}
+            .detail-row:last-child {{ border-bottom: none; }}
+            .label {{ color: #64748b; }}
+            .value {{ font-weight: 600; color: #1e293b; }}
+            .footer {{ text-align: center; padding: 20px; color: #64748b; font-size: 12px; }}
+            .cta-button {{ display: inline-block; background: #0d9488; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1 style="margin: 0; font-size: 24px;">Fiscal Tax Canarie</h1>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">Comunicazione Importo da Pagare</p>
+            </div>
+            
+            <div class="content">
+                <p>Gentile <strong>{client_name}</strong>,</p>
+                
+                <p>Le comunichiamo l'importo da versare per il seguente adempimento fiscale:</p>
+                
+                {custom_section}
+                
+                <div class="amount-box">
+                    <p style="margin: 0; color: #166534; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Importo da Pagare</p>
+                    <p class="amount">{formatted_amount}</p>
+                    <p style="margin: 0; color: #166534;">Scadenza: <strong>{formatted_date}</strong></p>
+                </div>
+                
+                <div class="details">
+                    <div class="detail-row">
+                        <span class="label">Modello/Dichiarazione:</span>
+                        <span class="value">{tax_model_name}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Periodo di riferimento:</span>
+                        <span class="value">{period}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Data scadenza:</span>
+                        <span class="value">{formatted_date}</span>
+                    </div>
+                </div>
+                
+                <p>Per qualsiasi chiarimento, non esiti a contattarci.</p>
+                
+                <p>Cordiali saluti,<br><strong>Fiscal Tax Canarie</strong></p>
+            </div>
+            
+            <div class="footer">
+                <p>Fiscal Tax Canarie<br>
+                Email: info@fiscaltaxcanarie.com</p>
+                <p style="color: #94a3b8; font-size: 11px;">Questa email è stata inviata automaticamente. Per favore non rispondere a questo indirizzo.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    text_content = f"""
+Gentile {client_name},
+
+Le comunichiamo l'importo da versare per il seguente adempimento fiscale:
+
+{custom_message if custom_message else ''}
+
+IMPORTO DA PAGARE: {formatted_amount}
+SCADENZA: {formatted_date}
+
+Dettagli:
+- Modello/Dichiarazione: {tax_model_name}
+- Periodo: {period}
+
+Per qualsiasi chiarimento, non esiti a contattarci.
+
+Cordiali saluti,
+Fiscal Tax Canarie
+info@fiscaltaxcanarie.com
+    """
+    
+    return subject, html_content, text_content
+
+
+@router.post("/notifications/send")
+async def send_single_notification(
+    data: NotificationRequest,
+    user: dict = Depends(get_admin_user)
+):
+    """Invia notifica singola a un cliente per un importo assegnato"""
+    db = get_db()
+    from email_service import send_email
+    from push_service import ExpoPushService
+    
+    # Trova assegnazione
+    assignment = await db.payment_assignments.find_one({"id": data.assignment_id}, {"_id": 0})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assegnazione non trovata")
+    
+    # Trova cliente
+    client = await db.users.find_one({"id": assignment["client_id"]}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    results = {
+        "email": {"sent": False, "error": None},
+        "push": {"sent": False, "error": None}
+    }
+    
+    # Prepara dati
+    client_name = client.get("full_name", client.get("email", "Cliente"))
+    client_email = client.get("email")
+    push_token = client.get("push_token")
+    
+    # Invia Email
+    if data.send_email and client_email:
+        try:
+            subject, html_content, text_content = get_payment_email_template(
+                client_name=client_name,
+                tax_model_name=assignment["tax_model_name"],
+                period=assignment["period"],
+                amount=assignment["amount_due"],
+                due_date=assignment["due_date"],
+                custom_message=data.custom_message
+            )
+            
+            email_result = await send_email(
+                to_email=client_email,
+                to_name=client_name,
+                subject=subject,
+                html_content=html_content,
+                text_content=text_content
+            )
+            
+            results["email"]["sent"] = email_result.get("success", False)
+            if not email_result.get("success"):
+                results["email"]["error"] = email_result.get("error")
+                
+        except Exception as e:
+            logger.error(f"Errore invio email: {e}")
+            results["email"]["error"] = str(e)
+    
+    # Invia Push Notification
+    if data.send_push and push_token:
+        try:
+            # Formatta importo
+            formatted_amount = f"€{assignment['amount_due']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            push_result = await ExpoPushService.send_push_notification(
+                push_tokens=[push_token],
+                title=f"Importo da pagare: {assignment['tax_model_name']}",
+                body=f"{formatted_amount} - Scadenza: {assignment['due_date'][:10]}",
+                data={
+                    "type": "payment_due",
+                    "assignment_id": assignment["id"],
+                    "amount": assignment["amount_due"],
+                    "tax_model": assignment["tax_model_name"],
+                    "period": assignment["period"]
+                }
+            )
+            
+            results["push"]["sent"] = push_result.get("sent", 0) > 0
+            if push_result.get("failed", 0) > 0:
+                results["push"]["error"] = "Push notification failed"
+                
+        except Exception as e:
+            logger.error(f"Errore invio push: {e}")
+            results["push"]["error"] = str(e)
+    
+    # Aggiorna stato assegnazione
+    update_data = {
+        "notification_status": "inviata",
+        "updated_at": now_iso()
+    }
+    
+    if results["email"]["sent"]:
+        update_data["email_sent_at"] = now_iso()
+        update_data["email_sent_by"] = user["id"]
+    
+    if results["push"]["sent"]:
+        update_data["push_sent_at"] = now_iso()
+    
+    if data.custom_message:
+        update_data["last_custom_message"] = data.custom_message
+    
+    if results["email"]["error"] or results["push"]["error"]:
+        update_data["last_notification_error"] = {
+            "email": results["email"]["error"],
+            "push": results["push"]["error"],
+            "timestamp": now_iso()
+        }
+    
+    await db.payment_assignments.update_one(
+        {"id": data.assignment_id},
+        {"$set": update_data}
+    )
+    
+    logger.info(f"Notifica inviata per assegnazione {data.assignment_id}: email={results['email']['sent']}, push={results['push']['sent']}")
+    
+    return {
+        "success": results["email"]["sent"] or results["push"]["sent"],
+        "assignment_id": data.assignment_id,
+        "client_name": client_name,
+        "results": results
+    }
+
+
+@router.post("/notifications/send-bulk")
+async def send_bulk_notifications(
+    data: BulkNotificationRequest,
+    user: dict = Depends(get_admin_user)
+):
+    """Invia notifiche massive a più clienti"""
+    db = get_db()
+    from email_service import send_email
+    from push_service import ExpoPushService
+    
+    if not data.assignment_ids:
+        raise HTTPException(status_code=400, detail="Nessuna assegnazione selezionata")
+    
+    # Trova tutte le assegnazioni
+    assignments = await db.payment_assignments.find(
+        {"id": {"$in": data.assignment_ids}},
+        {"_id": 0}
+    ).to_list(None)
+    
+    if not assignments:
+        raise HTTPException(status_code=404, detail="Nessuna assegnazione trovata")
+    
+    # Raccogli tutti i client_id
+    client_ids = list(set(a["client_id"] for a in assignments))
+    
+    # Trova tutti i clienti
+    clients = await db.users.find(
+        {"id": {"$in": client_ids}},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "push_token": 1}
+    ).to_list(None)
+    
+    clients_map = {c["id"]: c for c in clients}
+    
+    results = {
+        "total": len(assignments),
+        "email_sent": 0,
+        "email_failed": 0,
+        "push_sent": 0,
+        "push_failed": 0,
+        "details": []
+    }
+    
+    # Processa ogni assegnazione
+    for assignment in assignments:
+        client = clients_map.get(assignment["client_id"])
+        if not client:
+            results["details"].append({
+                "assignment_id": assignment["id"],
+                "status": "error",
+                "error": "Cliente non trovato"
+            })
+            continue
+        
+        client_name = client.get("full_name", client.get("email", "Cliente"))
+        client_email = client.get("email")
+        push_token = client.get("push_token")
+        
+        detail = {
+            "assignment_id": assignment["id"],
+            "client_name": client_name,
+            "email_sent": False,
+            "push_sent": False
+        }
+        
+        # Invia Email
+        if data.send_email and client_email:
+            try:
+                subject, html_content, text_content = get_payment_email_template(
+                    client_name=client_name,
+                    tax_model_name=assignment["tax_model_name"],
+                    period=assignment["period"],
+                    amount=assignment["amount_due"],
+                    due_date=assignment["due_date"],
+                    custom_message=data.custom_message
+                )
+                
+                email_result = await send_email(
+                    to_email=client_email,
+                    to_name=client_name,
+                    subject=subject,
+                    html_content=html_content,
+                    text_content=text_content
+                )
+                
+                if email_result.get("success"):
+                    detail["email_sent"] = True
+                    results["email_sent"] += 1
+                else:
+                    results["email_failed"] += 1
+                    detail["email_error"] = email_result.get("error")
+                    
+            except Exception as e:
+                results["email_failed"] += 1
+                detail["email_error"] = str(e)
+        
+        # Invia Push
+        if data.send_push and push_token:
+            try:
+                formatted_amount = f"€{assignment['amount_due']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                
+                push_result = await ExpoPushService.send_push_notification(
+                    push_tokens=[push_token],
+                    title=f"Importo da pagare: {assignment['tax_model_name']}",
+                    body=f"{formatted_amount} - Scadenza: {assignment['due_date'][:10]}",
+                    data={
+                        "type": "payment_due",
+                        "assignment_id": assignment["id"]
+                    }
+                )
+                
+                if push_result.get("sent", 0) > 0:
+                    detail["push_sent"] = True
+                    results["push_sent"] += 1
+                else:
+                    results["push_failed"] += 1
+                    
+            except Exception as e:
+                results["push_failed"] += 1
+                detail["push_error"] = str(e)
+        
+        # Aggiorna stato assegnazione
+        update_data = {
+            "notification_status": "inviata",
+            "updated_at": now_iso()
+        }
+        
+        if detail["email_sent"]:
+            update_data["email_sent_at"] = now_iso()
+            update_data["email_sent_by"] = user["id"]
+        
+        if detail["push_sent"]:
+            update_data["push_sent_at"] = now_iso()
+        
+        if data.custom_message:
+            update_data["last_custom_message"] = data.custom_message
+        
+        await db.payment_assignments.update_one(
+            {"id": assignment["id"]},
+            {"$set": update_data}
+        )
+        
+        results["details"].append(detail)
+    
+    logger.info(f"Notifiche massive inviate: {results['email_sent']} email, {results['push_sent']} push")
+    
+    return {
+        "success": True,
+        "summary": {
+            "total": results["total"],
+            "email_sent": results["email_sent"],
+            "email_failed": results["email_failed"],
+            "push_sent": results["push_sent"],
+            "push_failed": results["push_failed"]
+        },
+        "details": results["details"]
+    }
+
+
+@router.get("/notifications/history/{assignment_id}")
+async def get_notification_history(
+    assignment_id: str,
+    user: dict = Depends(get_admin_user)
+):
+    """Ottiene lo storico notifiche per un'assegnazione"""
+    db = get_db()
+    
+    assignment = await db.payment_assignments.find_one(
+        {"id": assignment_id},
+        {"_id": 0}
+    )
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assegnazione non trovata")
+    
+    return {
+        "assignment_id": assignment_id,
+        "notification_status": assignment.get("notification_status", "non_inviata"),
+        "email_sent_at": assignment.get("email_sent_at"),
+        "email_sent_by": assignment.get("email_sent_by"),
+        "push_sent_at": assignment.get("push_sent_at"),
+        "last_custom_message": assignment.get("last_custom_message"),
+        "last_notification_error": assignment.get("last_notification_error")
+    }
+
+
+@router.post("/notifications/mark-as-paid")
+async def mark_assignment_as_paid(
+    assignment_ids: List[str],
+    user: dict = Depends(get_admin_user)
+):
+    """Segna le assegnazioni come pagate"""
+    db = get_db()
+    
+    result = await db.payment_assignments.update_many(
+        {"id": {"$in": assignment_ids}},
+        {"$set": {
+            "notification_status": "pagata",
+            "paid_at": now_iso(),
+            "marked_paid_by": user["id"],
+            "updated_at": now_iso()
+        }}
+    )
+    
+    return {
+        "success": True,
+        "updated": result.modified_count
+    }
+

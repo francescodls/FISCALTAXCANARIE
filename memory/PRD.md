@@ -7,45 +7,58 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Fase 100 (19 Aprile 2026) - COMPLETATA ✅
 
-**Nuova Sezione Admin: Gestione Importi Tributari**
+**Nuova Sezione Admin: Gestione Importi Tributari + Sistema Notifiche**
 
-Creata una nuova sezione operativa nel pannello amministratore per gestire gli importi che ogni cliente dovrà pagare per dichiarazioni e modelli tributari.
+**FASE 1: Macrostruttura (completata)**
+- CRUD Modelli Tributari (IVA, IGIC, Mod.130, ecc.)
+- CRUD Assegnazioni Importi ai clienti
+- Operazioni massive (bulk create/delete)
+- Statistiche dashboard
+- Assegnazione rapida per categoria
 
-1. **Backend - `routes/tax_payments.py`** (nuovo file)
-   - CRUD completo per modelli tributari (`/api/tax-payments/models`)
-   - CRUD completo per assegnazioni importi (`/api/tax-payments/assignments`)
-   - Operazioni massive (`/api/tax-payments/assignments/bulk`)
-   - Statistiche dashboard (`/api/tax-payments/stats`)
-   - Categorie clienti dinamiche (`/api/tax-payments/client-categories`)
-   - Periodi disponibili automatici (`/api/tax-payments/periods`)
+**FASE 2: Sistema Notifiche (completata)**
 
-2. **Frontend - `TaxPaymentsManagement.jsx`** (nuovo componente)
-   - **Tab "Assegnazioni Importi"**: Lista con filtri, selezione multipla, eliminazione massiva
-   - **Tab "Modelli Tributari"**: Gestione IVA, IGIC, Mod.130, ecc. (dinamici)
-   - **Tab "Assegnazione Rapida"**: Form per assegnare importi a più clienti per categoria
-   - Header con 4 card statistiche colorate
+1. **Backend - Nuovi endpoint:**
+   - `POST /api/tax-payments/notifications/send` - Invio singolo
+   - `POST /api/tax-payments/notifications/send-bulk` - Invio massivo
+   - `GET /api/tax-payments/notifications/history/{id}` - Storico notifiche
+   - `POST /api/tax-payments/notifications/mark-as-paid` - Segna come pagato
 
-3. **Struttura dati:**
-   - `tax_models`: id, name, description, applicable_categories[], periodicity, default_due_day
-   - `payment_assignments`: client_id, tax_model_id, amount_due, due_date, period, notification_status
+2. **Email personalizzate:**
+   - Template HTML professionale con logo
+   - Importo evidenziato in verde
+   - Scadenza evidenziata
+   - Box dettagli (modello, periodo, data)
+   - Messaggio personalizzabile dall'admin
 
-4. **Funzionalità operative:**
-   - Creazione modelli tributari dinamici (non hardcoded)
-   - Assegnazione importi per cliente singolo o categoria
-   - Filtri: modello, categoria, stato notifica, ricerca cliente
-   - Selezione multipla con eliminazione massiva
-   - Periodi: Q1-Q4, Mesi, Anno (automatici)
+3. **Push Notification:**
+   - Integrazione Expo Push API
+   - Titolo: "Importo da pagare: {modello}"
+   - Body: "{importo} - Scadenza: {data}"
+   - Deep linking con assignment_id
 
-**File creati:**
-- `/app/backend/routes/tax_payments.py`
+4. **Tracking stato:**
+   - `notification_status`: non_inviata → inviata → visualizzata → pagata
+   - `email_sent_at`, `push_sent_at`
+   - `last_custom_message`
+   - `last_notification_error`
+
+5. **Frontend UI:**
+   - Pulsante "Invia" per ogni assegnazione
+   - Pulsante "Invia Notifiche" massivo
+   - Pulsante "Segna Pagati" massivo
+   - Dialog con preview importo e canali
+   - Badge stato colorati
+
+**File modificati:**
+- `/app/backend/routes/tax_payments.py` (aggiunto 500+ righe per notifiche)
 - `/app/frontend/src/components/TaxPaymentsManagement.jsx`
 
 **Test eseguiti:**
-- ✅ API curl: Creazione modelli IVA e IGIC
-- ✅ API curl: Statistiche e categorie
-- ✅ Screenshot: Tab Assegnazioni, Modelli, Assegnazione Rapida
-
-**NOTA:** Questa è la Fase 1 (struttura). La Fase 2 (notifiche, email, push) verrà implementata nel prossimo prompt.
+- ✅ API: Invio singolo → Email inviata con successo
+- ✅ API: Storico notifiche mostra email_sent_at
+- ✅ UI: Dialog notifica con preview dettagli
+- ✅ UI: Badge "Inviata" visibile
 
 ---
 
