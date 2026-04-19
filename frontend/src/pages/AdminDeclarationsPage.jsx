@@ -1007,9 +1007,40 @@ const AdminDeclarationsPage = ({ token }) => {
                             variant="ghost" 
                             size="sm"
                             onClick={(e) => { e.stopPropagation(); openDetail(decl.id); }}
+                            title="Apri dettaglio"
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             Apri
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={async (e) => { 
+                              e.stopPropagation();
+                              try {
+                                const res = await fetch(`${API_URL}/api/declarations/v2/admin/declarations/${decl.id}/pdf`, {
+                                  headers: { 'Authorization': `Bearer ${token}` }
+                                });
+                                if (res.ok) {
+                                  const blob = await res.blob();
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `dichiarazione_${decl.anno_fiscale}_${(decl.client_name || 'cliente').replace(/\s/g, '_')}.pdf`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                  toast.success('PDF scaricato');
+                                } else {
+                                  toast.error('Errore download PDF');
+                                }
+                              } catch (e) {
+                                toast.error('Errore connessione');
+                              }
+                            }}
+                            title="Scarica PDF"
+                            className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          >
+                            <Download className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -1021,6 +1052,7 @@ const AdminDeclarationsPage = ({ token }) => {
                             }}
                             disabled={deletingIds.includes(decl.id)}
                             data-testid={`delete-btn-${decl.id}`}
+                            title="Elimina"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
