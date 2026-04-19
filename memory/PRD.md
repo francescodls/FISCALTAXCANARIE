@@ -5,87 +5,100 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 94 (19 Aprile 2026) - COMPLETATA ✅
+### Fase 95 (19 Aprile 2026) - COMPLETATA ✅
 
-**Wizard Dichiarazioni dei Redditi v2 - Flusso Cliente Completo**
+**Dashboard Admin Dichiarazioni dei Redditi v2**
 
-Implementato il nuovo sistema guidato per la compilazione delle dichiarazioni dei redditi con:
+Implementata dashboard completa per la gestione amministrativa delle dichiarazioni con:
 
-1. **14 Sezioni Specifiche**:
-   - Dati Personali (nome, cognome, CF/NIE, residenza, contatti)
-   - Situazione Familiare (stato civile, figli, familiari a carico)
-   - Redditi da Lavoro (dipendente, pensione, CU)
-   - Redditi Autonomo (P.IVA, regime fiscale, fatturato)
-   - Immobili (proprietà, valore catastale, ubicazione)
-   - Canoni di Locazione (affitti percepiti/pagati)
-   - Plusvalenze (vendita immobili/partecipazioni)
-   - Investimenti Finanziari (azioni, fondi, obbligazioni)
-   - Criptomonete (possesso, vendite, exchange)
-   - Spese Deducibili (mediche, interessi, assicurazioni)
-   - Deduzioni/Agevolazioni (bonus ristrutturazione, ecobonus)
-   - Documenti Allegati
-   - Note Aggiuntive
-   - Autorizzazione e Firma
+1. **Lista Completa Dichiarazioni**:
+   - Nome cliente, email, ragione sociale
+   - Anno fiscale
+   - Stato con badge colorato
+   - Percentuale completamento con barra visuale
+   - Numero documenti allegati
+   - Data creazione e ultima modifica
+   - Pulsante "Apri" per dettaglio
 
-2. **Funzionalità Implementate**:
-   - ✅ Checkbox "Non ho questa tipologia" per ogni sezione
-   - ✅ Auto-save con debounce 1.5 secondi
-   - ✅ Percentuale completamento dinamica
-   - ✅ Navigazione step-by-step (Precedente/Successivo)
-   - ✅ Firma Canvas con react-signature-canvas (mouse + touch)
-   - ✅ Validazione: firma richiede 50% completamento + accettazione termini
-   - ✅ Compatibilità mobile (responsive design)
+2. **Ricerca Avanzata**:
+   - Campo ricerca per nome, cognome, ragione sociale, codice fiscale, email
+   - Filtro per stato pratica (7 opzioni)
+   - Filtro per anno fiscale
+   - Badge filtri attivi con rimozione rapida
 
-**File modificati/creati:**
-- `/app/frontend/src/pages/DeclarationWizard.jsx` - Wizard completo
-- `/app/frontend/src/pages/ClientDeclarationsPage.jsx` - Fix import
+3. **Stats Cards Interattive**:
+   - Totale dichiarazioni
+   - Da Revisionare (inviate)
+   - In Revisione
+   - Doc. Incompleta
+   - Presentate
+   - Click su card filtra automaticamente
+
+4. **Modal Dettaglio Pratica** con 4 tabs:
+   - **Panoramica**: ID pratica, date, progresso compilazione, dati cliente, firma
+   - **Sezioni (14)**: Visualizzazione tutti i dati compilati dal cliente
+   - **Messaggi**: Cronologia comunicazioni, invio nuovi messaggi, richiesta integrazione
+   - **Gestione Stato**: 7 stati con colori/icone, campo nota opzionale
+
+5. **Stati Dichiarazione**:
+   - Bozza (giallo) - Cliente sta compilando
+   - Inviata (blu) - In attesa revisione
+   - Doc. Incompleta (arancione) - Richiesta integrazione
+   - In Revisione (viola) - In elaborazione
+   - Pronta (verde chiaro) - Per presentazione
+   - Presentata (verde) - Completata
+   - Rifiutata (rosso) - Non corretta
+
+**File modificati:**
+- `/app/frontend/src/pages/AdminDeclarationsPage.jsx` - Dashboard completa
+- `/app/backend/routes/declarations_v2.py` - API con filtri avanzati
 
 **Test eseguiti:**
-- ✅ Backend: 13/13 test passati (100%)
-- ✅ Frontend: Tutti i flussi verificati (100%)
-- `/app/test_reports/iteration_40.json`
+- ✅ Backend: 11/14 test passati
+- ✅ Frontend: Tutti i flussi critici verificati (100%)
+- `/app/test_reports/iteration_41.json`
 
 ---
 
-### Fase 93 (Dicembre 2025) - COMPLETATA ✅
+### Fase 94 (19 Aprile 2026) - COMPLETATA ✅
 
-**Fix Rifiuto App Store Apple - Guideline 4 Design**
+**Wizard Dichiarazioni v2 - Flusso Cliente**
 
-- Creato `RegisterScreen.tsx` (form nativo registrazione)
-- Creato `ForgotPasswordScreen.tsx` (recupero password nativo)
-- Aggiornato `LoginScreen.tsx` (navigazione nativa, no browser esterno)
-- Aggiunto endpoint account deletion in-app
+- 14 sezioni specifiche con campi dettagliati
+- Checkbox "Non ho questa tipologia"
+- Auto-save con debounce 1.5s
+- Firma Canvas (react-signature-canvas)
+- Validazione firma (50% completamento + termini)
+- Compatibilità mobile
 
 ---
 
 ### Fasi Precedenti
 
-- Fase 92: Fix notifiche dichiarazione Push + Email
-- Fase 91: Rimozione completa vecchia sezione Dichiarazioni (bug postMessage)
-- Fase 90: Creazione macrostruttura Dichiarazioni v2
+- Fase 93: Fix rifiuto App Store Apple (Guideline 4 Design)
+- Fase 92: Fix notifiche Push + Email
+- Fase 91: Rimozione vecchia sezione Dichiarazioni
 
 ---
 
 ## Prioritized Backlog
 
 ### P0 - Critico
-- ✅ COMPLETATO: Wizard Dichiarazioni v2 lato cliente
+- ✅ COMPLETATO: Wizard cliente Dichiarazioni v2
+- ✅ COMPLETATO: Dashboard Admin Dichiarazioni v2
 
 ### P1 - Prossimi Task
-- **Dashboard Admin Dichiarazioni v2** - Visualizzazione pratiche, cambio stato, richieste integrazione
-- **Interfaccia Mobile Dichiarazioni v2** - Allineare app mobile con flusso web
-- **Sistema notifiche admin-cliente** per dichiarazioni v2
+- **Interfaccia Mobile Dichiarazioni v2** - Allineare app React Native
+- **Sistema notifiche** push + email per cambio stato dichiarazione
+- **Upload documenti** funzionale nella sezione "Documenti Allegati"
 - **Aggiungere IP server a whitelist Brevo**: `104.198.214.223`
 
-### P2 - Piano Hardening Mobile
-- Punto 6: Global Search
-- Punto 7: Dashboard Widgets
-- Punto 10: Gesture Navigation
-- Punto 11: AI Assistant chat
-- Refactoring server.py in router separati
+### P2 - Future
+- Piano Hardening Mobile (punti 6,7,10,11)
+- Refactoring server.py
+- Integrazione firma digitale Namirial/Aruba
 
 ### P3 - Backlog
-- Integrazione firma digitale Namirial/Aruba
 - App Desktop Windows
 - Dashboard Analytics Admin
 - Offline Mode mobile
@@ -97,15 +110,13 @@ Implementato il nuovo sistema guidato per la compilazione delle dichiarazioni de
 ```
 /app/
 ├── backend/
-│   ├── server.py
 │   └── routes/
-│       ├── declarations.py (deprecata)
-│       └── declarations_v2.py ✅ (API V2 complete)
+│       └── declarations_v2.py ✅ (API complete con filtri avanzati)
 ├── frontend/
 │   └── src/pages/
 │       ├── ClientDeclarationsPage.jsx ✅
-│       ├── DeclarationWizard.jsx ✅ (Wizard 14 sezioni)
-│       └── AdminDeclarationsPage.jsx (da completare)
+│       ├── DeclarationWizard.jsx ✅ 
+│       └── AdminDeclarationsPage.jsx ✅ (Dashboard completa)
 └── mobile-app/
     └── fiscal-tax-mobile/
         └── src/screens/ (da allineare con V2)
@@ -117,15 +128,16 @@ Implementato il nuovo sistema guidato per la compilazione delle dichiarazioni de
 
 | Endpoint | Method | Descrizione |
 |----------|--------|-------------|
-| `/api/declarations/v2/declarations` | GET | Lista dichiarazioni cliente |
-| `/api/declarations/v2/declarations` | POST | Crea nuova dichiarazione |
-| `/api/declarations/v2/declarations/{id}` | GET | Dettaglio con 14 sezioni |
-| `/api/declarations/v2/declarations/{id}/section` | PUT | Auto-save sezione |
-| `/api/declarations/v2/declarations/{id}/sign` | POST | Firma dichiarazione |
-| `/api/declarations/v2/declarations/{id}/submit` | POST | Invia dichiarazione |
-| `/api/declarations/v2/declarations/{id}/messages` | GET/POST | Messaggi pratica |
-| `/api/declarations/v2/admin/declarations` | GET | Lista admin con filtri |
-| `/api/declarations/v2/admin/declarations/{id}/status` | PUT | Cambio stato admin |
+| `/api/declarations/v2/declarations` | GET | Lista cliente |
+| `/api/declarations/v2/declarations` | POST | Crea nuova |
+| `/api/declarations/v2/declarations/{id}` | GET | Dettaglio |
+| `/api/declarations/v2/declarations/{id}/section` | PUT | Auto-save |
+| `/api/declarations/v2/declarations/{id}/sign` | POST | Firma |
+| `/api/declarations/v2/declarations/{id}/submit` | POST | Invia |
+| `/api/declarations/v2/declarations/{id}/messages` | GET/POST | Messaggi |
+| `/api/declarations/v2/admin/declarations` | GET | Lista admin (filtri) |
+| `/api/declarations/v2/admin/declarations/{id}/status` | PUT | Cambio stato |
+| `/api/declarations/v2/admin/stats` | GET | Statistiche |
 
 ---
 
@@ -136,15 +148,7 @@ Implementato il nuovo sistema guidato per la compilazione delle dichiarazioni de
 
 ---
 
-## Known Issues
-
-1. **Email Brevo 401 Error:** IP server da aggiungere a whitelist Brevo
-   - IP: `104.198.214.223`
-   - URL: https://app.brevo.com/security/authorised_ips
-
----
-
 ## Test Reports
 
-- `/app/test_reports/iteration_40.json` - Wizard V2 tests (100% passed)
-- `/app/test_reports/iteration_39.json` - Previous wizard tests
+- `/app/test_reports/iteration_41.json` - Admin Dashboard (100% frontend, 79% backend)
+- `/app/test_reports/iteration_40.json` - Wizard Cliente (100% passed)

@@ -1039,9 +1039,10 @@ const AdminDeclarationsPage = ({ token }) => {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Cambia Stato Pratica</CardTitle>
-                      <p className="text-sm text-slate-500">
-                        Stato attuale: <StatusBadge status={selectedDeclaration.status} size="lg" />
-                      </p>
+                      <div className="text-sm text-slate-500 flex items-center gap-2">
+                        <span>Stato attuale:</span>
+                        <StatusBadge status={selectedDeclaration.status} size="lg" />
+                      </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
                       {/* Griglia stati */}
