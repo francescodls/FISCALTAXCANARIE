@@ -1,0 +1,120 @@
+{
+  "summary": "Tested Admin Declarations Dashboard (AdminDeclarationsPage.jsx). Backend: 11/14 tests passed (3 skipped due to fixture dependencies). Frontend: All critical flows verified - dashboard loads correctly with stats cards, search, filters, declaration table, and detail modal with 4 tabs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "Rate limiting", "issue": "Login endpoint has 5 per minute rate limit which can cause 429 errors during rapid testing"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AdminDeclarationsPage - Gestione Stato tab", "issue": "HTML nesting warning: <div> cannot be a descendant of <p> in StatusBadge component", "selector": "p.text-sm.text-slate-500 > Badge", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_declarations_dashboard_iteration41.py",
+    "/app/test_reports/pytest/pytest_results_iteration41.xml"
+  ],
+  "action_items": [
+    "Fix HTML nesting issue in AdminDeclarationsPage.jsx line 1042-1043: StatusBadge (which renders a div) is inside a <p> tag"
+  ],
+  "critical_code_review_comments": [
+    "Admin Declarations Dashboard implementation is complete and functional",
+    "All 5 stats cards present: Totale, Da Revisionare, In Revisione, Doc. Incompleta, Presentate",
+    "Search input with advanced search (nome, cognome, ragione sociale, codice fiscale, email)",
+    "Status filter with 7 options: Tutti gli stati, Bozza, Inviata, Doc. Incompleta, In Revisione, Pronta, Presentata, Rifiutata",
+    "Year filter with options: Tutti gli anni, 2025, 2024, 2023, 2022, 2021",
+    "Declaration table with columns: Cliente, Anno, Stato, Completamento, Documenti, Creata, Aggiornata, Azioni",
+    "Detail modal with 4 tabs: Panoramica, Sezioni, Messaggi, Gestione Stato",
+    "Message sending with integration request checkbox working",
+    "Status change with 7 status buttons working correctly",
+    "Toast notifications for status changes working"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_declarations_dashboard_iteration41.py"
+  ],
+  "success_rate": {
+    "backend": "79% - 11/14 tests passed (3 skipped)",
+    "frontend": "100% - All critical flows verified"
+  },
+  "test_credentials": {
+    "admin": "francesco@fiscaltaxcanarie.com / Lanzarote1",
+    "client": "test_commercialista_202642@example.com / TestCliente123!"
+  },
+  "seed_data_creation": "Used existing declaration from previous iteration: TestAutoSave User (2024, Bozza, 7% completion)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin Declarations Dashboard fully tested. Key features: GET /api/declarations/v2/admin/declarations (with search, status, anno filters), GET /api/declarations/v2/admin/stats, PUT /api/declarations/v2/admin/declarations/{id}/status, POST /api/declarations/v2/declarations/{id}/messages. Frontend route: /admin/declarations. Minor HTML nesting issue in Gestione Stato tab (StatusBadge inside <p> tag).",
+  "features_tested": {
+    "admin_login": {
+      "status": "PASS",
+      "notes": "Login with francesco@fiscaltaxcanarie.com works correctly, role=super_admin"
+    },
+    "admin_declarations_list": {
+      "status": "PASS",
+      "notes": "GET /api/declarations/v2/admin/declarations returns list with all required fields"
+    },
+    "admin_stats": {
+      "status": "PASS",
+      "notes": "GET /api/declarations/v2/admin/stats returns total, by_status, new_submissions, pending_review"
+    },
+    "search_functionality": {
+      "status": "PASS",
+      "notes": "Search by name, email, codice fiscale working"
+    },
+    "status_filter": {
+      "status": "PASS",
+      "notes": "Filter by status (bozza, inviata, etc.) working"
+    },
+    "year_filter": {
+      "status": "PASS",
+      "notes": "Filter by anno fiscale working"
+    },
+    "stats_cards_click": {
+      "status": "PASS",
+      "notes": "Clicking stats cards filters by status"
+    },
+    "declaration_row_click": {
+      "status": "PASS",
+      "notes": "Clicking row opens detail modal"
+    },
+    "modal_panoramica_tab": {
+      "status": "PASS",
+      "notes": "Shows ID Pratica, Creata il, Ultima Modifica, Progresso Compilazione"
+    },
+    "modal_sezioni_tab": {
+      "status": "PASS",
+      "notes": "Shows all 14 sections with completion status"
+    },
+    "modal_messaggi_tab": {
+      "status": "PASS",
+      "notes": "Shows message history, message input, send button, integration request checkbox"
+    },
+    "modal_gestione_stato_tab": {
+      "status": "PASS",
+      "notes": "Shows 7 status buttons, current status highlighted, note input"
+    },
+    "send_message": {
+      "status": "PASS",
+      "notes": "POST /api/declarations/v2/declarations/{id}/messages works correctly"
+    },
+    "change_status": {
+      "status": "PASS",
+      "notes": "PUT /api/declarations/v2/admin/declarations/{id}/status works correctly"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/auth/login": "PASS - Admin login works",
+    "GET /api/declarations/v2/admin/declarations": "PASS - Returns list with filters",
+    "GET /api/declarations/v2/admin/declarations?status=bozza": "PASS - Status filter works",
+    "GET /api/declarations/v2/admin/declarations?anno=2024": "PASS - Year filter works",
+    "GET /api/declarations/v2/admin/declarations?search=test": "PASS - Search works",
+    "GET /api/declarations/v2/admin/stats": "PASS - Returns stats",
+    "GET /api/declarations/v2/declarations/{id}": "PASS - Returns declaration detail",
+    "GET /api/declarations/v2/declarations/{id}/messages": "PASS - Returns messages",
+    "POST /api/declarations/v2/declarations/{id}/messages": "PASS - Sends message",
+    "PUT /api/declarations/v2/admin/declarations/{id}/status": "PASS - Changes status"
+  }
+}

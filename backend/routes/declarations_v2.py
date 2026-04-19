@@ -492,10 +492,16 @@ async def admin_list_declarations(
     status: Optional[str] = None,
     search: Optional[str] = None,
     anno: Optional[int] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    sort_by: Optional[str] = "updated_at",
+    sort_order: Optional[str] = "desc",
     user: dict = Depends(get_current_user_v2)
 ):
     """
-    Lista dichiarazioni per admin con filtri.
+    Lista dichiarazioni per admin con filtri avanzati.
+    Ricerca per: nome, cognome, ragione sociale, email, id pratica
+    Filtri per: stato, anno, date creazione/modifica
     """
     if user.get("role") not in ["commercialista", "super_admin", "admin"]:
         raise HTTPException(status_code=403, detail="Accesso negato")
@@ -504,24 +510,61 @@ async def admin_list_declarations(
     
     query = {}
     
+    # Filtro stato
     if status:
         query["status"] = status
     
+    # Filtro anno fiscale
     if anno:
         query["anno_fiscale"] = anno
     
+    # Filtro date
+    if date_from or date_to:
+        date_filter = {}
+        if date_from:
+            date_filter["$gte"] = date_from
+        if date_to:
+            date_filter["$lte"] = date_to
+        query["created_at"] = date_filter
+    
+    # Ricerca testuale avanzata
     if search:
+        search_term = search.strip()
         query["$or"] = [
-            {"client_name": {"$regex": search, "$options": "i"}},
-            {"client_email": {"$regex": search, "$options": "i"}}
+            {"client_name": {"$regex": search_term, "$options": "i"}},
+            {"client_email": {"$regex": search_term, "$options": "i"}},
+            {"ragione_sociale": {"$regex": search_term, "$options": "i"}},
+            {"id": {"$regex": search_term, "$options": "i"}},
+            {"sections.dati_personali.data.nome": {"$regex": search_term, "$options": "i"}},
+            {"sections.dati_personali.data.cognome": {"$regex": search_term, "$options": "i"}},
+            {"sections.dati_personali.data.codice_fiscale": {"$regex": search_term, "$options": "i"}}
         ]
+    
+    # Ordinamento
+    sort_direction = -1 if sort_order == "desc" else 1
+    valid_sort_fields = ["updated_at", "created_at", "client_name", "anno_fiscale", "status"]
+    sort_field = sort_by if sort_by in valid_sort_fields else "updated_at"
     
     declarations = await db.declarations_v2.find(
         query,
         {"_id": 0}
-    ).sort("updated_at", -1).to_list(1000)
+    ).sort(sort_field, sort_direction).to_list(1000)
     
-    return [serialize_declaration(d) for d in declarations]
+    # Arricchisci con dati cliente se disponibili
+    enriched = []
+    for decl in declarations:
+        serialized = serialize_declaration(decl, include_sections=True)
+        # Estrai dati personali per la visualizzazione
+        dati_personali = decl.get("sections", {}).get("dati_personali", {}).get("data", {})
+        serialized["client_nome"] = dati_personali.get("nome", "")
+        serialized["client_cognome"] = dati_personali.get("cognome", "")
+        serialized["client_codice_fiscale"] = dati_personali.get("codice_fiscale", "")
+        serialized["client_telefono"] = dati_personali.get("telefono", "")
+        serialized["ragione_sociale"] = decl.get("ragione_sociale", "")
+        serialized["messages"] = decl.get("messages", [])
+        enriched.append(serialized)
+    
+    return enriched
 
 
 @router.put("/admin/declarations/{declaration_id}/status", response_model=Dict)
