@@ -231,17 +231,6 @@ const DeclarationWizard = ({ token }) => {
     });
   };
 
-  // Toggle "non applicabile"
-  const toggleNotApplicable = (sectionId, value) => {
-    const sectionData = {
-      ...formData[sectionId],
-      not_applicable: value,
-      completed: value
-    };
-    setFormData(prev => ({ ...prev, [sectionId]: sectionData }));
-    saveSection(sectionId, sectionData);
-  };
-
   // Segna come completato
   const markCompleted = (sectionId, completed) => {
     const sectionData = {
@@ -498,21 +487,6 @@ const DeclarationWizard = ({ token }) => {
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Tipo di Reddito</label>
-              <select
-                value={data.tipo_reddito || ''}
-                onChange={(e) => updateField(sectionId, 'tipo_reddito', e.target.value)}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500"
-                data-testid="field-tipo-reddito"
-              >
-                <option value="">Seleziona...</option>
-                <option value="dipendente">Lavoro Dipendente</option>
-                <option value="pensione">Pensione</option>
-                <option value="collaborazione">Collaborazione/CoCoCo</option>
-                <option value="altro">Altro</option>
-              </select>
-            </div>
-            <div>
               <label className="block text-sm font-medium mb-1">Datore di Lavoro / Ente</label>
               <Input
                 value={data.datore_lavoro || ''}
@@ -587,14 +561,6 @@ const DeclarationWizard = ({ token }) => {
                 value={data.partita_iva || ''}
                 onChange={(e) => updateField(sectionId, 'partita_iva', e.target.value)}
                 placeholder="Es. IT12345678901"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Codice ATECO</label>
-              <Input
-                value={data.codice_ateco || ''}
-                onChange={(e) => updateField(sectionId, 'codice_ateco', e.target.value)}
-                placeholder="Es. 62.01.00"
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -728,19 +694,6 @@ const DeclarationWizard = ({ token }) => {
                     onChange={(e) => updateField(sectionId, 'totale_affitti_percepiti', e.target.value)}
                     placeholder="Es. 12000"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Tipo di Contratto</label>
-                  <select
-                    value={data.tipo_contratto || ''}
-                    onChange={(e) => updateField(sectionId, 'tipo_contratto', e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Seleziona...</option>
-                    <option value="cedolare_secca">Cedolare Secca</option>
-                    <option value="ordinario">Regime Ordinario</option>
-                    <option value="transitorio">Transitorio</option>
-                  </select>
                 </div>
               </>
             )}
@@ -1075,48 +1028,34 @@ const DeclarationWizard = ({ token }) => {
         return (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Hai usufruito di Bonus/Agevolazioni?</label>
-              <select
-                value={data.ha_bonus || ''}
-                onChange={(e) => updateField(sectionId, 'ha_bonus', e.target.value)}
-                className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-teal-500"
-              >
-                <option value="">Seleziona...</option>
-                <option value="si">Si</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-            {data.ha_bonus === 'si' && (
-              <div>
-                <label className="block text-sm font-medium mb-1">Tipologie di Agevolazioni</label>
-                <div className="space-y-2">
-                  {[
-                    'Bonus Ristrutturazione',
-                    'Ecobonus',
-                    'Superbonus 110%',
-                    'Bonus Mobili',
-                    'Bonus Verde',
-                    'Bonus Facciate',
-                    'Sismabonus',
-                    'Altro'
-                  ].map(bonus => (
-                    <label key={bonus} className="flex items-center gap-2">
-                      <Checkbox
-                        checked={(data.bonus_utilizzati || []).includes(bonus)}
-                        onCheckedChange={(checked) => {
-                          const current = data.bonus_utilizzati || [];
-                          const updated = checked 
-                            ? [...current, bonus]
-                            : current.filter(b => b !== bonus);
-                          updateField(sectionId, 'bonus_utilizzati', updated);
-                        }}
-                      />
-                      <span className="text-sm">{bonus}</span>
-                    </label>
-                  ))}
-                </div>
+              <label className="block text-sm font-medium mb-1">Tipologie di Agevolazioni</label>
+              <div className="space-y-2">
+                {[
+                  'Bonus Ristrutturazione',
+                  'Ecobonus',
+                  'Superbonus 110%',
+                  'Bonus Mobili',
+                  'Bonus Verde',
+                  'Bonus Facciate',
+                  'Sismabonus',
+                  'Altro'
+                ].map(bonus => (
+                  <label key={bonus} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={(data.bonus_utilizzati || []).includes(bonus)}
+                      onCheckedChange={(checked) => {
+                        const current = data.bonus_utilizzati || [];
+                        const updated = checked 
+                          ? [...current, bonus]
+                          : current.filter(b => b !== bonus);
+                        updateField(sectionId, 'bonus_utilizzati', updated);
+                      }}
+                    />
+                    <span className="text-sm">{bonus}</span>
+                  </label>
+                ))}
               </div>
-            )}
+            </div>
             <div>
               <label className="block text-sm font-medium mb-1">Importo Totale Agevolazioni (EUR)</label>
               <Input
@@ -1309,36 +1248,18 @@ const DeclarationWizard = ({ token }) => {
   // Sezione documenti
   const renderDocumentsSection = () => {
     const sectionData = formData['documenti_allegati'] || {};
-    const isNotApplicable = sectionData.not_applicable;
     const canUpload = declaration?.status === 'bozza' || declaration?.status === 'documentazione_incompleta';
 
     return (
       <div className="space-y-6">
-        {/* Toggle "Non applicabile" */}
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border">
-          <div>
-            <p className="font-medium text-slate-900">Non ho documenti da caricare</p>
-            <p className="text-sm text-slate-500">
-              Seleziona se non hai documenti da allegare
-            </p>
-          </div>
-          <Checkbox
-            checked={isNotApplicable}
-            onCheckedChange={(checked) => toggleNotApplicable('documenti_allegati', checked)}
-            data-testid="not-applicable-documenti"
-          />
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <p className="text-sm text-blue-800">
+            Carica qui tutti i documenti necessari: CU, fatture, ricevute, visure catastali, ecc.
+            Formati accettati: PDF, JPG, PNG (max 10MB per file).
+          </p>
         </div>
 
-        {!isNotApplicable && (
-          <>
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-blue-800">
-                Carica qui tutti i documenti necessari: CU, fatture, ricevute, visure catastali, ecc.
-                Formati accettati: PDF, JPG, PNG (max 10MB per file).
-              </p>
-            </div>
-
-            {/* Area upload */}
+        {/* Area upload */}
             {canUpload && (
               <div 
                 className="border-2 border-dashed rounded-lg p-8 text-center hover:border-teal-400 transition-colors cursor-pointer"
@@ -1463,8 +1384,6 @@ const DeclarationWizard = ({ token }) => {
                 )}
               </Button>
             </div>
-          </>
-        )}
       </div>
     );
   };
@@ -1475,7 +1394,7 @@ const DeclarationWizard = ({ token }) => {
     const completedSections = SECTIONS.filter(s => {
       if (s.id === 'autorizzazione_firma') return false;
       const sd = formData[s.id] || {};
-      return sd.completed || sd.not_applicable;
+      return sd.completed;
     }).length;
     const totalSections = SECTIONS.length - 1;
     const canSign = completedSections >= Math.ceil(totalSections * 0.5);
@@ -1630,7 +1549,6 @@ const DeclarationWizard = ({ token }) => {
   const renderSectionContent = (section) => {
     const sectionData = formData[section.id] || {};
     const data = sectionData.data || {};
-    const isNotApplicable = sectionData.not_applicable;
 
     // Sezione autorizzazione/firma
     if (section.id === 'autorizzazione_firma') {
@@ -1644,48 +1562,31 @@ const DeclarationWizard = ({ token }) => {
 
     return (
       <div className="space-y-6">
-        {/* Toggle "Non applicabile" */}
-        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border">
-          <div>
-            <p className="font-medium text-slate-900">Non ho questa tipologia</p>
-            <p className="text-sm text-slate-500">
-              Seleziona se non hai redditi/spese in questa categoria
-            </p>
+        <div className="space-y-4">
+          {renderSectionFields(section.id, data)}
+          
+          {/* Pulsante completa sezione */}
+          <div className="flex justify-end pt-4">
+            <Button
+              variant={sectionData.completed ? "outline" : "default"}
+              onClick={() => markCompleted(section.id, !sectionData.completed)}
+              className={sectionData.completed ? "border-green-500 text-green-600" : "bg-teal-600 hover:bg-teal-700"}
+              data-testid={`complete-${section.id}`}
+            >
+              {sectionData.completed ? (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Completata
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Segna come completata
+                </>
+              )}
+            </Button>
           </div>
-          <Checkbox
-            checked={isNotApplicable}
-            onCheckedChange={(checked) => toggleNotApplicable(section.id, checked)}
-            data-testid={`not-applicable-${section.id}`}
-          />
         </div>
-
-        {!isNotApplicable && (
-          <div className="space-y-4">
-            {renderSectionFields(section.id, data)}
-            
-            {/* Pulsante completa sezione */}
-            <div className="flex justify-end pt-4">
-              <Button
-                variant={sectionData.completed ? "outline" : "default"}
-                onClick={() => markCompleted(section.id, !sectionData.completed)}
-                className={sectionData.completed ? "border-green-500 text-green-600" : "bg-teal-600 hover:bg-teal-700"}
-                data-testid={`complete-${section.id}`}
-              >
-                {sectionData.completed ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Completata
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4 mr-2" />
-                    Segna come completata
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -1765,7 +1666,7 @@ const DeclarationWizard = ({ token }) => {
           <div className="flex overflow-x-auto gap-1 pb-2 -mx-4 px-4 scrollbar-hide">
             {SECTIONS.map((section, index) => {
               const sectionData = formData[section.id] || {};
-              const isComplete = sectionData.completed || sectionData.not_applicable;
+              const isComplete = sectionData.completed;
               const isCurrent = index === currentStep;
               const SectionIcon = section.icon;
 

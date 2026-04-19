@@ -181,18 +181,6 @@ export const DeclarationWizardScreen: React.FC = () => {
     });
   };
 
-  // Toggle "non applicabile"
-  const toggleNotApplicable = (sectionId: string, value: boolean) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const sectionData = {
-      ...formData[sectionId],
-      not_applicable: value,
-      completed: value
-    };
-    setFormData(prev => ({ ...prev, [sectionId]: sectionData }));
-    saveSection(sectionId, sectionData);
-  };
-
   // Segna come completato
   const markCompleted = (sectionId: string, completed: boolean) => {
     Haptics.impactAsync(completed ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
@@ -423,7 +411,7 @@ export const DeclarationWizardScreen: React.FC = () => {
     return SECTIONS.filter(s => {
       if (s.id === 'autorizzazione_firma') return false;
       const sd = formData[s.id] || {};
-      return sd.completed || sd.not_applicable;
+      return sd.completed;
     }).length;
   };
 
@@ -498,7 +486,6 @@ export const DeclarationWizardScreen: React.FC = () => {
     const sectionId = section.id;
     const sectionData = formData[sectionId] || {};
     const data = sectionData.data || {};
-    const isNotApplicable = sectionData.not_applicable;
     const canEdit = declaration?.status === 'bozza' || declaration?.status === 'documentazione_incompleta';
 
     // Sezione documenti speciale
@@ -513,44 +500,29 @@ export const DeclarationWizardScreen: React.FC = () => {
 
     return (
       <View>
-        {/* Toggle Non Applicabile */}
+        {/* Campi specifici per sezione */}
+        {renderSectionFields(sectionId, data)}
+
+        {/* Pulsante completa */}
         <TouchableOpacity
-          style={styles.notApplicableRow}
-          onPress={() => toggleNotApplicable(sectionId, !isNotApplicable)}
+          style={[
+            styles.completeButton,
+            sectionData.completed && styles.completeButtonActive
+          ]}
+          onPress={() => markCompleted(sectionId, !sectionData.completed)}
         >
-          <View style={[styles.checkbox, isNotApplicable && styles.checkboxChecked]}>
-            {isNotApplicable && <Check size={14} color="#fff" />}
-          </View>
-          <Text style={styles.notApplicableText}>Non applicabile</Text>
+          {sectionData.completed ? (
+            <>
+              <CheckCircle size={18} color="#fff" />
+              <Text style={styles.completeButtonTextActive}>Completata</Text>
+            </>
+          ) : (
+            <>
+              <Check size={18} color={COLORS.primary} />
+              <Text style={styles.completeButtonText}>Segna come completata</Text>
+            </>
+          )}
         </TouchableOpacity>
-
-        {!isNotApplicable && (
-          <>
-            {/* Campi specifici per sezione */}
-            {renderSectionFields(sectionId, data)}
-
-            {/* Pulsante completa */}
-            <TouchableOpacity
-              style={[
-                styles.completeButton,
-                sectionData.completed && styles.completeButtonActive
-              ]}
-              onPress={() => markCompleted(sectionId, !sectionData.completed)}
-            >
-              {sectionData.completed ? (
-                <>
-                  <CheckCircle size={18} color="#fff" />
-                  <Text style={styles.completeButtonTextActive}>Completata</Text>
-                </>
-              ) : (
-                <>
-                  <Check size={18} color={COLORS.primary} />
-                  <Text style={styles.completeButtonText}>Segna come completata</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </>
-        )}
       </View>
     );
   };
@@ -596,12 +568,6 @@ export const DeclarationWizardScreen: React.FC = () => {
       case 'redditi_lavoro':
         return (
           <>
-            {renderSelect(sectionId, 'tipo_reddito', 'Tipo di Reddito', [
-              { value: 'dipendente', label: 'Lavoro Dipendente' },
-              { value: 'pensione', label: 'Pensione' },
-              { value: 'collaborazione', label: 'Collaborazione' },
-              { value: 'altro', label: 'Altro' },
-            ])}
             {renderTextInput(sectionId, 'datore_lavoro', 'Datore di Lavoro / Ente', 'Nome azienda o ente')}
             {renderTextInput(sectionId, 'reddito_lordo', 'Reddito Lordo Annuo (EUR)', 'Es. 35000', { keyboardType: 'numeric' })}
             {renderTextInput(sectionId, 'ritenute', 'Ritenute Subite (EUR)', 'Es. 7000', { keyboardType: 'numeric' })}
@@ -623,7 +589,6 @@ export const DeclarationWizardScreen: React.FC = () => {
               { value: 'occasionale', label: 'Prestazioni Occasionali' },
             ])}
             {renderTextInput(sectionId, 'partita_iva', 'Partita IVA', 'Es. IT12345678901', { autoCapitalize: 'characters' })}
-            {renderTextInput(sectionId, 'codice_ateco', 'Codice ATECO', 'Es. 62.01.00')}
             {renderTextInput(sectionId, 'fatturato', 'Fatturato Annuo (EUR)', 'Es. 50000', { keyboardType: 'numeric' })}
             {renderTextInput(sectionId, 'costi', 'Costi Deducibili (EUR)', 'Es. 15000', { keyboardType: 'numeric' })}
             {renderSelect(sectionId, 'regime_fiscale', 'Regime Fiscale', [
@@ -660,11 +625,6 @@ export const DeclarationWizardScreen: React.FC = () => {
             {data.affitti_percepiti === 'si' && (
               <>
                 {renderTextInput(sectionId, 'totale_affitti_percepiti', 'Totale Affitti Percepiti (EUR/anno)', 'Es. 12000', { keyboardType: 'numeric' })}
-                {renderSelect(sectionId, 'tipo_contratto', 'Tipo Contratto', [
-                  { value: 'cedolare_secca', label: 'Cedolare Secca' },
-                  { value: 'ordinario', label: 'Regime Ordinario' },
-                  { value: 'transitorio', label: 'Transitorio' },
-                ])}
               </>
             )}
             {renderSelect(sectionId, 'affitti_pagati', 'Hai pagato affitti?', [
@@ -774,16 +734,8 @@ export const DeclarationWizardScreen: React.FC = () => {
       case 'deduzioni_agevolazioni':
         return (
           <>
-            {renderSelect(sectionId, 'ha_bonus', 'Hai usufruito di Bonus?', [
-              { value: 'si', label: 'Si' },
-              { value: 'no', label: 'No' },
-            ])}
-            {data.ha_bonus === 'si' && (
-              <>
-                {renderTextInput(sectionId, 'bonus_utilizzati', 'Tipologie Bonus', 'Es: Ristrutturazione, Ecobonus', { multiline: true })}
-                {renderTextInput(sectionId, 'importo_agevolazioni', 'Importo Totale (EUR)', 'Es. 10000', { keyboardType: 'numeric' })}
-              </>
-            )}
+            {renderTextInput(sectionId, 'bonus_utilizzati', 'Tipologie Bonus', 'Es: Ristrutturazione, Ecobonus', { multiline: true })}
+            {renderTextInput(sectionId, 'importo_agevolazioni', 'Importo Totale (EUR)', 'Es. 10000', { keyboardType: 'numeric' })}
             {renderTextInput(sectionId, 'descrizione_agevolazioni', 'Descrizione', 'Descrivi le agevolazioni', { multiline: true })}
           </>
         );
@@ -815,128 +767,112 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Sezione documenti
   const renderDocumentsSection = (sectionData: any, canEdit: boolean) => {
-    const isNotApplicable = sectionData.not_applicable;
-
     return (
       <View>
-        <TouchableOpacity
-          style={styles.notApplicableRow}
-          onPress={() => toggleNotApplicable('documenti_allegati', !isNotApplicable)}
-        >
-          <View style={[styles.checkbox, isNotApplicable && styles.checkboxChecked]}>
-            {isNotApplicable && <Check size={14} color="#fff" />}
-          </View>
-          <Text style={styles.notApplicableText}>Non ho documenti da caricare</Text>
-        </TouchableOpacity>
+        <View style={styles.infoBox}>
+          <FileText size={18} color={COLORS.info} />
+          <Text style={styles.infoBoxText}>
+            Carica CU, fatture, ricevute, visure. PDF, JPG, PNG (max 10MB)
+          </Text>
+        </View>
 
-        {!isNotApplicable && (
-          <>
-            <View style={styles.infoBox}>
-              <FileText size={18} color={COLORS.info} />
-              <Text style={styles.infoBoxText}>
-                Carica CU, fatture, ricevute, visure. PDF, JPG, PNG (max 10MB)
-              </Text>
-            </View>
-
-            {/* Pulsanti upload */}
-            {canEdit && (
-              <View style={styles.uploadButtonsRow}>
-                <TouchableOpacity
-                  style={styles.uploadButton}
-                  onPress={pickFromCamera}
-                  disabled={uploading}
-                >
-                  <Camera size={24} color={COLORS.primary} />
-                  <Text style={styles.uploadButtonText}>Fotocamera</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.uploadButton}
-                  onPress={pickFromGallery}
-                  disabled={uploading}
-                >
-                  <ImageIcon size={24} color={COLORS.primary} />
-                  <Text style={styles.uploadButtonText}>Galleria</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.uploadButton}
-                  onPress={pickDocument}
-                  disabled={uploading}
-                >
-                  <Upload size={24} color={COLORS.primary} />
-                  <Text style={styles.uploadButtonText}>File</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {uploading && (
-              <View style={styles.uploadingContainer}>
-                <ActivityIndicator size="small" color={COLORS.primary} />
-                <Text style={styles.uploadingText}>Caricamento in corso...</Text>
-              </View>
-            )}
-
-            {/* Lista documenti */}
-            {documents.length > 0 ? (
-              <View style={styles.documentsList}>
-                <Text style={styles.documentsListTitle}>
-                  Documenti caricati ({documents.length})
-                </Text>
-                {documents.map((doc) => (
-                  <View key={doc.id} style={styles.documentItem}>
-                    <View style={styles.documentIcon}>
-                      <FileText size={20} color={COLORS.primary} />
-                    </View>
-                    <View style={styles.documentInfo}>
-                      <Text style={styles.documentName} numberOfLines={1}>
-                        {doc.filename}
-                      </Text>
-                      <Text style={styles.documentMeta}>
-                        {(doc.file_size / 1024).toFixed(1)} KB
-                      </Text>
-                    </View>
-                    {canEdit && (
-                      <TouchableOpacity
-                        style={styles.documentDeleteButton}
-                        onPress={() => deleteDocument(doc.id, doc.filename)}
-                      >
-                        <Trash2 size={18} color={COLORS.error} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.emptyDocuments}>
-                <FileText size={40} color={COLORS.textLight} />
-                <Text style={styles.emptyDocumentsText}>Nessun documento caricato</Text>
-              </View>
-            )}
-
-            {renderTextInput('documenti_allegati', 'note', 'Note sui documenti', 'Descrivi i documenti caricati', { multiline: true })}
+        {/* Pulsanti upload */}
+        {canEdit && (
+          <View style={styles.uploadButtonsRow}>
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={pickFromCamera}
+              disabled={uploading}
+            >
+              <Camera size={24} color={COLORS.primary} />
+              <Text style={styles.uploadButtonText}>Fotocamera</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.completeButton,
-                sectionData.completed && styles.completeButtonActive
-              ]}
-              onPress={() => markCompleted('documenti_allegati', !sectionData.completed)}
+              style={styles.uploadButton}
+              onPress={pickFromGallery}
+              disabled={uploading}
             >
-              {sectionData.completed ? (
-                <>
-                  <CheckCircle size={18} color="#fff" />
-                  <Text style={styles.completeButtonTextActive}>Completata</Text>
-                </>
-              ) : (
-                <>
-                  <Check size={18} color={COLORS.primary} />
-                  <Text style={styles.completeButtonText}>Segna come completata</Text>
-                </>
-              )}
+              <ImageIcon size={24} color={COLORS.primary} />
+              <Text style={styles.uploadButtonText}>Galleria</Text>
             </TouchableOpacity>
-          </>
+
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={pickDocument}
+              disabled={uploading}
+            >
+              <Upload size={24} color={COLORS.primary} />
+              <Text style={styles.uploadButtonText}>File</Text>
+            </TouchableOpacity>
+          </View>
         )}
+
+        {uploading && (
+          <View style={styles.uploadingContainer}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={styles.uploadingText}>Caricamento in corso...</Text>
+          </View>
+        )}
+
+        {/* Lista documenti */}
+        {documents.length > 0 ? (
+          <View style={styles.documentsList}>
+            <Text style={styles.documentsListTitle}>
+              Documenti caricati ({documents.length})
+            </Text>
+            {documents.map((doc) => (
+              <View key={doc.id} style={styles.documentItem}>
+                <View style={styles.documentIcon}>
+                  <FileText size={20} color={COLORS.primary} />
+                </View>
+                <View style={styles.documentInfo}>
+                  <Text style={styles.documentName} numberOfLines={1}>
+                    {doc.filename}
+                  </Text>
+                  <Text style={styles.documentMeta}>
+                    {(doc.file_size / 1024).toFixed(1)} KB
+                  </Text>
+                </View>
+                {canEdit && (
+                  <TouchableOpacity
+                    style={styles.documentDeleteButton}
+                    onPress={() => deleteDocument(doc.id, doc.filename)}
+                  >
+                    <Trash2 size={18} color={COLORS.error} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyDocuments}>
+            <FileText size={40} color={COLORS.textLight} />
+            <Text style={styles.emptyDocumentsText}>Nessun documento caricato</Text>
+          </View>
+        )}
+
+        {renderTextInput('documenti_allegati', 'note', 'Note sui documenti', 'Descrivi i documenti caricati', { multiline: true })}
+
+        <TouchableOpacity
+          style={[
+            styles.completeButton,
+            sectionData.completed && styles.completeButtonActive
+          ]}
+          onPress={() => markCompleted('documenti_allegati', !sectionData.completed)}
+        >
+          {sectionData.completed ? (
+            <>
+              <CheckCircle size={18} color="#fff" />
+              <Text style={styles.completeButtonTextActive}>Completata</Text>
+            </>
+          ) : (
+            <>
+              <Check size={18} color={COLORS.primary} />
+              <Text style={styles.completeButtonText}>Segna come completata</Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
     );
   };
@@ -1139,7 +1075,7 @@ export const DeclarationWizardScreen: React.FC = () => {
         {SECTIONS.map((section, index) => {
           const Icon = section.icon;
           const sectionData = formData[section.id] || {};
-          const isCompleted = sectionData.completed || sectionData.not_applicable;
+          const isCompleted = sectionData.completed;
           const isCurrent = index === currentStep;
 
           return (
@@ -1398,21 +1334,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     marginTop: 2,
-  },
-  notApplicableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    padding: SPACING.md,
-    borderRadius: RADIUS.lg,
-    marginBottom: SPACING.md,
-    ...SHADOWS.sm,
-  },
-  notApplicableText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: COLORS.text,
-    marginLeft: SPACING.sm,
   },
   checkbox: {
     width: 24,
