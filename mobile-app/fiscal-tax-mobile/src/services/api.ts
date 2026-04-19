@@ -439,6 +439,68 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // ===========================================================================
+  // IMPORTI DA PAGARE (TAX PAYMENTS)
+  // ===========================================================================
+
+  // Lista importi da pagare per il cliente
+  async getClientPayments(status: 'upcoming' | 'expired' | 'all' = 'upcoming') {
+    return this.request<{
+      payments: Array<{
+        id: string;
+        client_id: string;
+        client_name: string;
+        tax_model_id: string;
+        tax_model_name: string;
+        amount_due: number;
+        due_date: string;
+        period: string;
+        internal_notes?: string;
+        notification_status: string;
+        days_left: number;
+        urgency: 'expired' | 'urgent' | 'warning' | 'normal';
+        is_expired: boolean;
+      }>;
+      stats: {
+        upcoming_count: number;
+        expired_count: number;
+        total_upcoming_amount: number;
+      };
+    }>(`/api/tax-payments/client/payments?status=${status}`);
+  }
+
+  // Importi per calendario
+  async getClientPaymentsCalendar(month?: number, year?: number) {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month.toString());
+    if (year) params.append('year', year.toString());
+    
+    return this.request<{
+      month: number;
+      year: number;
+      calendar_data: Array<{
+        date: string;
+        payments: any[];
+        total_amount: number;
+        count: number;
+      }>;
+      marked_dates: Record<string, {
+        marked: boolean;
+        dotColor: string;
+        count: number;
+        total: number;
+        is_past: boolean;
+      }>;
+      total_payments: number;
+      total_amount: number;
+    }>(`/api/tax-payments/client/payments/calendar${params.toString() ? '?' + params.toString() : ''}`);
+  }
+
+  // Dettaglio singolo pagamento
+  async getClientPaymentDetail(paymentId: string) {
+    return this.request<any>(`/api/tax-payments/client/payments/${paymentId}`);
+  }
 }
 
 export const apiService = new ApiService();

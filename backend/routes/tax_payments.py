@@ -6,7 +6,7 @@ Sezione admin per gestire importi da pagare per dichiarazioni/modelli tributari
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 import uuid
 import logging
@@ -1072,5 +1072,215 @@ async def mark_assignment_as_paid(
     return {
         "success": True,
         "updated": result.modified_count
+    }
+
+
+# =============================================================================
+# API - CLIENT (Endpoint per l'app mobile cliente)
+# =============================================================================
+
+async def get_current_client(authorization: str = Header(None)):
+    """Verifica che l'utente sia un cliente"""
+    from server import db, JWT_SECRET, JWT_ALGORITHM
+    import jwt
+    
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token mancante")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token non valido")
+        
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utente non trovato")
+        
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token scaduto")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token non valido")
+
+
+@router.get("/client/payments")
+async def get_client_payments(
+    status: Optional[str] = Query(None, description="upcoming, expired, all"),
+    user: dict = Depends(get_current_client)
+):
+    """
+    Ottiene gli importi da pagare per il cliente corrente.
+    
+    - status=upcoming: solo importi con scadenza futura (default per home)
+    - status=expired: solo importi con scadenza passata (storico)
+    - status=all: tutti gli importi
+    """
+    db = get_db()
+    
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    query = {"client_id": user["id"]}
+    
+    if status == "upcoming":
+        query["due_date"] = {"$gte": today}
+    elif status == "expired":
+        query["due_date"] = {"$lt": today}
+    
+    assignments = await db.payment_assignments.find(
+        query,
+        {"_id": 0}
+    ).sort("due_date", 1).to_list(None)
+    
+    # Calcola giorni mancanti e stato per ogni assegnazione
+    result = []
+    for a in assignments:
+        try:
+            due = datetime.fromisoformat(a["due_date"].replace('Z', '+00:00')).date()
+            today_date = datetime.now(timezone.utc).date()
+            days_left = (due - today_date).days
+        except (ValueError, TypeError):
+            days_left = 0
+        
+        # Determina urgenza
+        if days_left < 0:
+            urgency = "expired"
+        elif days_left <= 3:
+            urgency = "urgent"
+        elif days_left <= 7:
+            urgency = "warning"
+        else:
+            urgency = "normal"
+        
+        result.append({
+            **a,
+            "days_left": days_left,
+            "urgency": urgency,
+            "is_expired": days_left < 0
+        })
+    
+    # Statistiche
+    upcoming_count = sum(1 for r in result if r["days_left"] >= 0)
+    expired_count = sum(1 for r in result if r["days_left"] < 0)
+    total_upcoming = sum(r["amount_due"] for r in result if r["days_left"] >= 0)
+    
+    return {
+        "payments": result,
+        "stats": {
+            "upcoming_count": upcoming_count,
+            "expired_count": expired_count,
+            "total_upcoming_amount": total_upcoming
+        }
+    }
+
+
+@router.get("/client/payments/calendar")
+async def get_client_payments_calendar(
+    month: Optional[int] = Query(None, ge=1, le=12),
+    year: Optional[int] = Query(None),
+    user: dict = Depends(get_current_client)
+):
+    """
+    Ottiene gli importi da pagare per il calendario del cliente.
+    Raggruppa per data di scadenza.
+    """
+    db = get_db()
+    
+    # Default: mese corrente
+    now = datetime.now(timezone.utc)
+    target_month = month or now.month
+    target_year = year or now.year
+    
+    # Range date per il mese
+    start_date = f"{target_year}-{target_month:02d}-01"
+    if target_month == 12:
+        end_date = f"{target_year + 1}-01-01"
+    else:
+        end_date = f"{target_year}-{target_month + 1:02d}-01"
+    
+    query = {
+        "client_id": user["id"],
+        "due_date": {"$gte": start_date, "$lt": end_date}
+    }
+    
+    assignments = await db.payment_assignments.find(
+        query,
+        {"_id": 0}
+    ).sort("due_date", 1).to_list(None)
+    
+    # Raggruppa per data
+    by_date = {}
+    for a in assignments:
+        date_key = a["due_date"][:10]  # YYYY-MM-DD
+        if date_key not in by_date:
+            by_date[date_key] = {
+                "date": date_key,
+                "payments": [],
+                "total_amount": 0,
+                "count": 0
+            }
+        by_date[date_key]["payments"].append(a)
+        by_date[date_key]["total_amount"] += a["amount_due"]
+        by_date[date_key]["count"] += 1
+    
+    # Converti in lista
+    calendar_data = list(by_date.values())
+    
+    # Crea mappa date con pagamenti per il calendario
+    marked_dates = {}
+    today = datetime.now(timezone.utc).date().isoformat()
+    
+    for d in calendar_data:
+        is_past = d["date"] < today
+        is_urgent = not is_past and d["date"] <= (datetime.now(timezone.utc) + timedelta(days=3)).date().isoformat()
+        
+        marked_dates[d["date"]] = {
+            "marked": True,
+            "dotColor": "#ef4444" if is_urgent else ("#94a3b8" if is_past else "#0d9488"),
+            "count": d["count"],
+            "total": d["total_amount"],
+            "is_past": is_past
+        }
+    
+    return {
+        "month": target_month,
+        "year": target_year,
+        "calendar_data": calendar_data,
+        "marked_dates": marked_dates,
+        "total_payments": len(assignments),
+        "total_amount": sum(a["amount_due"] for a in assignments)
+    }
+
+
+@router.get("/client/payments/{payment_id}")
+async def get_client_payment_detail(
+    payment_id: str,
+    user: dict = Depends(get_current_client)
+):
+    """Ottiene il dettaglio di un singolo pagamento per il cliente"""
+    db = get_db()
+    
+    assignment = await db.payment_assignments.find_one(
+        {"id": payment_id, "client_id": user["id"]},
+        {"_id": 0}
+    )
+    
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Pagamento non trovato")
+    
+    # Calcola giorni mancanti
+    try:
+        due = datetime.fromisoformat(assignment["due_date"].replace('Z', '+00:00')).date()
+        today_date = datetime.now(timezone.utc).date()
+        days_left = (due - today_date).days
+    except (ValueError, TypeError):
+        days_left = 0
+    
+    return {
+        **assignment,
+        "days_left": days_left,
+        "is_expired": days_left < 0
     }
 

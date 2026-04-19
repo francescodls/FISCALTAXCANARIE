@@ -5,6 +5,60 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 101 (19 Aprile 2026) - COMPLETATA ✅
+
+**Visualizzazione Importi da Pagare nell'App Mobile Cliente**
+
+Implementata la visualizzazione degli importi da pagare nella home e nel calendario dell'app mobile.
+
+1. **Backend - Nuovi endpoint per clienti:**
+   - `GET /api/tax-payments/client/payments` - Lista pagamenti (upcoming/expired/all)
+   - `GET /api/tax-payments/client/payments/calendar` - Dati per calendario con marked_dates
+   - `GET /api/tax-payments/client/payments/{id}` - Dettaglio singolo pagamento
+
+2. **HomeScreen Mobile:**
+   - Nuova sezione "Prossimi Importi da Pagare" con:
+     - Card riepilogativa con totale da pagare
+     - Lista max 3 pagamenti con urgenza visiva
+     - Badge "Urgente" per scadenze < 3 giorni
+     - Giorni mancanti visualizzati (Oggi/Domani/X gg)
+   - Link "Vedi tutti" se più di 3 pagamenti
+
+3. **CalendarScreen Mobile:**
+   - Doppio indicatore sui giorni:
+     - Pallino verde per pagamenti
+     - Pallino colorato per scadenze
+   - Sezione "Pagamenti" sotto le scadenze del giorno selezionato
+   - Importo visibile direttamente nella card
+
+4. **PaymentsListScreen (nuovo):**
+   - Tab "Prossimi" e "Storico"
+   - Card riepilogativa totale
+   - Lista completa pagamenti con urgency colors
+   - Pull-to-refresh
+
+5. **PaymentDetailScreen (nuovo):**
+   - Card importo con stato urgenza
+   - Dettagli: modello, periodo, scadenza
+   - Stato notifica
+   - Link per aprire ticket di supporto
+
+6. **Logica scadenza automatica:**
+   - Pagamenti con data passata → `is_expired: true`
+   - Urgency levels: expired, urgent (≤3gg), warning (≤7gg), normal
+   - Scomparsa automatica dalla home dopo scadenza
+
+**File creati/modificati:**
+- `/app/backend/routes/tax_payments.py` (+ endpoint client)
+- `/app/mobile-app/fiscal-tax-mobile/src/services/api.ts`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/HomeScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/CalendarScreen.tsx`
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/PaymentsListScreen.tsx` (nuovo)
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/PaymentDetailScreen.tsx` (nuovo)
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx`
+
+---
+
 ### Fase 100 (19 Aprile 2026) - COMPLETATA ✅
 
 **Nuova Sezione Admin: Gestione Importi Tributari + Sistema Notifiche**

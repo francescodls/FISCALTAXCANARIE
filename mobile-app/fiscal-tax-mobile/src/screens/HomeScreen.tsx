@@ -33,6 +33,9 @@ import {
   BookOpen,
   Play,
   ExternalLink,
+  Euro,
+  Clock,
+  CreditCard,
 } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../context/AuthContext';
@@ -130,6 +133,21 @@ export const HomeScreen: React.FC = () => {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [taxModels, setTaxModels] = useState<TaxModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<TaxModel | null>(null);
+  
+  // Prossimi importi da pagare
+  const [upcomingPayments, setUpcomingPayments] = useState<{
+    id: string;
+    tax_model_name: string;
+    amount_due: number;
+    due_date: string;
+    period: string;
+    days_left: number;
+    urgency: 'expired' | 'urgent' | 'warning' | 'normal';
+  }[]>([]);
+  const [paymentsStats, setPaymentsStats] = useState({
+    upcoming_count: 0,
+    total_upcoming_amount: 0,
+  });
   
   // Use refs to always have current values in callbacks
   const dismissedRef = useRef<Set<string>>(new Set());
@@ -288,17 +306,24 @@ export const HomeScreen: React.FC = () => {
       dismissedRef.current = new Set(state.dismissed);
       viewedRef.current = new Set(state.viewed);
       
-      const [notifications, documents, declarations, tickets, deadlinesData, modelsData] = await Promise.all([
+      const [notifications, documents, declarations, tickets, deadlinesData, modelsData, paymentsData] = await Promise.all([
         apiService.getNotifications().catch(() => []),
         apiService.getDocuments().catch(() => []),
         apiService.getDeclarations().catch(() => []),
         apiService.getTickets().catch(() => []),
         apiService.getDeadlines().catch(() => []),
         apiService.getTaxModels().catch(() => []),
+        apiService.getClientPayments('upcoming').catch(() => ({ payments: [], stats: { upcoming_count: 0, total_upcoming_amount: 0 } })),
       ]);
       
       // Set tax models
       setTaxModels(modelsData || []);
+      
+      // Set upcoming payments
+      if (paymentsData?.payments) {
+        setUpcomingPayments(paymentsData.payments.slice(0, 3)); // Max 3 nella home
+        setPaymentsStats(paymentsData.stats);
+      }
 
       const unread = notifications.filter((n: any) => !n.read);
       const openTickets = tickets.filter((t: any) => t.status !== 'closed');
@@ -623,6 +648,101 @@ export const HomeScreen: React.FC = () => {
                         <Text style={styles.actionButtonText}>{item.action}</Text>
                       </TouchableOpacity>
                     </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* Prossimi Importi da Pagare */}
+        {upcomingPayments.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {language === 'en' ? 'Upcoming Payments' : language === 'es' ? 'Próximos Pagos' : 'Prossimi Importi da Pagare'}
+              </Text>
+              {paymentsStats.upcoming_count > 3 && (
+                <TouchableOpacity
+                  style={styles.seeAllButton}
+                  onPress={() => navigation.navigate('PaymentsList')}
+                >
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>
+                    {language === 'en' ? 'See all' : language === 'es' ? 'Ver todo' : 'Vedi tutti'}
+                  </Text>
+                  <ChevronRight size={16} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {/* Summary Card */}
+            <View style={[styles.paymentsSummary, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+              <View style={styles.paymentsSummaryIcon}>
+                <Euro size={24} color={colors.primary} />
+              </View>
+              <View style={styles.paymentsSummaryContent}>
+                <Text style={[styles.paymentsSummaryLabel, { color: colors.textSecondary }]}>
+                  {language === 'en' ? 'Total due' : language === 'es' ? 'Total a pagar' : 'Totale da pagare'}
+                </Text>
+                <Text style={[styles.paymentsSummaryAmount, { color: colors.primary }]}>
+                  €{paymentsStats.total_upcoming_amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                </Text>
+              </View>
+              <View style={[styles.paymentsSummaryBadge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.paymentsSummaryBadgeText}>{paymentsStats.upcoming_count}</Text>
+              </View>
+            </View>
+            
+            {/* Payment Cards */}
+            <View style={styles.paymentsContainer}>
+              {upcomingPayments.map((payment) => {
+                const urgencyColors = {
+                  urgent: colors.error,
+                  warning: colors.warning,
+                  normal: colors.primary,
+                  expired: colors.textLight,
+                };
+                const urgencyColor = urgencyColors[payment.urgency] || colors.primary;
+                
+                return (
+                  <TouchableOpacity
+                    key={payment.id}
+                    style={[styles.paymentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                    onPress={() => navigation.navigate('PaymentDetail', { paymentId: payment.id })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.paymentIcon, { backgroundColor: urgencyColor + '15' }]}>
+                      <CreditCard size={20} color={urgencyColor} />
+                    </View>
+                    <View style={styles.paymentInfo}>
+                      <Text style={[styles.paymentModel, { color: colors.text }]} numberOfLines={1}>
+                        {payment.tax_model_name}
+                      </Text>
+                      <Text style={[styles.paymentPeriod, { color: colors.textSecondary }]}>
+                        {payment.period}
+                      </Text>
+                    </View>
+                    <View style={styles.paymentRight}>
+                      <Text style={[styles.paymentAmount, { color: urgencyColor }]}>
+                        €{payment.amount_due.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                      </Text>
+                      <View style={styles.paymentDue}>
+                        <Clock size={12} color={urgencyColor} />
+                        <Text style={[styles.paymentDueText, { color: urgencyColor }]}>
+                          {payment.days_left <= 0 
+                            ? (language === 'en' ? 'Today' : language === 'es' ? 'Hoy' : 'Oggi')
+                            : payment.days_left === 1 
+                              ? (language === 'en' ? 'Tomorrow' : language === 'es' ? 'Mañana' : 'Domani')
+                              : `${payment.days_left} ${language === 'en' ? 'days' : language === 'es' ? 'días' : 'gg'}`
+                          }
+                        </Text>
+                      </View>
+                    </View>
+                    {payment.urgency === 'urgent' && (
+                      <View style={[styles.urgentBadge, { backgroundColor: colors.error }]}>
+                        <AlertTriangle size={12} color="#fff" />
+                      </View>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -1077,4 +1197,23 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 14, color: COLORS.text, lineHeight: 20, fontStyle: 'italic' },
   linkButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: COLORS.primary, gap: 8 },
   linkButtonText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  // Payments Section Styles
+  paymentsSummary: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 12 },
+  paymentsSummaryIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.8)', justifyContent: 'center', alignItems: 'center' },
+  paymentsSummaryContent: { flex: 1, marginLeft: 14 },
+  paymentsSummaryLabel: { fontSize: 13, marginBottom: 2 },
+  paymentsSummaryAmount: { fontSize: 22, fontWeight: '700' },
+  paymentsSummaryBadge: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  paymentsSummaryBadgeText: { fontSize: 13, fontWeight: '700', color: '#ffffff' },
+  paymentsContainer: { gap: 10 },
+  paymentCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 14, padding: 14, borderWidth: 1, gap: 12, position: 'relative' },
+  paymentIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  paymentInfo: { flex: 1 },
+  paymentModel: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  paymentPeriod: { fontSize: 12 },
+  paymentRight: { alignItems: 'flex-end' },
+  paymentAmount: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  paymentDue: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  paymentDueText: { fontSize: 11, fontWeight: '600' },
+  urgentBadge: { position: 'absolute', top: -6, right: -6, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
 });

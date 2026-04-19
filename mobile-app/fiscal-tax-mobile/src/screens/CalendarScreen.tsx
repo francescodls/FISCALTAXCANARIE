@@ -26,6 +26,8 @@ import {
   ChevronDown,
   Info,
   ArrowRight,
+  Euro,
+  CreditCard,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -91,11 +93,16 @@ export const CalendarScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<string>('all');
+  
+  // Payments data
+  const [paymentsMarkedDates, setPaymentsMarkedDates] = useState<Record<string, any>>({});
+  const [paymentsData, setPaymentsData] = useState<any[]>([]);
 
   useEffect(() => {
     if (token) {
       apiService.setToken(token);
       loadDeadlines();
+      loadPayments();
     }
   }, [token]);
 
@@ -114,11 +121,30 @@ export const CalendarScreen: React.FC = () => {
     }
   };
 
+  const loadPayments = async () => {
+    try {
+      const month = currentMonth.getMonth() + 1;
+      const year = currentMonth.getFullYear();
+      const data = await apiService.getClientPaymentsCalendar(month, year);
+      setPaymentsMarkedDates(data.marked_dates || {});
+      setPaymentsData(data.calendar_data || []);
+    } catch (error) {
+      console.error('Error loading payments:', error);
+    }
+  };
+
+  // Reload payments when month changes
+  useEffect(() => {
+    if (token) {
+      loadPayments();
+    }
+  }, [currentMonth, token]);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadDeadlines();
+    await Promise.all([loadDeadlines(), loadPayments()]);
     setRefreshing(false);
-  }, []);
+  }, [currentMonth]);
 
   const previousMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
@@ -157,6 +183,21 @@ export const CalendarScreen: React.FC = () => {
              deadlineDate.getMonth() === month &&
              deadlineDate.getFullYear() === year;
     });
+  };
+
+  const getPaymentsForDay = (day: number) => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const dayData = paymentsData.find(p => p.date === dateKey);
+    return dayData?.payments || [];
+  };
+
+  const getSelectedDatePayments = () => {
+    if (!selectedDate) return [];
+    const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+    const dayData = paymentsData.find(p => p.date === dateKey);
+    return dayData?.payments || [];
   };
 
   const getSelectedDateDeadlines = () => {
@@ -421,6 +462,7 @@ export const CalendarScreen: React.FC = () => {
           <View style={styles.calendarGrid}>
             {days.map((day, index) => {
               const dayDeadlines = day ? getDeadlinesForDay(day) : [];
+              const dayPayments = day ? getPaymentsForDay(day) : [];
               const hasUrgent = dayDeadlines.some(d => {
                 const config = getStatusConfig(d);
                 return config.color === COLORS.error;
@@ -453,17 +495,22 @@ export const CalendarScreen: React.FC = () => {
                       ]}>
                         {day}
                       </Text>
-                      {dayDeadlines.length > 0 && (
-                        <View style={styles.deadlineIndicators}>
+                      <View style={styles.deadlineIndicators}>
+                        {/* Payment indicator (green/amber dot on left) */}
+                        {dayPayments.length > 0 && (
+                          <View style={[
+                            styles.paymentIndicator,
+                            { backgroundColor: '#10b981' }
+                          ]} />
+                        )}
+                        {/* Deadline indicator */}
+                        {dayDeadlines.length > 0 && (
                           <View style={[
                             styles.indicator, 
                             { backgroundColor: hasUrgent ? COLORS.error : hasWarning ? COLORS.warning : COLORS.primary }
                           ]} />
-                          {dayDeadlines.length > 1 && (
-                            <Text style={styles.indicatorCount}>+{dayDeadlines.length - 1}</Text>
-                          )}
-                        </View>
-                      )}
+                        )}
+                      </View>
                     </>
                   )}
                 </TouchableOpacity>
@@ -514,6 +561,41 @@ export const CalendarScreen: React.FC = () => {
             </View>
           )}
         </View>
+
+        {/* Payments Section for Selected Date */}
+        {!showUnifiedList && selectedDate && getSelectedDatePayments().length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Euro size={18} color="#10b981" />
+              <Text style={styles.sectionTitle}>Pagamenti</Text>
+              <Text style={styles.sectionCount}>
+                {getSelectedDatePayments().length} pag.
+              </Text>
+            </View>
+            
+            {getSelectedDatePayments().map((payment: any) => (
+              <TouchableOpacity
+                key={payment.id}
+                style={[styles.deadlineCardEnhanced, { borderLeftColor: '#10b981', borderLeftWidth: 3 }]}
+                onPress={() => navigation.navigate('PaymentDetail', { paymentId: payment.id })}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.deadlineCardIcon, { backgroundColor: '#10b98115' }]}>
+                  <CreditCard size={20} color="#10b981" />
+                </View>
+                <View style={styles.deadlineCardContent}>
+                  <Text style={styles.deadlineCardTitle} numberOfLines={1}>{payment.tax_model_name}</Text>
+                  <Text style={styles.deadlineCardDate}>{payment.period}</Text>
+                </View>
+                <View style={styles.paymentAmountContainer}>
+                  <Text style={styles.paymentAmountText}>
+                    €{payment.amount_due.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
         {/* Empty State for no deadlines at all */}
         {deadlines.length === 0 && (
@@ -1051,5 +1133,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.xs,
     paddingHorizontal: SPACING.xl,
+  },
+  // Payment styles
+  paymentIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 2,
+  },
+  paymentAmountContainer: {
+    marginLeft: 'auto',
+    backgroundColor: '#10b98115',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  paymentAmountText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#10b981',
   },
 });

@@ -43,6 +43,9 @@ import { TermsConditionsScreen } from '../screens/TermsConditionsScreen';
 // Auth screens (for native registration/password recovery - Apple Store compliance)
 import { RegisterScreen } from '../screens/RegisterScreen';
 import { ForgotPasswordScreen } from '../screens/ForgotPasswordScreen';
+// Payment screens
+import { PaymentsListScreen } from '../screens/PaymentsListScreen';
+import { PaymentDetailScreen } from '../screens/PaymentDetailScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -335,6 +338,9 @@ export const AppNavigator = () => {
             <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
             <Stack.Screen name="PrivacyConsent" component={PrivacyConsentScreen} />
             <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
+            {/* Payment Screens */}
+            <Stack.Screen name="PaymentsList" component={PaymentsListScreen} />
+            <Stack.Screen name="PaymentDetail" component={PaymentDetailScreen} />
           </>
         ) : (
           <>
