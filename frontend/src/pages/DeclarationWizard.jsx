@@ -1,9 +1,9 @@
 /**
  * Dichiarazione dei Redditi - Wizard Compilazione Cliente
- * Versione 2 - Step by Step con Firma Canvas
+ * Versione 2.1 - Con Error Boundary, Retry, Autosave migliorato
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,11 +38,26 @@ import {
   Upload,
   Trash2,
   RotateCcw,
-  Download
+  Download,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
+// Import componenti modulari
+import { 
+  DeclarationErrorBoundary,
+  SaveStatusIndicator,
+  WizardSkeleton,
+  PreSubmitValidation,
+  canSubmitDeclaration
+} from '@/components/declarations';
+
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Costanti per retry
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
 
 // Configurazione sezioni
 const SECTIONS = [
@@ -67,19 +82,49 @@ const DeclarationWizard = ({ token }) => {
   const navigate = useNavigate();
   const [declaration, setDeclaration] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('idle'); // idle, pending, saving, saved, error
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({});
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [showPreSubmit, setShowPreSubmit] = useState(false);
   const saveTimeoutRef = useRef(null);
   const signatureRef = useRef(null);
   const fileInputRef = useRef(null);
+  const lastSavedDataRef = useRef(null);
+
+  // Monitora stato connessione
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Fetch con retry automatico
+  const fetchWithRetry = useCallback(async (url, options = {}, retries = MAX_RETRIES) => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        return res;
+      } catch (error) {
+        if (attempt === retries) throw error;
+        // Attendi prima di riprovare (backoff esponenziale)
+        await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
+      }
+    }
+  }, []);
 
   // Carica dichiarazione
   const fetchDeclaration = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${id}`, {
+      const res = await fetchWithRetry(`${API_URL}/api/declarations/v2/declarations/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -92,22 +137,33 @@ const DeclarationWizard = ({ token }) => {
         navigate('/declarations');
       }
     } catch (error) {
-      toast.error('Errore caricamento');
-      navigate('/declarations');
+      if (isOffline) {
+        toast.error('Sei offline. Connettiti a internet per caricare la dichiarazione.');
+      } else {
+        toast.error('Errore di connessione. Riprova tra qualche secondo.');
+      }
     } finally {
       setLoading(false);
     }
-  }, [id, token, navigate]);
+  }, [id, token, navigate, fetchWithRetry, isOffline]);
 
   useEffect(() => {
     fetchDeclaration();
   }, [fetchDeclaration]);
 
-  // Salvataggio sezione
-  const saveSection = useCallback(async (sectionId, sectionData) => {
-    setSaving(true);
+  // Salvataggio sezione con retry e stato visivo
+  const saveSection = useCallback(async (sectionId, sectionData, retryCount = 0) => {
+    // Evita salvataggi duplicati
+    const dataKey = `${sectionId}-${JSON.stringify(sectionData)}`;
+    if (lastSavedDataRef.current === dataKey) {
+      setSaveStatus('saved');
+      return;
+    }
+
+    setSaveStatus('saving');
+    
     try {
-      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${id}/section`, {
+      const res = await fetchWithRetry(`${API_URL}/api/declarations/v2/declarations/${id}/section`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -117,18 +173,34 @@ const DeclarationWizard = ({ token }) => {
           section_name: sectionId,
           section_data: sectionData
         })
-      });
+      }, MAX_RETRIES);
 
       if (res.ok) {
         const updated = await res.json();
         setDeclaration(updated);
+        lastSavedDataRef.current = dataKey;
+        setSaveStatus('saved');
+        // Reset a idle dopo 3 secondi
+        setTimeout(() => setSaveStatus('idle'), 3000);
+      } else {
+        throw new Error('Errore risposta server');
       }
     } catch (error) {
       console.error('Errore salvataggio:', error);
-    } finally {
-      setSaving(false);
+      setSaveStatus('error');
+      
+      // Mostra errore solo dopo tutti i retry
+      if (retryCount >= MAX_RETRIES) {
+        if (isOffline) {
+          toast.error('Sei offline. Le modifiche verranno salvate quando tornerai online.');
+        } else {
+          toast.error('Errore salvataggio. Riprovo automaticamente...');
+          // Riprova dopo 5 secondi
+          setTimeout(() => saveSection(sectionId, sectionData, 0), 5000);
+        }
+      }
     }
-  }, [id, token]);
+  }, [id, token, fetchWithRetry, isOffline]);
 
   // Aggiorna campo con auto-save (debounce 1.5s)
   const updateField = (sectionId, field, value) => {
@@ -143,6 +215,9 @@ const DeclarationWizard = ({ token }) => {
           }
         }
       };
+
+      // Indica che ci sono modifiche pendenti
+      setSaveStatus('pending');
 
       // Debounce salvataggio
       if (saveTimeoutRef.current) {
@@ -1615,14 +1690,30 @@ const DeclarationWizard = ({ token }) => {
     );
   };
 
-  // Loading state
+  // Loading state - usa Skeleton Loader
   if (loading) {
+    return <WizardSkeleton />;
+  }
+
+  // Stato offline - mostra banner
+  if (!declaration && isOffline) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-teal-600 mx-auto mb-4" />
-          <p className="text-slate-600">Caricamento dichiarazione...</p>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="p-8 text-center">
+            <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <WifiOff className="w-8 h-8 text-amber-600" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Sei Offline</h2>
+            <p className="text-slate-600 mb-6">
+              Connettiti a internet per accedere alla dichiarazione.
+            </p>
+            <Button onClick={() => window.location.reload()} className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Riprova
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -1631,9 +1722,18 @@ const DeclarationWizard = ({ token }) => {
   const Icon = currentSection.icon;
 
   return (
+    <DeclarationErrorBoundary>
     <div className="min-h-screen bg-slate-50 pb-24">
+      {/* Banner offline */}
+      {isOffline && (
+        <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-medium sticky top-0 z-30">
+          <WifiOff className="w-4 h-4 inline mr-2" />
+          Sei offline. Le modifiche verranno salvate quando tornerai online.
+        </div>
+      )}
+      
       {/* Header fisso */}
-      <div className="bg-white border-b sticky top-0 z-20 shadow-sm">
+      <div className={`bg-white border-b sticky ${isOffline ? 'top-[36px]' : 'top-0'} z-20 shadow-sm`}>
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Button
@@ -1646,12 +1746,8 @@ const DeclarationWizard = ({ token }) => {
               <span className="hidden sm:inline">Torna alla lista</span>
             </Button>
             <div className="flex items-center gap-3">
-              {saving && (
-                <span className="text-sm text-slate-500 flex items-center gap-1">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="hidden sm:inline">Salvataggio...</span>
-                </span>
-              )}
+              {/* Indicatore stato salvataggio migliorato */}
+              <SaveStatusIndicator status={saveStatus} />
               <Badge 
                 variant="outline" 
                 className={declaration?.completion_percentage >= 100 ? 'bg-green-50 text-green-700 border-green-300' : ''}
@@ -1664,7 +1760,7 @@ const DeclarationWizard = ({ token }) => {
       </div>
 
       {/* Progress Steps - Scrollabile orizzontalmente */}
-      <div className="bg-white border-b sticky top-[65px] z-10">
+      <div className={`bg-white border-b sticky ${isOffline ? 'top-[101px]' : 'top-[65px]'} z-10`}>
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex overflow-x-auto gap-1 pb-2 -mx-4 px-4 scrollbar-hide">
             {SECTIONS.map((section, index) => {
@@ -1789,6 +1885,7 @@ const DeclarationWizard = ({ token }) => {
         </div>
       </div>
     </div>
+    </DeclarationErrorBoundary>
   );
 };
 

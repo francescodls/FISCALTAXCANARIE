@@ -1,6 +1,7 @@
 /**
  * Dichiarazioni dei Redditi - Dashboard Admin Completa
  * Gestione pratiche, stati, messaggi, cronologia
+ * Versione 2.1 - Con Error Boundary e gestione errori migliorata
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -45,11 +46,23 @@ import {
   Trash2,
   FileArchive,
   Image,
-  Loader2
+  Loader2,
+  WifiOff
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
+// Import componenti modulari
+import { 
+  DeclarationErrorBoundary,
+  AdminDashboardSkeleton,
+  DeclarationDetailSkeleton
+} from '@/components/declarations';
+
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+
+// Costanti per retry
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
 
 // Configurazione stati con colori
 const STATUS_CONFIG = {
@@ -131,6 +144,7 @@ const AdminDeclarationsPage = ({ token }) => {
   const [declarations, setDeclarations] = useState([]);
   const [stats, setStats] = useState({ total: 0, by_status: {}, new_submissions: 0, pending_review: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [yearFilter, setYearFilter] = useState('');
@@ -142,35 +156,68 @@ const AdminDeclarationsPage = ({ token }) => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [statusNote, setStatusNote] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [loadError, setLoadError] = useState(null);
+
+  // Monitora stato connessione
+  React.useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Fetch con retry
+  const fetchWithRetry = useCallback(async (url, options = {}, retries = MAX_RETRIES) => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url, options);
+        return res;
+      } catch (error) {
+        if (attempt === retries) throw error;
+        await new Promise(r => setTimeout(r, RETRY_DELAY * (attempt + 1)));
+      }
+    }
+  }, []);
 
   // Fetch dichiarazioni
   const fetchDeclarations = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (statusFilter) params.append('status', statusFilter);
       if (yearFilter) params.append('anno', yearFilter);
 
-      const res = await fetch(`${API_URL}/api/declarations/v2/admin/declarations?${params}`, {
+      const res = await fetchWithRetry(`${API_URL}/api/declarations/v2/admin/declarations?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         setDeclarations(data);
+      } else {
+        throw new Error('Errore risposta server');
       }
     } catch (error) {
       console.error('Errore caricamento:', error);
-      toast.error('Errore nel caricamento delle dichiarazioni');
+      setLoadError(isOffline ? 'Sei offline' : 'Errore di connessione');
+      if (!isOffline) {
+        toast.error('Errore nel caricamento. Riprovo...');
+      }
     } finally {
       setLoading(false);
     }
-  }, [token, search, statusFilter, yearFilter]);
+  }, [token, search, statusFilter, yearFilter, fetchWithRetry, isOffline]);
 
   // Fetch statistiche
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/declarations/v2/admin/stats`, {
+      const res = await fetchWithRetry(`${API_URL}/api/declarations/v2/admin/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -180,18 +227,19 @@ const AdminDeclarationsPage = ({ token }) => {
     } catch (error) {
       console.error('Errore stats:', error);
     }
-  }, [token]);
+  }, [token, fetchWithRetry]);
 
   useEffect(() => {
     fetchDeclarations();
     fetchStats();
   }, [fetchDeclarations, fetchStats]);
 
-  // Aggiorna stato
+  // Aggiorna stato con notifica
   const updateStatus = async (declId, newStatus) => {
     setUpdatingStatus(true);
     try {
-      const res = await fetch(`${API_URL}/api/declarations/v2/admin/declarations/${declId}/status`, {
+      // Usa endpoint con notifica
+      const res = await fetchWithRetry(`${API_URL}/api/declarations/v2/admin/declarations/${declId}/status-notify`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -201,7 +249,7 @@ const AdminDeclarationsPage = ({ token }) => {
       });
       if (res.ok) {
         const updated = await res.json();
-        toast.success(`Stato aggiornato a "${STATUS_CONFIG[newStatus]?.label}"`);
+        toast.success(`Stato aggiornato a "${STATUS_CONFIG[newStatus]?.label}" - Notifica inviata al cliente`);
         setStatusNote('');
         fetchDeclarations();
         fetchStats();
@@ -371,8 +419,61 @@ const AdminDeclarationsPage = ({ token }) => {
     );
   };
 
+  // Render con skeleton loader se in caricamento
+  if (loading && declarations.length === 0) {
+    return (
+      <DeclarationErrorBoundary>
+        <div className="min-h-screen bg-slate-50 p-4 md:p-6">
+          <AdminDashboardSkeleton />
+        </div>
+      </DeclarationErrorBoundary>
+    );
+  }
+
+  // Render errore con retry
+  if (loadError && declarations.length === 0) {
+    return (
+      <DeclarationErrorBoundary>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+          <Card className="max-w-md w-full">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                {isOffline ? (
+                  <WifiOff className="w-8 h-8 text-amber-600" />
+                ) : (
+                  <AlertCircle className="w-8 h-8 text-amber-600" />
+                )}
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">
+                {isOffline ? 'Sei Offline' : 'Errore di Connessione'}
+              </h2>
+              <p className="text-slate-600 mb-6">
+                {isOffline 
+                  ? 'Connettiti a internet per visualizzare le dichiarazioni.'
+                  : 'Impossibile caricare i dati. Verifica la connessione e riprova.'}
+              </p>
+              <Button onClick={fetchDeclarations} className="gap-2 bg-teal-600 hover:bg-teal-700">
+                <RefreshCw className="w-4 h-4" />
+                Riprova
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </DeclarationErrorBoundary>
+    );
+  }
+
   return (
+    <DeclarationErrorBoundary>
     <div className="min-h-screen bg-slate-50 p-4 md:p-6 space-y-6">
+      {/* Banner offline */}
+      {isOffline && (
+        <div className="bg-amber-500 text-white text-center py-2 px-4 text-sm font-medium rounded-lg">
+          <WifiOff className="w-4 h-4 inline mr-2" />
+          Sei offline. Alcune funzionalita potrebbero non essere disponibili.
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -387,10 +488,11 @@ const AdminDeclarationsPage = ({ token }) => {
           variant="outline" 
           onClick={() => { fetchDeclarations(); fetchStats(); }}
           className="gap-2"
+          disabled={loading}
           data-testid="refresh-btn"
         >
-          <RefreshCw className="w-4 h-4" />
-          Aggiorna
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Caricamento...' : 'Aggiorna'}
         </Button>
       </div>
 
@@ -1116,6 +1218,7 @@ const AdminDeclarationsPage = ({ token }) => {
         </div>
       )}
     </div>
+    </DeclarationErrorBoundary>
   );
 };
 
