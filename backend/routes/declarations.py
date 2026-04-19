@@ -586,7 +586,7 @@ async def update_tax_return_status(
                 <p>Accedi alla piattaforma per visualizzare la pratica.</p>
                 """
             )
-        except Exception as e:
+        except Exception:
             pass  # Log ma non bloccare
     
     await log_activity("cambio_stato_dichiarazione", f"Pratica {tax_return_id} cambiata da {stato_precedente} a {nuovo_stato}", user["id"])
@@ -644,7 +644,7 @@ async def assign_tax_return(
                 <p>Cordiali saluti,<br>Fiscal Tax Canarie</p>
                 """
             )
-    except Exception as e:
+    except Exception:
         pass
     
     await log_activity("assegnazione_pratica", f"Pratica {tax_return_id} assegnata a {admin_display_name}", user["id"])
@@ -901,7 +901,7 @@ async def download_authorization_pdf(tax_return_id: str, user: dict = Depends(re
             from reportlab.lib.utils import ImageReader
             img = Image(img_buffer, width=8*cm, height=3*cm)
             elements.append(img)
-        except Exception as e:
+        except Exception:
             elements.append(Paragraph("[Firma digitale allegata]", normal_style))
     else:
         elements.append(Paragraph("[Firma digitale allegata]", normal_style))
@@ -944,9 +944,6 @@ async def download_summary_pdf(tax_return_id: str, user: dict = Depends(require_
     if not tax_return:
         raise HTTPException(status_code=404, detail="Pratica non trovata")
     
-    # Recupera dati cliente
-    client = await db.users.find_one({"id": tax_return["client_id"]}, {"_id": 0})
-    
     # Crea PDF
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1.5*cm, bottomMargin=1.5*cm, leftMargin=2*cm, rightMargin=2*cm)
@@ -956,8 +953,6 @@ async def download_summary_pdf(tax_return_id: str, user: dict = Depends(require_
     section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#0d9488'), spaceBefore=20, spaceAfter=10)
     subsection_style = ParagraphStyle('Subsection', parent=styles['Heading3'], fontSize=12, textColor=colors.HexColor('#334155'), spaceBefore=15, spaceAfter=8)
     normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'), spaceAfter=6)
-    label_style = ParagraphStyle('Label', parent=styles['Normal'], fontSize=9, textColor=colors.HexColor('#64748b'), spaceAfter=2)
-    value_style = ParagraphStyle('Value', parent=styles['Normal'], fontSize=10, textColor=colors.HexColor('#1e293b'), spaceAfter=8)
     
     elements = []
     

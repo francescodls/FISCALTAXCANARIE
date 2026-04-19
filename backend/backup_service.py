@@ -8,6 +8,7 @@ import json
 import zipfile
 import base64
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -352,7 +353,7 @@ async def log_backup(db, backup_info: Dict[str, Any]) -> None:
     """Salva info backup nel database"""
     try:
         await db.backups.insert_one({
-            "id": str(uuid.uuid4()) if 'uuid' in dir() else backup_info.get("filename", ""),
+            "id": str(uuid.uuid4()),
             "filename": backup_info.get("filename"),
             "type": backup_info.get("type", "full"),
             "size_bytes": backup_info.get("size_bytes", 0),

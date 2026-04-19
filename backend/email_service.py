@@ -633,7 +633,7 @@ async def sync_contact_to_brevo(
         # Verifica se il contatto esiste già
         contact_exists = False
         try:
-            existing_contact = contacts_api.get_contact_info(email)
+            contacts_api.get_contact_info(email)
             contact_exists = True
             logger.info(f"Contatto {email} già presente in Brevo")
         except ApiException as e:
