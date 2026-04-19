@@ -266,6 +266,8 @@ async def create_declaration(
         "documents_count": 0,
         "messages_count": 0,
         "pending_integration_requests": 0,
+        "viewed_by_admin": False,  # Flag per nuove dichiarazioni
+        "admin_first_view_at": None,
         "created_at": now_iso(),
         "updated_at": now_iso(),
         "submitted_at": None
@@ -619,6 +621,78 @@ async def admin_update_status(
     
     updated = await db.declarations_v2.find_one({"id": declaration_id}, {"_id": 0})
     return serialize_declaration(updated, include_sections=True)
+
+
+@router.get("/admin/declarations/stats", response_model=Dict)
+async def get_admin_declarations_stats(
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Statistiche dichiarazioni per dashboard admin.
+    Restituisce totale dichiarazioni e conteggio nuove (non viste).
+    """
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    
+    db = get_db()
+    
+    # Conteggio totale
+    total = await db.declarations_v2.count_documents({})
+    
+    # Conteggio nuove (non viste dall'admin)
+    new_count = await db.declarations_v2.count_documents({
+        "$or": [
+            {"viewed_by_admin": False},
+            {"viewed_by_admin": {"$exists": False}}
+        ]
+    })
+    
+    # Conteggio per stato
+    by_status = {}
+    for status in ["bozza", "inviata", "documentazione_incompleta", "in_revisione", "pronta", "presentata", "rifiutata"]:
+        by_status[status] = await db.declarations_v2.count_documents({"status": status})
+    
+    return {
+        "total": total,
+        "new_count": new_count,
+        "by_status": by_status
+    }
+
+
+@router.post("/admin/declarations/mark-viewed", response_model=Dict)
+async def mark_declarations_viewed(
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Marca tutte le dichiarazioni come viste dall'admin.
+    Chiamato quando l'admin entra nella sezione dichiarazioni.
+    """
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    
+    db = get_db()
+    
+    result = await db.declarations_v2.update_many(
+        {
+            "$or": [
+                {"viewed_by_admin": False},
+                {"viewed_by_admin": {"$exists": False}}
+            ]
+        },
+        {
+            "$set": {
+                "viewed_by_admin": True,
+                "admin_first_view_at": now_iso()
+            }
+        }
+    )
+    
+    logger.info(f"Marcate {result.modified_count} dichiarazioni come viste dall'admin")
+    
+    return {
+        "success": True,
+        "marked_count": result.modified_count
+    }
 
 
 # =============================================================================

@@ -100,6 +100,7 @@ const CommercialDashboard = () => {
   const [employeeNotifCount, setEmployeeNotifCount] = useState(0); // Conteggio notifiche non lette
   const [showProfileDialog, setShowProfileDialog] = useState(false); // Dialog profilo personale
   const [teamCount, setTeamCount] = useState(0); // Conteggio membri team
+  const [declarationsStats, setDeclarationsStats] = useState({ total: 0, new_count: 0, by_status: {} }); // Statistiche dichiarazioni
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -108,6 +109,7 @@ const CommercialDashboard = () => {
     fetchClientLists();
     fetchEmployeeNotifications();
     fetchTeamCount();
+    fetchDeclarationsStats();
   }, []);
 
   const fetchTeamCount = async () => {
@@ -123,6 +125,28 @@ const CommercialDashboard = () => {
     } catch (error) {
       console.error("Errore nel caricamento conteggio team:", error);
     }
+  };
+
+  const fetchDeclarationsStats = async () => {
+    try {
+      const response = await axios.get(`${API}/declarations/v2/admin/declarations/stats`, { headers });
+      setDeclarationsStats(response.data);
+    } catch (error) {
+      console.error("Errore nel caricamento statistiche dichiarazioni:", error);
+    }
+  };
+
+  // Funzione per marcare le dichiarazioni come viste quando si naviga alla sezione
+  const handleNavigateToDeclarations = async () => {
+    try {
+      // Marca come viste prima di navigare
+      await axios.post(`${API}/declarations/v2/admin/declarations/mark-viewed`, {}, { headers });
+      // Aggiorna le statistiche locali
+      setDeclarationsStats(prev => ({ ...prev, new_count: 0 }));
+    } catch (error) {
+      console.error("Errore nel marcare dichiarazioni come viste:", error);
+    }
+    navigate("/admin/declarations");
   };
 
   const fetchClientLists = async () => {
@@ -600,16 +624,32 @@ const CommercialDashboard = () => {
             </CardContent>
           </Card>
           <Card 
-            className="bg-white border border-slate-200 card-hover cursor-pointer"
-            onClick={() => navigate("/admin/declarations")}
+            className="bg-white border border-slate-200 card-hover cursor-pointer relative"
+            onClick={handleNavigateToDeclarations}
             data-testid="stats-declarations"
           >
+            {/* Badge nuove dichiarazioni */}
+            {declarationsStats.new_count > 0 && (
+              <div className="absolute -top-2 -right-2 z-10">
+                <span className="flex h-6 w-6 items-center justify-center">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 text-white text-xs font-bold items-center justify-center">
+                    {declarationsStats.new_count > 9 ? '9+' : declarationsStats.new_count}
+                  </span>
+                </span>
+              </div>
+            )}
             <CardContent className="p-4 flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center mb-2">
+              <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center mb-2">
                 <FileText className="h-5 w-5 text-white" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">Redditi</p>
+              <p className="text-2xl font-bold text-slate-900">{declarationsStats.total}</p>
               <p className="text-xs text-slate-500">Dichiarazioni</p>
+              {declarationsStats.new_count > 0 && (
+                <p className="text-xs text-red-500 font-medium mt-1">
+                  {declarationsStats.new_count} nuov{declarationsStats.new_count === 1 ? 'a' : 'e'}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
