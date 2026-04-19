@@ -47,7 +47,9 @@ import {
   FileArchive,
   Image,
   Loader2,
-  WifiOff
+  WifiOff,
+  ArrowLeft,
+  Home
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
@@ -476,24 +478,46 @@ const AdminDeclarationsPage = ({ token }) => {
       
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-            Dichiarazioni dei Redditi
-          </h1>
-          <p className="text-slate-600 mt-1">
-            Gestione pratiche e comunicazioni clienti
-          </p>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => window.location.href = '/admin'}
+            className="shrink-0"
+            data-testid="back-to-dashboard-btn"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+              Dichiarazioni dei Redditi
+            </h1>
+            <p className="text-slate-600 mt-1">
+              Gestione pratiche e comunicazioni clienti
+            </p>
+          </div>
         </div>
-        <Button 
-          variant="outline" 
-          onClick={() => { fetchDeclarations(); fetchStats(); }}
-          className="gap-2"
-          disabled={loading}
-          data-testid="refresh-btn"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Caricamento...' : 'Aggiorna'}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.href = '/admin'}
+            className="gap-2"
+            data-testid="home-btn"
+          >
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Dashboard</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => { fetchDeclarations(); fetchStats(); }}
+            className="gap-2"
+            disabled={loading}
+            data-testid="refresh-btn"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Caricamento...' : 'Aggiorna'}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
