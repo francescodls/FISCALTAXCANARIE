@@ -49,7 +49,10 @@ import {
   Loader2,
   WifiOff,
   ArrowLeft,
-  Home
+  Home,
+  Square,
+  CheckSquare,
+  MinusSquare
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
@@ -160,6 +163,12 @@ const AdminDeclarationsPage = ({ token }) => {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [loadError, setLoadError] = useState(null);
+  
+  // State per selezione multipla e eliminazione
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deletingIds, setDeletingIds] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { type: 'single' | 'multiple', ids: [] }
 
   // Monitora stato connessione
   React.useEffect(() => {
@@ -324,6 +333,115 @@ const AdminDeclarationsPage = ({ token }) => {
     }
   };
 
+  // Toggle selezione singola dichiarazione
+  const toggleSelectDeclaration = (declId) => {
+    setSelectedIds(prev => 
+      prev.includes(declId) 
+        ? prev.filter(id => id !== declId)
+        : [...prev, declId]
+    );
+  };
+
+  // Seleziona/deseleziona tutte le dichiarazioni filtrate
+  const toggleSelectAll = () => {
+    const filteredIds = filteredDeclarations.map(d => d.id);
+    const allSelected = filteredIds.every(id => selectedIds.includes(id));
+    
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds(prev => [...new Set([...prev, ...filteredIds])]);
+    }
+  };
+
+  // Conferma eliminazione
+  const confirmDelete = (type, ids) => {
+    setDeleteTarget({ type, ids });
+    setShowDeleteConfirm(true);
+  };
+
+  // Elimina dichiarazioni
+  const deleteDeclarations = async () => {
+    if (!deleteTarget) return;
+    
+    const idsToDelete = deleteTarget.ids;
+    setDeletingIds(idsToDelete);
+    
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+      
+      for (const declId of idsToDelete) {
+        try {
+          const res = await fetch(`${API_URL}/api/declarations/v2/admin/declarations/${declId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (res.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (e) {
+          errorCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} dichiarazione/i eliminata/e`);
+        fetchDeclarations();
+        fetchStats();
+        setSelectedIds(prev => prev.filter(id => !idsToDelete.includes(id)));
+        
+        // Chiudi il dettaglio se era selezionata una dichiarazione eliminata
+        if (selectedDeclaration && idsToDelete.includes(selectedDeclaration.id)) {
+          setSelectedDeclaration(null);
+        }
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`${errorCount} dichiarazione/i non eliminate (errore)`);
+      }
+    } catch (error) {
+      toast.error('Errore durante l\'eliminazione');
+    } finally {
+      setDeletingIds([]);
+      setShowDeleteConfirm(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  // Download documento con token
+  const downloadDocument = async (declId, docId, filename) => {
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${declId}/documents/${docId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || 'documento';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        toast.error('Errore download documento');
+      }
+    } catch (error) {
+      toast.error('Errore di connessione');
+    }
+  };
+
+  // URL documento con token (per anteprima)
+  const getDocumentUrl = (declId, docId) => {
+    return `${API_URL}/api/declarations/v2/declarations/${declId}/documents/${docId}?token=${encodeURIComponent(token)}`;
+  };
+
   // Componenti UI
   const StatusBadge = ({ status, size = 'default' }) => {
     const config = STATUS_CONFIG[status] || STATUS_CONFIG.bozza;
@@ -367,6 +485,32 @@ const AdminDeclarationsPage = ({ token }) => {
       presentata: declarations.filter(d => d.status === 'presentata').length,
     };
   }, [declarations]);
+
+  // Dichiarazioni filtrate
+  const filteredDeclarations = useMemo(() => {
+    return declarations.filter(decl => {
+      // Filtro ricerca
+      if (search) {
+        const searchLower = search.toLowerCase();
+        const matchesSearch = 
+          (decl.client_name || '').toLowerCase().includes(searchLower) ||
+          (decl.client_nome || '').toLowerCase().includes(searchLower) ||
+          (decl.client_cognome || '').toLowerCase().includes(searchLower) ||
+          (decl.client_email || '').toLowerCase().includes(searchLower) ||
+          (decl.ragione_sociale || '').toLowerCase().includes(searchLower) ||
+          (decl.codice_fiscale || '').toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
+      
+      // Filtro stato
+      if (statusFilter && decl.status !== statusFilter) return false;
+      
+      // Filtro anno
+      if (yearFilter && decl.anno_fiscale !== parseInt(yearFilter)) return false;
+      
+      return true;
+    });
+  }, [declarations, search, statusFilter, yearFilter]);
 
   // Render dettaglio sezione
   const renderSectionDetail = (sectionKey, sectionData) => {
@@ -688,13 +832,48 @@ const AdminDeclarationsPage = ({ token }) => {
         </CardContent>
       </Card>
 
+      {/* Barra azioni selezione multipla */}
+      {selectedIds.length > 0 && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckSquare className="w-5 h-5 text-red-600" />
+                <span className="font-medium text-red-800">
+                  {selectedIds.length} dichiarazione/i selezionata/e
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedIds([])}
+                >
+                  Annulla selezione
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => confirmDelete('multiple', selectedIds)}
+                  data-testid="delete-selected-btn"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Elimina selezionate
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Lista Dichiarazioni */}
       <Card>
         <CardHeader className="border-b">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-teal-600" />
-              Dichiarazioni ({declarations.length})
+              Dichiarazioni ({filteredDeclarations.length})
             </CardTitle>
           </div>
         </CardHeader>
@@ -703,7 +882,7 @@ const AdminDeclarationsPage = ({ token }) => {
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
             </div>
-          ) : declarations.length === 0 ? (
+          ) : filteredDeclarations.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-16 h-16 mx-auto mb-4 text-slate-300" />
               <p className="text-slate-500 text-lg">Nessuna dichiarazione trovata</p>
@@ -714,6 +893,21 @@ const AdminDeclarationsPage = ({ token }) => {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b">
                   <tr className="text-left text-sm text-slate-600">
+                    <th className="px-4 py-3 w-12">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleSelectAll(); }}
+                        className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-teal-600"
+                        data-testid="select-all-checkbox"
+                      >
+                        {filteredDeclarations.length > 0 && filteredDeclarations.every(d => selectedIds.includes(d.id)) ? (
+                          <CheckSquare className="w-5 h-5" />
+                        ) : filteredDeclarations.some(d => selectedIds.includes(d.id)) ? (
+                          <MinusSquare className="w-5 h-5" />
+                        ) : (
+                          <Square className="w-5 h-5" />
+                        )}
+                      </button>
+                    </th>
                     <th className="px-4 py-3 font-semibold">Cliente</th>
                     <th className="px-4 py-3 font-semibold">Anno</th>
                     <th className="px-4 py-3 font-semibold">Stato</th>
@@ -725,13 +919,28 @@ const AdminDeclarationsPage = ({ token }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {declarations.map((decl) => (
+                  {filteredDeclarations.map((decl) => (
                     <tr 
                       key={decl.id} 
-                      className="hover:bg-slate-50 cursor-pointer transition-colors"
+                      className={`hover:bg-slate-50 cursor-pointer transition-colors ${
+                        selectedIds.includes(decl.id) ? 'bg-teal-50' : ''
+                      } ${deletingIds.includes(decl.id) ? 'opacity-50' : ''}`}
                       onClick={() => openDetail(decl.id)}
                       data-testid={`declaration-row-${decl.id}`}
                     >
+                      <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleSelectDeclaration(decl.id); }}
+                          className="w-5 h-5 flex items-center justify-center text-slate-600 hover:text-teal-600"
+                          data-testid={`select-checkbox-${decl.id}`}
+                        >
+                          {selectedIds.includes(decl.id) ? (
+                            <CheckSquare className="w-5 h-5 text-teal-600" />
+                          ) : (
+                            <Square className="w-5 h-5" />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -792,15 +1001,30 @@ const AdminDeclarationsPage = ({ token }) => {
                       <td className="px-4 py-4 text-sm text-slate-500 hidden lg:table-cell">
                         {formatDate(decl.updated_at)}
                       </td>
-                      <td className="px-4 py-4 text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => { e.stopPropagation(); openDetail(decl.id); }}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          Apri
-                        </Button>
+                      <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={(e) => { e.stopPropagation(); openDetail(decl.id); }}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            Apri
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              confirmDelete('single', [decl.id]); 
+                            }}
+                            disabled={deletingIds.includes(decl.id)}
+                            data-testid={`delete-btn-${decl.id}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -810,6 +1034,59 @@ const AdminDeclarationsPage = ({ token }) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Modal Conferma Eliminazione */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="border-b bg-red-50">
+              <CardTitle className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="w-5 h-5" />
+                Conferma Eliminazione
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <p className="text-slate-600 mb-4">
+                {deleteTarget.type === 'single' 
+                  ? 'Sei sicuro di voler eliminare questa dichiarazione?'
+                  : `Sei sicuro di voler eliminare ${deleteTarget.ids.length} dichiarazioni?`
+                }
+              </p>
+              <p className="text-sm text-red-600 mb-6">
+                <strong>Attenzione:</strong> Questa azione è irreversibile. Tutti i dati e i documenti associati verranno eliminati permanentemente.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => { setShowDeleteConfirm(false); setDeleteTarget(null); }}
+                  disabled={deletingIds.length > 0}
+                >
+                  Annulla
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={deleteDeclarations}
+                  disabled={deletingIds.length > 0}
+                  className="gap-2"
+                  data-testid="confirm-delete-btn"
+                >
+                  {deletingIds.length > 0 ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Eliminazione...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Elimina
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Modal Dettaglio Pratica */}
       {selectedDeclaration && (
@@ -1563,15 +1840,14 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
                           <Eye className="w-4 h-4" />
                         </Button>
                       )}
-                      <a
-                        href={`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents/${doc.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 hover:bg-slate-100 rounded-lg"
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => downloadDocument(declaration.id, doc.id, doc.filename)}
                         title="Scarica"
                       >
                         <Download className="w-4 h-4 text-slate-600" />
-                      </a>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1604,7 +1880,7 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
               </Button>
             </div>
             <img 
-              src={`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents/${previewDoc.id}`}
+              src={getDocumentUrl(declaration.id, previewDoc.id)}
               alt={previewDoc.filename}
               className="max-w-full"
             />

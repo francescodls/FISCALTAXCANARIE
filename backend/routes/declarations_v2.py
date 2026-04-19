@@ -3,7 +3,8 @@ Dichiarazioni dei Redditi - API v2
 Nuova implementazione pulita e modulare
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
@@ -753,7 +754,7 @@ async def admin_stats(
 import base64
 import io
 import zipfile
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import StreamingResponse
 
 # Directory per upload documenti
 UPLOAD_DIR = "/app/uploads/declarations"
@@ -878,10 +879,37 @@ async def list_documents(
 async def download_document(
     declaration_id: str,
     document_id: str,
-    user: dict = Depends(get_current_user_v2)
+    token: str = Query(None, description="Token JWT per autenticazione via URL"),
+    authorization: str = Header(None)
 ):
-    """Download singolo documento"""
-    db = get_db()
+    """Download singolo documento - supporta sia header Authorization che query param token"""
+    from server import db as _db, JWT_SECRET, JWT_ALGORITHM
+    db = _db
+    
+    # Prova prima con token da query param, poi con header
+    jwt_token = None
+    if token:
+        jwt_token = token
+    elif authorization and authorization.startswith("Bearer "):
+        jwt_token = authorization.replace("Bearer ", "")
+    
+    if not jwt_token:
+        raise HTTPException(status_code=401, detail="Token mancante")
+    
+    # Verifica token
+    try:
+        payload = jwt.decode(jwt_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Token non valido")
+        
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if not user:
+            raise HTTPException(status_code=401, detail="Utente non trovato")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token scaduto")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token non valido")
     
     query = {"id": declaration_id}
     if user.get("role") == "cliente":
@@ -968,6 +996,53 @@ async def delete_document(
     )
     
     return {"success": True, "message": "Documento eliminato"}
+
+
+@router.delete("/admin/declarations/{declaration_id}")
+async def delete_declaration_admin(
+    declaration_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """Elimina completamente una dichiarazione (solo admin)"""
+    # Verifica che sia admin
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Solo gli admin possono eliminare dichiarazioni")
+    
+    db = get_db()
+    
+    declaration = await db.declarations_v2.find_one({"id": declaration_id})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Elimina documenti fisici
+    for doc in declaration.get("documents", []):
+        file_path = doc.get("file_path")
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Errore eliminazione file {file_path}: {e}")
+    
+    # Elimina dal database
+    result = await db.declarations_v2.delete_one({"id": declaration_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=500, detail="Errore eliminazione dichiarazione")
+    
+    # Log attività
+    await db.activity_logs.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "user_name": user.get("name", user.get("email")),
+        "action": "declaration_deleted",
+        "entity_type": "declaration",
+        "entity_id": declaration_id,
+        "details": f"Dichiarazione {declaration.get('anno_fiscale')} di {declaration.get('client_name')} eliminata",
+        "created_at": now_iso()
+    })
+    
+    return {"success": True, "message": "Dichiarazione eliminata"}
 
 
 # =============================================================================
@@ -1175,7 +1250,7 @@ async def download_declaration_zip(
         # Aggiungi PDF riepilogativo
         try:
             pdf_content = generate_declaration_pdf_content(declaration)
-            zf.writestr(f"riepilogo_dichiarazione.pdf", pdf_content)
+            zf.writestr("riepilogo_dichiarazione.pdf", pdf_content)
         except Exception as e:
             logger.warning(f"Impossibile generare PDF per ZIP: {e}")
         
