@@ -44,6 +44,7 @@ from routes.deps import set_db
 from routes.tickets import router as tickets_router, admin_router as tickets_admin_router
 from routes.fees_routes import router as fees_global_router, client_fees_router
 from routes.declarations import router as declarations_router
+from routes.declarations_v2 import router as declarations_v2_router
 from routes.notifications import router as notifications_router
 from routes.deadline_types import router as deadline_types_router, tax_models_router
 from routes.privacy_routes import get_privacy_router
@@ -6810,6 +6811,7 @@ api_router.include_router(tickets_admin_router)
 api_router.include_router(fees_global_router)
 api_router.include_router(client_fees_router)
 api_router.include_router(declarations_router)
+api_router.include_router(declarations_v2_router)
 api_router.include_router(notifications_router)
 api_router.include_router(deadline_types_router)
 api_router.include_router(tax_models_router)

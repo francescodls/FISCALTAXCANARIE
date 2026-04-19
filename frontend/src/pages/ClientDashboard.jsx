@@ -433,6 +433,41 @@ const ClientDashboard = () => {
               </CardContent>
             </Card>
 
+            {/* === DICHIARAZIONE DEI REDDITI - CARD PROMINENTE === */}
+            <Card 
+              className="relative overflow-hidden border-2 border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group"
+              onClick={() => navigate("/declarations")}
+              data-testid="dichiarazione-redditi-card"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-amber-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
+              <CardContent className="p-6 md:p-8 relative">
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                  <div className="flex-shrink-0">
+                    <div className="w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-amber-500 via-orange-500 to-red-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                      <Receipt className="w-10 h-10 md:w-12 md:h-12 text-white" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
+                      Dichiarazione dei Redditi
+                    </h3>
+                    <p className="text-slate-600 text-base md:text-lg mb-4">
+                      Compila e gestisci la tua dichiarazione dei redditi in modo semplice e guidato.
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 w-full md:w-auto">
+                    <Button 
+                      size="lg"
+                      className="w-full md:w-auto bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md px-8 py-6 text-lg font-semibold"
+                    >
+                      Accedi
+                      <ArrowRight className="w-5 h-5 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="bg-white border border-slate-200 card-hover cursor-pointer" onClick={() => setActiveTab("deadlines")}>

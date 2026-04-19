@@ -22,6 +22,10 @@ import ModelsManagement from "@/pages/ModelsManagement";
 import DeadlinesManagement from "@/pages/DeadlinesManagement";
 import BackupPage from "@/pages/BackupPage";
 import AdminActivate from "@/pages/AdminActivate";
+// Dichiarazioni v2
+import ClientDeclarationsPage from "@/pages/ClientDeclarationsPage";
+import DeclarationWizard from "@/pages/DeclarationWizard";
+import AdminDeclarationsPage from "@/pages/AdminDeclarationsPage";
 
 // Helper per verificare ruoli admin
 const isAdminRole = (role) => ['commercialista', 'super_admin', 'admin'].includes(role);
@@ -269,6 +273,23 @@ function AppRoutes() {
       <Route path="/consulente" element={
         <ProtectedRoute requiredRole="consulente_lavoro">
           <ConsulenteDashboard />
+        </ProtectedRoute>
+      } />
+      {/* Dichiarazioni v2 - Cliente */}
+      <Route path="/declarations" element={
+        <ProtectedRoute requiredRole="cliente">
+          <ClientDeclarationsPage token={localStorage.getItem('token')} />
+        </ProtectedRoute>
+      } />
+      <Route path="/declarations/:id" element={
+        <ProtectedRoute requiredRole="cliente">
+          <DeclarationWizard token={localStorage.getItem('token')} />
+        </ProtectedRoute>
+      } />
+      {/* Dichiarazioni v2 - Admin */}
+      <Route path="/admin/declarations" element={
+        <ProtectedRoute requiredRole="commercialista">
+          <AdminDeclarationsPage token={localStorage.getItem('token')} />
         </ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
