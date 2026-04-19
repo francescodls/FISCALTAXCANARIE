@@ -82,6 +82,7 @@ const DeclarationWizard = ({ token }) => {
   const navigate = useNavigate();
   const [declaration, setDeclaration] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('idle'); // idle, pending, saving, saved, error
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState({});
