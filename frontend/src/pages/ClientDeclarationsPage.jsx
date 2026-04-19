@@ -21,7 +21,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/i18n/LanguageContext';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 

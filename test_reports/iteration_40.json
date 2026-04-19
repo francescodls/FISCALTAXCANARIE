@@ -1,0 +1,97 @@
+{
+  "summary": "Tested Declarations V2 Wizard implementation. All features working correctly: 14 sections navigation, auto-save with debounce, 'Non ho questa tipologia' toggle, signature canvas with terms acceptance, mobile compatibility. Backend: 13/13 tests passed. Frontend: All critical flows verified.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_declarations_v2_wizard_iteration40.py",
+    "/app/test_reports/pytest/pytest_results_iteration40.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "V2 Wizard implementation is complete and functional",
+    "All 14 sections present: dati_personali, situazione_familiare, redditi_lavoro, redditi_autonomo, immobili, canoni_locazione, plusvalenze, investimenti_finanziari, criptomonete, spese_deducibili, deduzioni_agevolazioni, documenti_allegati, note_aggiuntive, autorizzazione_firma",
+    "Auto-save with 1.5s debounce working correctly",
+    "'Non ho questa tipologia' checkbox hides form fields when checked",
+    "Signature section shows completion requirement (50% minimum)",
+    "Signature canvas (react-signature-canvas) working with mouse/touch",
+    "Terms acceptance checkbox required before signing",
+    "Mobile responsive design working correctly"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_declarations_v2_wizard_iteration40.py"
+  ],
+  "success_rate": {
+    "backend": "100% - 13/13 tests passed",
+    "frontend": "100% - All wizard flows verified"
+  },
+  "test_credentials": {
+    "client": "test_commercialista_202642@example.com / TestCliente123!"
+  },
+  "seed_data_creation": "Used existing declaration: 4fa1f9aa-1919-4ba6-86f1-b67f0a7ad371 (2024 Bozza)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Declarations V2 Wizard fully implemented and tested. Key endpoints: GET/POST /api/declarations/v2/declarations, GET /api/declarations/v2/declarations/{id}, PUT /api/declarations/v2/declarations/{id}/section (auto-save), POST /api/declarations/v2/declarations/{id}/sign, POST /api/declarations/v2/declarations/{id}/submit. Signature requires 50% completion and terms acceptance.",
+  "features_tested": {
+    "login_as_client": {
+      "status": "PASS",
+      "notes": "Login with test_commercialista_202642@example.com works correctly"
+    },
+    "declarations_list": {
+      "status": "PASS",
+      "notes": "GET /api/declarations/v2/declarations returns client declarations with status, completion_percentage"
+    },
+    "wizard_navigation": {
+      "status": "PASS",
+      "notes": "14 sections visible in navigation bar, Precedente/Successivo buttons work"
+    },
+    "section_fields": {
+      "status": "PASS",
+      "notes": "All section-specific fields render correctly (dati_personali, situazione_familiare, etc.)"
+    },
+    "auto_save": {
+      "status": "PASS",
+      "notes": "PUT /api/declarations/v2/declarations/{id}/section with 1.5s debounce"
+    },
+    "mark_section_completed": {
+      "status": "PASS",
+      "notes": "'Segna come completata' button updates section status and completion percentage"
+    },
+    "non_ho_questa_tipologia": {
+      "status": "PASS",
+      "notes": "Checkbox hides form fields, marks section as completed/not_applicable"
+    },
+    "signature_section": {
+      "status": "PASS",
+      "notes": "Shows completion status, terms text, acceptance checkbox, signature canvas"
+    },
+    "signature_canvas": {
+      "status": "PASS",
+      "notes": "react-signature-canvas renders correctly, Cancella/Salva Firma buttons present"
+    },
+    "signature_validation": {
+      "status": "PASS",
+      "notes": "Cannot sign without terms acceptance, cannot submit without signature"
+    },
+    "mobile_compatibility": {
+      "status": "PASS",
+      "notes": "Responsive design works on 390x844 viewport, navigation shows numbered steps"
+    }
+  },
+  "api_endpoints_tested": {
+    "POST /api/auth/login": "PASS - Client login works",
+    "GET /api/declarations/v2/declarations": "PASS - Returns client declarations list",
+    "GET /api/declarations/v2/declarations/{id}": "PASS - Returns declaration with all 14 sections",
+    "PUT /api/declarations/v2/declarations/{id}/section": "PASS - Updates section data, recalculates completion",
+    "POST /api/declarations/v2/declarations/{id}/sign": "PASS - Validates terms and signature",
+    "POST /api/declarations/v2/declarations/{id}/submit": "PASS - Validates signature before submit",
+    "GET /api/declarations/v2/declarations/{id}/messages": "PASS - Returns messages list",
+    "POST /api/declarations/v2/declarations/{id}/messages": "PASS - Adds message to declaration"
+  }
+}
