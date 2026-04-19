@@ -11,6 +11,32 @@
 
 ---
 
+## Nuova Funzionalita: Haptic Feedback
+
+Il Wizard ora include **haptic feedback** (vibrazione tattile) per migliorare l'esperienza utente:
+
+| Azione | Tipo Feedback |
+|--------|---------------|
+| Navigazione Avanti | Medium Impact |
+| Navigazione Indietro | Light Impact |
+| Cambio step (tab) | Selection |
+| Toggle checkbox | Light Impact |
+| Segna completata | Medium Impact |
+| Upload documento | Light Impact |
+| Upload successo | Success Notification |
+| Upload errore | Error Notification |
+| Elimina documento | Medium Impact |
+| Accetta termini | Light Impact |
+| Apri pannello firma | Medium Impact |
+| Firma completata | Success Notification |
+| Invio dichiarazione | Heavy Impact |
+| Invio successo | Success Notification |
+| Invio errore | Error Notification |
+
+**Nota:** L'haptic feedback funziona solo su dispositivi fisici, non su emulatori.
+
+---
+
 ## Test da Eseguire
 
 ### 1. Avvio App

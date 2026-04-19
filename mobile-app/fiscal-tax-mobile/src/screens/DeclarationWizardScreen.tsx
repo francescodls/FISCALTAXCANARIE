@@ -1,6 +1,6 @@
 /**
  * Dichiarazione dei Redditi - Wizard Mobile V2
- * 14 Sezioni con Autosave, Firma Canvas e Upload Documenti
+ * 14 Sezioni con Autosave, Firma Canvas, Upload Documenti e Haptic Feedback
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -23,6 +23,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import SignatureScreen from 'react-native-signature-canvas';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
 import {
   ArrowLeft,
   ArrowRight,
@@ -182,6 +183,7 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Toggle "non applicabile"
   const toggleNotApplicable = (sectionId: string, value: boolean) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const sectionData = {
       ...formData[sectionId],
       not_applicable: value,
@@ -193,6 +195,7 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Segna come completato
   const markCompleted = (sectionId: string, completed: boolean) => {
+    Haptics.impactAsync(completed ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
     const sectionData = {
       ...formData[sectionId],
       completed
@@ -204,6 +207,7 @@ export const DeclarationWizardScreen: React.FC = () => {
   // Navigazione
   const goNext = () => {
     if (currentStep < SECTIONS.length - 1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCurrentStep(currentStep + 1);
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     }
@@ -211,15 +215,27 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   const goPrev = () => {
     if (currentStep > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setCurrentStep(currentStep - 1);
+      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+    }
+  };
+
+  // Cambio step diretto (dal tab indicator)
+  const goToStep = (index: number) => {
+    if (index !== currentStep) {
+      Haptics.selectionAsync();
+      setCurrentStep(index);
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
     }
   };
 
   // Upload da fotocamera
   const pickFromCamera = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Permesso negato', 'Devi concedere l\'accesso alla fotocamera');
       return;
     }
@@ -237,8 +253,10 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Upload da galleria
   const pickFromGallery = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Permesso negato', 'Devi concedere l\'accesso alla galleria');
       return;
     }
@@ -259,6 +277,7 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Upload documento (PDF, etc.)
   const pickDocument = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
@@ -297,8 +316,10 @@ export const DeclarationWizardScreen: React.FC = () => {
       setDocuments(docs);
       await loadDeclaration();
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Documento caricato');
     } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Errore', error.message || 'Errore durante il caricamento');
     } finally {
       setUploading(false);
@@ -307,6 +328,7 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Elimina documento
   const deleteDocument = async (docId: string, docName: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Elimina documento',
       `Vuoi eliminare "${docName}"?`,
@@ -321,7 +343,9 @@ export const DeclarationWizardScreen: React.FC = () => {
               const docs = await apiService.getDeclarationDocuments(id);
               setDocuments(docs);
               await loadDeclaration();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             } catch (error: any) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert('Errore', error.message);
             }
           },
@@ -332,12 +356,14 @@ export const DeclarationWizardScreen: React.FC = () => {
 
   // Gestione firma
   const handleSignature = (signature: string) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowSignature(false);
     saveSignature(signature);
   };
 
   const saveSignature = async (signatureImage: string) => {
     if (!acceptedTerms) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Attenzione', 'Devi accettare i termini e condizioni');
       return;
     }
@@ -346,8 +372,10 @@ export const DeclarationWizardScreen: React.FC = () => {
     try {
       const updated = await apiService.signDeclaration(id, signatureImage, true);
       setDeclaration(updated);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Successo', 'Firma salvata con successo!');
     } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Errore', error.message || 'Errore nel salvataggio della firma');
     } finally {
       setSaving(false);
@@ -357,10 +385,12 @@ export const DeclarationWizardScreen: React.FC = () => {
   // Invia dichiarazione
   const submitDeclaration = async () => {
     if (!declaration?.is_signed) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       Alert.alert('Attenzione', 'Devi firmare la dichiarazione prima di inviarla');
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
       'Conferma Invio',
       'Sei sicuro di voler inviare la dichiarazione? Non potrai piu modificarla.',
@@ -372,10 +402,12 @@ export const DeclarationWizardScreen: React.FC = () => {
             setSubmitting(true);
             try {
               await apiService.submitDeclaration(id);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               Alert.alert('Successo', 'Dichiarazione inviata con successo!', [
                 { text: 'OK', onPress: () => navigation.navigate('Dichiarazioni') }
               ]);
             } catch (error: any) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert('Errore', error.message || 'Errore durante l\'invio');
             } finally {
               setSubmitting(false);
@@ -957,7 +989,10 @@ export const DeclarationWizardScreen: React.FC = () => {
           
           <TouchableOpacity
             style={styles.acceptTermsRow}
-            onPress={() => setAcceptedTerms(!acceptedTerms)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setAcceptedTerms(!acceptedTerms);
+            }}
             disabled={!canSign || declaration?.is_signed}
           >
             <View style={[
@@ -1007,7 +1042,10 @@ export const DeclarationWizardScreen: React.FC = () => {
                   styles.openSignatureButton,
                   (!canSign || !acceptedTerms) && styles.openSignatureButtonDisabled
                 ]}
-                onPress={() => setShowSignature(true)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setShowSignature(true);
+                }}
                 disabled={!canSign || !acceptedTerms}
               >
                 <PenTool size={24} color={(!canSign || !acceptedTerms) ? COLORS.textLight : COLORS.primary} />
@@ -1061,7 +1099,10 @@ export const DeclarationWizardScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          navigation.goBack();
+        }} style={styles.backButton}>
           <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -1109,7 +1150,7 @@ export const DeclarationWizardScreen: React.FC = () => {
                 isCurrent && styles.stepItemCurrent,
                 isCompleted && styles.stepItemCompleted
               ]}
-              onPress={() => setCurrentStep(index)}
+              onPress={() => goToStep(index)}
             >
               <Icon 
                 size={18} 
@@ -1185,7 +1226,10 @@ export const DeclarationWizardScreen: React.FC = () => {
         <View style={styles.signatureModal}>
           <View style={styles.signatureModalHeader}>
             <Text style={styles.signatureModalTitle}>Firma qui sotto</Text>
-            <TouchableOpacity onPress={() => setShowSignature(false)}>
+            <TouchableOpacity onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowSignature(false);
+            }}>
               <X size={24} color={COLORS.text} />
             </TouchableOpacity>
           </View>
