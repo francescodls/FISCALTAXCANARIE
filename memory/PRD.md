@@ -111,7 +111,7 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 - ✅ RISOLTO: Rifiuto App Store Apple (Guideline 4 Design) - Navigazione nativa
 - ✅ RISOLTO: Account Deletion in-app (requisito Apple)
 - ✅ RISOLTO: Notifiche dichiarazione push + email
-- ✅ RISOLTO: Wizard compilazione dichiarazioni
+- ⚠️ RIMOSSO: Sezione Dichiarazione dei Redditi (da ricostruire da zero in futuro)
 - ✅ RISOLTO: Bug toast "postMessage could not be cloned"
 
 ### P1 - In Progress

@@ -99,7 +99,6 @@ const CommercialDashboard = () => {
   const [employeeNotifications, setEmployeeNotifications] = useState([]); // Notifiche dipendenti
   const [employeeNotifCount, setEmployeeNotifCount] = useState(0); // Conteggio notifiche non lette
   const [showProfileDialog, setShowProfileDialog] = useState(false); // Dialog profilo personale
-  const [declarationsStats, setDeclarationsStats] = useState({ total: 0, new_submissions: 0, has_new_activity: false }); // Statistiche dichiarazioni
   const [teamCount, setTeamCount] = useState(0); // Conteggio membri team
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -108,7 +107,6 @@ const CommercialDashboard = () => {
     fetchData();
     fetchClientLists();
     fetchEmployeeNotifications();
-    fetchDeclarationsStats();
     fetchTeamCount();
   }, []);
 
@@ -124,15 +122,6 @@ const CommercialDashboard = () => {
       setTeamCount(consulentiCount + employeesCount);
     } catch (error) {
       console.error("Errore nel caricamento conteggio team:", error);
-    }
-  };
-
-  const fetchDeclarationsStats = async () => {
-    try {
-      const response = await axios.get(`${API}/declarations/stats/summary`, { headers });
-      setDeclarationsStats(response.data);
-    } catch (error) {
-      console.error("Errore nel caricamento statistiche dichiarazioni:", error);
     }
   };
 
@@ -608,30 +597,6 @@ const CommercialDashboard = () => {
               </div>
               <p className="text-2xl font-bold text-slate-900">{pendingDocs.length}</p>
               <p className="text-xs text-slate-500">{t("dashboard.toVerify")}</p>
-            </CardContent>
-          </Card>
-          <Card 
-            className="bg-white border border-slate-200 card-hover cursor-pointer relative"
-            onClick={() => navigate("/admin/declarations")}
-            data-testid="stats-declarations"
-          >
-            <CardContent className="p-4 flex flex-col items-center text-center">
-              {/* Badge nuove richieste */}
-              {declarationsStats.new_submissions > 0 && (
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
-                  <span className="text-white text-xs font-bold">{declarationsStats.new_submissions}</span>
-                </div>
-              )}
-              <div className="w-10 h-10 bg-teal-600 rounded-xl flex items-center justify-center mb-2">
-                <FileText className="h-5 w-5 text-white" />
-              </div>
-              <p className="text-2xl font-bold text-slate-900">{declarationsStats.total}</p>
-              <p className="text-xs text-slate-500">{t('taxReturns.title')}</p>
-              {declarationsStats.new_submissions > 0 && (
-                <p className="text-xs text-red-500 font-medium mt-1">
-                  {declarationsStats.new_submissions} nuov{declarationsStats.new_submissions === 1 ? 'a' : 'e'}
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>

@@ -21,7 +21,6 @@ import ClientLists from "@/pages/ClientLists";
 import ModelsManagement from "@/pages/ModelsManagement";
 import DeadlinesManagement from "@/pages/DeadlinesManagement";
 import BackupPage from "@/pages/BackupPage";
-import DeclarationsPage from "@/pages/DeclarationsPage";
 import AdminActivate from "@/pages/AdminActivate";
 
 // Helper per verificare ruoli admin
@@ -265,16 +264,6 @@ function AppRoutes() {
       <Route path="/admin/backup" element={
         <ProtectedRoute requiredRole="commercialista">
           <BackupPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/admin/declarations" element={
-        <ProtectedRoute requiredRole="commercialista">
-          <DeclarationsPage />
-        </ProtectedRoute>
-      } />
-      <Route path="/declarations" element={
-        <ProtectedRoute requiredRole="cliente">
-          <DeclarationsPage />
         </ProtectedRoute>
       } />
       <Route path="/consulente" element={
