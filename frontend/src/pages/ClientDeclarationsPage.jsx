@@ -18,7 +18,9 @@ import {
   Send,
   Edit,
   Eye,
-  Calendar
+  Calendar,
+  ArrowLeft,
+  Home
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 import { useLanguage } from '@/i18n/LanguageContext';
@@ -119,22 +121,44 @@ const ClientDeclarationsPage = ({ token }) => {
     <div className="space-y-6 p-4 md:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
-            Dichiarazione dei Redditi
-          </h1>
-          <p className="text-slate-600 mt-1">
-            Gestisci le tue dichiarazioni fiscali
-          </p>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => navigate('/dashboard')}
+            className="shrink-0"
+            data-testid="back-to-home-btn"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
+              Dichiarazione dei Redditi
+            </h1>
+            <p className="text-slate-600 mt-1">
+              Gestisci le tue dichiarazioni fiscali
+            </p>
+          </div>
         </div>
-        <Button 
-          onClick={() => setShowNewModal(true)}
-          className="bg-teal-600 hover:bg-teal-700"
-          data-testid="new-declaration-btn"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Nuova Dichiarazione
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline"
+            onClick={() => navigate('/dashboard')}
+            className="gap-2"
+            data-testid="home-btn"
+          >
+            <Home className="w-4 h-4" />
+            <span className="hidden sm:inline">Home</span>
+          </Button>
+          <Button 
+            onClick={() => setShowNewModal(true)}
+            className="bg-teal-600 hover:bg-teal-700"
+            data-testid="new-declaration-btn"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nuova Dichiarazione
+          </Button>
+        </div>
       </div>
 
       {/* Lista Dichiarazioni */}
