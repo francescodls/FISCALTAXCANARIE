@@ -5,131 +5,87 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 94 (19 Aprile 2026) - COMPLETATA ✅
+
+**Wizard Dichiarazioni dei Redditi v2 - Flusso Cliente Completo**
+
+Implementato il nuovo sistema guidato per la compilazione delle dichiarazioni dei redditi con:
+
+1. **14 Sezioni Specifiche**:
+   - Dati Personali (nome, cognome, CF/NIE, residenza, contatti)
+   - Situazione Familiare (stato civile, figli, familiari a carico)
+   - Redditi da Lavoro (dipendente, pensione, CU)
+   - Redditi Autonomo (P.IVA, regime fiscale, fatturato)
+   - Immobili (proprietà, valore catastale, ubicazione)
+   - Canoni di Locazione (affitti percepiti/pagati)
+   - Plusvalenze (vendita immobili/partecipazioni)
+   - Investimenti Finanziari (azioni, fondi, obbligazioni)
+   - Criptomonete (possesso, vendite, exchange)
+   - Spese Deducibili (mediche, interessi, assicurazioni)
+   - Deduzioni/Agevolazioni (bonus ristrutturazione, ecobonus)
+   - Documenti Allegati
+   - Note Aggiuntive
+   - Autorizzazione e Firma
+
+2. **Funzionalità Implementate**:
+   - ✅ Checkbox "Non ho questa tipologia" per ogni sezione
+   - ✅ Auto-save con debounce 1.5 secondi
+   - ✅ Percentuale completamento dinamica
+   - ✅ Navigazione step-by-step (Precedente/Successivo)
+   - ✅ Firma Canvas con react-signature-canvas (mouse + touch)
+   - ✅ Validazione: firma richiede 50% completamento + accettazione termini
+   - ✅ Compatibilità mobile (responsive design)
+
+**File modificati/creati:**
+- `/app/frontend/src/pages/DeclarationWizard.jsx` - Wizard completo
+- `/app/frontend/src/pages/ClientDeclarationsPage.jsx` - Fix import
+
+**Test eseguiti:**
+- ✅ Backend: 13/13 test passati (100%)
+- ✅ Frontend: Tutti i flussi verificati (100%)
+- `/app/test_reports/iteration_40.json`
+
+---
+
 ### Fase 93 (Dicembre 2025) - COMPLETATA ✅
 
 **Fix Rifiuto App Store Apple - Guideline 4 Design**
 
-Problema: L'app mobile era stata rifiutata dall'App Store perché i link di Registrazione e Recupero Password in `LoginScreen.tsx` utilizzavano `Linking.openURL()` per aprire un browser esterno invece di gestire il flusso nativamente.
-
-**Soluzione implementata:**
-
-1. **Creato `RegisterScreen.tsx`**
-   - Form nativo di registrazione con validazione
-   - Campi: Nome e Cognome, Email, Telefono (opzionale), Password, Conferma Password
-   - Checkbox accettazione termini e condizioni
-   - Chiamata API a `/api/auth/register`
-   - Schermata di successo con navigazione al login
-
-2. **Creato `ForgotPasswordScreen.tsx`**
-   - Form nativo per recupero password
-   - Validazione email
-   - Chiamata API a `/api/auth/forgot-password`
-   - Messaggio di conferma invio email
-
-3. **Aggiornato `AppNavigator.tsx`**
-   - Aggiunta rotta `Register` allo stack di navigazione non autenticato
-   - Aggiunta rotta `ForgotPassword` allo stack di navigazione non autenticato
-
-4. **Aggiornato `LoginScreen.tsx`**
-   - Rimosso `Linking.openURL()` per "Password dimenticata?" → ora usa `navigation.navigate('ForgotPassword')`
-   - Rimosso `Linking.openURL()` per "Registrati" → ora usa `navigation.navigate('Register')`
-   - Importato `useNavigation` da `@react-navigation/native`
-
-**File modificati:**
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/RegisterScreen.tsx` (completato)
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/ForgotPasswordScreen.tsx` (completato)
-- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx` (rotte aggiunte)
-- `/app/mobile-app/fiscal-tax-mobile/src/screens/LoginScreen.tsx` (navigazione nativa)
-
-**Test eseguiti:**
-- ✅ API `/api/auth/register` funzionante
-- ✅ API `/api/auth/forgot-password` funzionante
-- ✅ Navigazione nativa implementata (no browser esterno)
+- Creato `RegisterScreen.tsx` (form nativo registrazione)
+- Creato `ForgotPasswordScreen.tsx` (recupero password nativo)
+- Aggiornato `LoginScreen.tsx` (navigazione nativa, no browser esterno)
+- Aggiunto endpoint account deletion in-app
 
 ---
 
-### Fase 92 (13 Aprile 2026) - COMPLETATA ✅
+### Fasi Precedenti
 
-**Fix Notifiche Dichiarazione - Push + Email Obbligatori**
-
-Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non arrivavano correttamente sia come push che come email.
-
-**Soluzione implementata:**
-
-1. **Creata funzione helper `send_declaration_notification()`**
-   - Invia automaticamente PUSH + EMAIL al cliente
-   - Gestisce errori separatamente per ciascun canale
-   - Log dettagliati per debugging
-   - Supporta extra_data per deep linking nell'app
-
-2. **Endpoint aggiornati:**
-   - `POST /api/declarations/tax-returns/{id}/messages` → Push + Email
-   - `POST /api/declarations/tax-returns/{id}/integration-requests` → Push + Email  
-   - `POST /api/declarations/tax-returns/{id}/fee/notify` → Push + Email
-
-**File modificati:**
-- `/app/backend/routes/declarations.py`
-
-**Test eseguiti:**
-- ✅ Invio messaggio conversazione: Push + Email tentati
-- ✅ Richiesta integrazione: Push + Email tentati
-- ✅ Log mostrano entrambe le notifiche partono simultaneamente
-
-**Nota:** L'email richiede che l'IP del server (104.198.214.223) sia nella whitelist Brevo: https://app.brevo.com/security/authorised_ips
-
----
-
-### Fase 91 (13 Aprile 2026) - COMPLETATA ✅
-
-**Wizard Compilazione Dichiarazione dei Redditi Guidato**
-
-- Navigazione sequenziale obbligatoria (non si possono saltare sezioni)
-- Opzione "Non Applicabile" per ogni sezione
-- Auto-save automatico con debounce 1.5s
-- Stati sezione visibili (da compilare, in corso, completata, non applicabile)
-- Firma finale obbligatoria (checkbox + canvas firma)
-- Progress bar e stepper visivo
-
-**File creati:**
-- `/app/frontend/src/components/TaxReturnFormWizard.jsx`
-
----
-
-### Fase 90 (13 Aprile 2026) - COMPLETATA ✅
-
-**Investigazione Bug P0: Admin non vede dati dichiarazioni**
-
-- Sistema funzionante correttamente
-- Le dichiarazioni erano vuote perché il cliente non aveva salvato i dati
-- Risolto con wizard obbligatorio
+- Fase 92: Fix notifiche dichiarazione Push + Email
+- Fase 91: Rimozione completa vecchia sezione Dichiarazioni (bug postMessage)
+- Fase 90: Creazione macrostruttura Dichiarazioni v2
 
 ---
 
 ## Prioritized Backlog
 
 ### P0 - Critico
-- ✅ RISOLTO: Rifiuto App Store Apple (Guideline 4 Design) - Navigazione nativa
-- ✅ RISOLTO: Account Deletion in-app (requisito Apple)
-- ✅ RISOLTO: Notifiche dichiarazione push + email
-- ✅ RICOSTRUITA: Sezione Dichiarazione dei Redditi v2 (nuova macrostruttura)
-- ⚠️ RIMOSSO: Vecchia sezione Dichiarazioni (problemi postMessage)
+- ✅ COMPLETATO: Wizard Dichiarazioni v2 lato cliente
 
-### P1 - In Progress
-- **Aggiungere IP server a whitelist Brevo** (azione utente): `104.198.214.223`
-- **Piano Hardening Mobile (punti rimanenti):**
-  - Punto 6: Global Search
-  - Punto 7: Dashboard Widgets
-  - Punto 10: Gesture Navigation  
-  - Punto 11: AI Assistant chat
+### P1 - Prossimi Task
+- **Dashboard Admin Dichiarazioni v2** - Visualizzazione pratiche, cambio stato, richieste integrazione
+- **Interfaccia Mobile Dichiarazioni v2** - Allineare app mobile con flusso web
+- **Sistema notifiche admin-cliente** per dichiarazioni v2
+- **Aggiungere IP server a whitelist Brevo**: `104.198.214.223`
 
-- **Refactoring server.py** (~38 endpoint client)
-
-### P2 - Future
-- Integrazione firma digitale Namirial/Aruba
-- Integrazione Dropbox/Google Drive
-- Reminder automatico dichiarazioni incomplete
+### P2 - Piano Hardening Mobile
+- Punto 6: Global Search
+- Punto 7: Dashboard Widgets
+- Punto 10: Gesture Navigation
+- Punto 11: AI Assistant chat
+- Refactoring server.py in router separati
 
 ### P3 - Backlog
+- Integrazione firma digitale Namirial/Aruba
 - App Desktop Windows
 - Dashboard Analytics Admin
 - Offline Mode mobile
@@ -141,37 +97,35 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 ```
 /app/
 ├── backend/
-│   ├── routes/
-│   │   ├── declarations.py ✅ (send_declaration_notification helper added)
-│   │   └── ...
-│   ├── push_service.py
-│   ├── email_service.py
-│   └── ...
+│   ├── server.py
+│   └── routes/
+│       ├── declarations.py (deprecata)
+│       └── declarations_v2.py ✅ (API V2 complete)
 ├── frontend/
-│   ├── src/components/
-│   │   ├── TaxReturnFormWizard.jsx ✅ (NEW)
-│   │   └── ...
-│   └── ...
+│   └── src/pages/
+│       ├── ClientDeclarationsPage.jsx ✅
+│       ├── DeclarationWizard.jsx ✅ (Wizard 14 sezioni)
+│       └── AdminDeclarationsPage.jsx (da completare)
 └── mobile-app/
     └── fiscal-tax-mobile/
-        └── src/
-            ├── screens/
-            │   ├── LoginScreen.tsx ✅ (navigazione nativa)
-            │   ├── RegisterScreen.tsx ✅ (NEW - App Store compliance)
-            │   └── ForgotPasswordScreen.tsx ✅ (NEW - App Store compliance)
-            └── navigation/
-                └── AppNavigator.tsx ✅ (rotte auth aggiunte)
+        └── src/screens/ (da allineare con V2)
 ```
 
 ---
 
-## Key API Endpoints (Declarations with Notifications)
+## Key API Endpoints (Declarations V2)
 
-| Endpoint | Notifications |
-|----------|---------------|
-| `POST .../messages` | ✅ Push + Email |
-| `POST .../integration-requests` | ✅ Push + Email |
-| `POST .../fee/notify` | ✅ Push + Email |
+| Endpoint | Method | Descrizione |
+|----------|--------|-------------|
+| `/api/declarations/v2/declarations` | GET | Lista dichiarazioni cliente |
+| `/api/declarations/v2/declarations` | POST | Crea nuova dichiarazione |
+| `/api/declarations/v2/declarations/{id}` | GET | Dettaglio con 14 sezioni |
+| `/api/declarations/v2/declarations/{id}/section` | PUT | Auto-save sezione |
+| `/api/declarations/v2/declarations/{id}/sign` | POST | Firma dichiarazione |
+| `/api/declarations/v2/declarations/{id}/submit` | POST | Invia dichiarazione |
+| `/api/declarations/v2/declarations/{id}/messages` | GET/POST | Messaggi pratica |
+| `/api/declarations/v2/admin/declarations` | GET | Lista admin con filtri |
+| `/api/declarations/v2/admin/declarations/{id}/status` | PUT | Cambio stato admin |
 
 ---
 
@@ -184,7 +138,7 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 
 ## Known Issues
 
-1. **Email Brevo 401 Error:** L'IP del server deve essere aggiunto alla whitelist Brevo
+1. **Email Brevo 401 Error:** IP server da aggiungere a whitelist Brevo
    - IP: `104.198.214.223`
    - URL: https://app.brevo.com/security/authorised_ips
 
@@ -192,4 +146,5 @@ Problema: Quando l'admin inviava comunicazioni dalla sezione Dichiarazione, non 
 
 ## Test Reports
 
-- `/app/test_reports/iteration_39.json` - Wizard tests (100% passed)
+- `/app/test_reports/iteration_40.json` - Wizard V2 tests (100% passed)
+- `/app/test_reports/iteration_39.json` - Previous wizard tests
