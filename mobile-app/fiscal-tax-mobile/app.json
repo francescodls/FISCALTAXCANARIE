@@ -33,8 +33,6 @@
       },
       "package": "com.fiscaltaxcanarie.clientapp",
       "versionCode": 3,
-      "targetSdkVersion": 35,
-      "compileSdkVersion": 35,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
