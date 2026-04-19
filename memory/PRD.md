@@ -7,31 +7,46 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ### Fase 99 (19 Aprile 2026) - COMPLETATA ✅
 
-**Fix Download Documenti Admin + Funzionalità Anteprima (Preview)**
+**Fix Download Documenti Admin + Backblaze B2 Cloud Storage**
 
-Risolto bug critico nel download documenti dalla pagina Admin e aggiunta funzionalità di anteprima file:
+Risolto bug critico nel download documenti e migrato lo storage su Backblaze B2:
 
-1. **Backend - `declarations_v2.py`**
-   - Aggiunto parametro `preview=true` all'endpoint download documenti
-   - Con `preview=true`: `Content-Disposition: inline` (file visualizzato nel browser)
-   - Senza `preview`: `Content-Disposition: attachment` (file scaricato)
+1. **Integrazione Backblaze B2 per Documenti Dichiarazioni**
+   - Upload documenti su cloud storage invece di file locale
+   - Download trasparente da B2 (fallback a locale per documenti esistenti)
+   - Eliminazione file da B2 quando documento rimosso
+   - Generazione ZIP scarica automaticamente da B2
+   - I documenti sopravvivono ai deploy! 🎉
 
-2. **Frontend - `AdminDeclarationsPage.jsx`**
-   - Aggiunta funzione `downloadDocument()` nel componente `DocumentsTab`
-   - Aggiunta funzione `getDocumentUrl()` con supporto preview
-   - Aggiunta funzione `openPreview()` che apre PDF/immagini in nuova tab
-   - Pulsante "Visualizza" (icona Eye blu) ora visibile per PDF e immagini
-   - Pulsante "Scarica" (icona Download) per download diretto
-   - Aggiunti `data-testid` per testing
+2. **Backend - `declarations_v2.py`**
+   - Aggiunto supporto storage ibrido (B2 + locale)
+   - Nuovo campo `storage_type` ("b2" o "local")
+   - Nuovo campo `storage_path` per path B2
+   - Nuovo campo `b2_file_id` per eliminazione
+   - Parametro `preview=true` per anteprima inline
+
+3. **Struttura documento:**
+   ```json
+   {
+     "storage_type": "b2",
+     "storage_path": "clients/{client_id}/declarations/{decl_id}/{doc_id}.pdf",
+     "b2_file_id": "4_z271a3dcaf...",
+     "file_path": null
+   }
+   ```
 
 **File modificati:**
 - `/app/backend/routes/declarations_v2.py`
 - `/app/frontend/src/pages/AdminDeclarationsPage.jsx`
 
 **Test eseguiti:**
-- ✅ curl: Download endpoint funziona con `Content-Disposition: attachment`
-- ✅ curl: Preview endpoint funziona con `Content-Disposition: inline` 
-- ✅ Screenshot: UI mostra correttamente pulsanti Visualizza/Scarica/Elimina
+- ✅ Upload documento → salvato su B2 
+- ✅ Download documento → letto da B2
+- ✅ Contenuto corretto
+
+**NOTA IMPORTANTE per Produzione:**
+I documenti già caricati in produzione (storage locale) potrebbero essere persi.
+I nuovi documenti saranno salvati su B2 e sopravviveranno ai deploy.
 
 ---
 

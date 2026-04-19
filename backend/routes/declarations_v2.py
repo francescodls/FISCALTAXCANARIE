@@ -830,12 +830,24 @@ import io
 import zipfile
 from fastapi.responses import StreamingResponse
 
-# Directory per upload documenti
+# Import Backblaze B2 service
+from b2_service import (
+    upload_file_to_b2, 
+    download_file_from_b2, 
+    delete_file_from_b2,
+    is_b2_configured
+)
+
+# Directory per upload documenti (fallback locale se B2 non configurato)
 UPLOAD_DIR = "/app/uploads/declarations"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png'}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Flag per usare B2 cloud storage
+USE_CLOUD_STORAGE = is_b2_configured()
+logger.info(f"Declarations V2: Cloud Storage (Backblaze B2) = {USE_CLOUD_STORAGE}")
 
 
 @router.post("/declarations/{declaration_id}/documents", response_model=Dict)
@@ -885,22 +897,57 @@ async def upload_document(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="File troppo grande (max 10MB)")
     
-    # Genera ID e salva file
+    # Genera ID documento
     doc_id = generate_id()
     safe_filename = f"{doc_id}{ext}"
-    decl_dir = os.path.join(UPLOAD_DIR, declaration_id)
-    os.makedirs(decl_dir, exist_ok=True)
-    file_path = os.path.join(decl_dir, safe_filename)
     
-    with open(file_path, "wb") as f:
-        f.write(content)
+    # Variabili per storage
+    file_path = None
+    storage_path = None
+    b2_file_id = None
+    storage_type = "local"
+    
+    # Prova prima Backblaze B2, fallback a locale
+    if USE_CLOUD_STORAGE:
+        try:
+            # Upload su Backblaze B2
+            b2_result = await upload_file_to_b2(
+                file_data=content,
+                file_name=safe_filename,
+                client_id=declaration.get("client_id", "unknown"),
+                doc_type=f"declarations/{declaration_id}",
+                content_type=file.content_type or "application/octet-stream"
+            )
+            
+            if b2_result.get("success"):
+                storage_path = b2_result["storage_path"]
+                b2_file_id = b2_result.get("file_id")
+                storage_type = "b2"
+                logger.info(f"Documento {doc_id} caricato su B2: {storage_path}")
+            else:
+                logger.warning(f"Upload B2 fallito, uso storage locale: {b2_result.get('error')}")
+        except Exception as e:
+            logger.error(f"Errore upload B2: {e}, uso storage locale")
+    
+    # Fallback: salva in locale
+    if storage_type == "local":
+        decl_dir = os.path.join(UPLOAD_DIR, declaration_id)
+        os.makedirs(decl_dir, exist_ok=True)
+        file_path = os.path.join(decl_dir, safe_filename)
+        
+        with open(file_path, "wb") as f:
+            f.write(content)
+        logger.info(f"Documento {doc_id} salvato localmente: {file_path}")
     
     # Crea record documento
     document = {
         "id": doc_id,
         "filename": file.filename,
         "stored_filename": safe_filename,
-        "file_path": file_path,
+        "file_path": file_path,  # Path locale (None se su B2)
+        "storage_path": storage_path,  # Path B2 (None se locale)
+        "b2_file_id": b2_file_id,  # ID file B2 per eliminazione
+        "storage_type": storage_type,  # "local" o "b2"
         "file_size": len(content),
         "mime_type": file.content_type,
         "category": category,
@@ -1006,13 +1053,29 @@ async def download_document(
     if not document:
         raise HTTPException(status_code=404, detail="Documento non trovato")
     
-    file_path = document.get("file_path")
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File non trovato sul server")
+    # Determina storage type e leggi contenuto
+    storage_type = document.get("storage_type", "local")
+    content = None
     
-    # Leggi e restituisci file
-    with open(file_path, "rb") as f:
-        content = f.read()
+    if storage_type == "b2":
+        # Download da Backblaze B2
+        storage_path = document.get("storage_path")
+        if not storage_path:
+            raise HTTPException(status_code=404, detail="Path storage B2 mancante")
+        
+        content = await download_file_from_b2(storage_path)
+        if content is None:
+            raise HTTPException(status_code=404, detail="File non trovato su cloud storage")
+        
+        logger.info(f"File scaricato da B2: {storage_path}")
+    else:
+        # Download da storage locale
+        file_path = document.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File non trovato sul server")
+        
+        with open(file_path, "rb") as f:
+            content = f.read()
     
     # Content-Disposition: inline per preview, attachment per download
     disposition = "inline" if preview else "attachment"
@@ -1059,10 +1122,25 @@ async def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail="Documento non trovato")
     
-    # Elimina file fisico
-    file_path = document.get("file_path")
-    if file_path and os.path.exists(file_path):
-        os.remove(file_path)
+    # Elimina file (B2 o locale)
+    storage_type = document.get("storage_type", "local")
+    
+    if storage_type == "b2":
+        # Elimina da Backblaze B2
+        storage_path = document.get("storage_path")
+        b2_file_id = document.get("b2_file_id")
+        if storage_path:
+            deleted = await delete_file_from_b2(storage_path, b2_file_id)
+            if deleted:
+                logger.info(f"File eliminato da B2: {storage_path}")
+            else:
+                logger.warning(f"Impossibile eliminare file da B2: {storage_path}")
+    else:
+        # Elimina da storage locale
+        file_path = document.get("file_path")
+        if file_path and os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"File eliminato localmente: {file_path}")
     
     # Rimuovi dal DB
     await db.declarations_v2.update_one(
@@ -1094,14 +1172,25 @@ async def delete_declaration_admin(
     if not declaration:
         raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
     
-    # Elimina documenti fisici
+    # Elimina documenti (B2 o locale)
     for doc in declaration.get("documents", []):
-        file_path = doc.get("file_path")
-        if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                print(f"Errore eliminazione file {file_path}: {e}")
+        storage_type = doc.get("storage_type", "local")
+        
+        if storage_type == "b2":
+            storage_path = doc.get("storage_path")
+            b2_file_id = doc.get("b2_file_id")
+            if storage_path:
+                try:
+                    await delete_file_from_b2(storage_path, b2_file_id)
+                except Exception as e:
+                    logger.warning(f"Errore eliminazione file B2 {storage_path}: {e}")
+        else:
+            file_path = doc.get("file_path")
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    logger.warning(f"Errore eliminazione file {file_path}: {e}")
     
     # Elimina dal database
     result = await db.declarations_v2.delete_one({"id": declaration_id})
@@ -1336,10 +1425,23 @@ async def download_declaration_zip(
         # Aggiungi documenti allegati
         documents = declaration.get("documents", [])
         for doc in documents:
-            file_path = doc.get("file_path")
-            if file_path and os.path.exists(file_path):
-                # Usa nome originale nel ZIP
-                zf.write(file_path, f"allegati/{doc['filename']}")
+            storage_type = doc.get("storage_type", "local")
+            doc_content = None
+            
+            if storage_type == "b2":
+                # Scarica da B2
+                storage_path = doc.get("storage_path")
+                if storage_path:
+                    doc_content = await download_file_from_b2(storage_path)
+            else:
+                # Leggi da locale
+                file_path = doc.get("file_path")
+                if file_path and os.path.exists(file_path):
+                    with open(file_path, "rb") as f:
+                        doc_content = f.read()
+            
+            if doc_content:
+                zf.writestr(f"allegati/{doc['filename']}", doc_content)
     
     zip_buffer.seek(0)
     
