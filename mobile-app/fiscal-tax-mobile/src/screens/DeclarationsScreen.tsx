@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -18,29 +19,86 @@ import {
   CheckCircle,
   AlertCircle,
   Send,
+  Plus,
+  Eye,
+  AlertTriangle,
+  FileCheck,
+  XCircle,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 import { ScreenHeader } from '../components/ScreenHeader';
 
-interface Declaration {
-  _id: string;
-  id?: string;
-  tipo: string;
-  anno: number;
-  stato: string;
+interface DeclarationV2 {
+  id: string;
+  anno_fiscale: number;
+  status: string;
+  client_name: string;
+  client_email: string;
+  completion_percentage: number;
+  is_signed: boolean;
+  documents_count: number;
+  messages_count: number;
+  pending_integration_requests: number;
   created_at: string;
-  updated_at?: string;
-  documenti_allegati?: number;
+  updated_at: string;
+  sections?: Record<string, any>;
 }
+
+// Configurazione stati V2
+const STATUS_CONFIG: Record<string, { color: string; bgColor: string; icon: any; text: string }> = {
+  'bozza': {
+    color: '#eab308',
+    bgColor: '#fef9c320',
+    icon: Clock,
+    text: 'Bozza',
+  },
+  'inviata': {
+    color: '#3b82f6',
+    bgColor: '#3b82f620',
+    icon: Send,
+    text: 'Inviata',
+  },
+  'documentazione_incompleta': {
+    color: '#f97316',
+    bgColor: '#f9731620',
+    icon: AlertTriangle,
+    text: 'Doc. Incompleta',
+  },
+  'in_revisione': {
+    color: '#8b5cf6',
+    bgColor: '#8b5cf620',
+    icon: Eye,
+    text: 'In Revisione',
+  },
+  'pronta': {
+    color: '#10b981',
+    bgColor: '#10b98120',
+    icon: FileCheck,
+    text: 'Pronta',
+  },
+  'presentata': {
+    color: '#22c55e',
+    bgColor: '#22c55e20',
+    icon: CheckCircle,
+    text: 'Presentata',
+  },
+  'rifiutata': {
+    color: '#ef4444',
+    bgColor: '#ef444420',
+    icon: XCircle,
+    text: 'Rifiutata',
+  },
+};
 
 export const DeclarationsScreen: React.FC = () => {
   const { token } = useAuth();
   const navigation = useNavigation<any>();
-  const [declarations, setDeclarations] = useState<Declaration[]>([]);
+  const [declarations, setDeclarations] = useState<DeclarationV2[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -51,7 +109,7 @@ export const DeclarationsScreen: React.FC = () => {
 
   const loadDeclarations = async () => {
     try {
-      const data = await apiService.getDeclarations();
+      const data = await apiService.getDeclarationsV2();
       setDeclarations(data);
     } catch (error) {
       console.error('Error loading declarations:', error);
@@ -66,51 +124,36 @@ export const DeclarationsScreen: React.FC = () => {
     setRefreshing(false);
   }, []);
 
-  const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; bgColor: string; icon: any; text: string }> = {
-      'bozza': {
-        color: COLORS.textLight,
-        bgColor: COLORS.textLight + '20',
-        icon: FileText,
-        text: 'Bozza',
-      },
-      'in_attesa': {
-        color: COLORS.warning,
-        bgColor: COLORS.warning + '20',
-        icon: Clock,
-        text: 'In attesa',
-      },
-      'in_lavorazione': {
-        color: COLORS.info,
-        bgColor: COLORS.info + '20',
-        icon: Clock,
-        text: 'In lavorazione',
-      },
-      'completata': {
-        color: COLORS.success,
-        bgColor: COLORS.success + '20',
-        icon: CheckCircle,
-        text: 'Completata',
-      },
-      'inviata': {
-        color: COLORS.success,
-        bgColor: COLORS.success + '20',
-        icon: Send,
-        text: 'Inviata',
-      },
-    };
-    return configs[status] || configs['bozza'];
+  const createNewDeclaration = async () => {
+    const currentYear = new Date().getFullYear();
+    
+    Alert.alert(
+      'Nuova Dichiarazione',
+      `Vuoi creare una nuova dichiarazione per l'anno fiscale ${currentYear}?`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Crea',
+          onPress: async () => {
+            setCreating(true);
+            try {
+              const newDecl = await apiService.createDeclarationV2(currentYear);
+              await loadDeclarations();
+              // Naviga al wizard
+              navigation.navigate('DeclarationWizard', { id: newDecl.id });
+            } catch (error: any) {
+              Alert.alert('Errore', error.message || 'Impossibile creare la dichiarazione');
+            } finally {
+              setCreating(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
-  const getTipoLabel = (tipo: string) => {
-    const labels: Record<string, string> = {
-      'irpf': 'IRPF - Imposta sul Reddito',
-      'iva': 'IVA Trimestrale',
-      'modelo_720': 'Modello 720',
-      'modelo_347': 'Modello 347',
-      'impuesto_sociedades': 'Imposta sulle Società',
-    };
-    return labels[tipo] || tipo?.toUpperCase() || 'Dichiarazione';
+  const getStatusConfig = (status: string) => {
+    return STATUS_CONFIG[status] || STATUS_CONFIG['bozza'];
   };
 
   const formatDate = (dateString: string) => {
@@ -126,14 +169,15 @@ export const DeclarationsScreen: React.FC = () => {
     }
   };
 
-  const renderDeclaration = ({ item }: { item: Declaration }) => {
-    const statusConfig = getStatusConfig(item.stato);
+  const renderDeclaration = ({ item }: { item: DeclarationV2 }) => {
+    const statusConfig = getStatusConfig(item.status);
     const StatusIcon = statusConfig.icon;
+    const canEdit = item.status === 'bozza' || item.status === 'documentazione_incompleta';
 
     return (
       <TouchableOpacity
         style={styles.declarationCard}
-        onPress={() => navigation.navigate('DeclarationDetail', { id: item._id || item.id })}
+        onPress={() => navigation.navigate(canEdit ? 'DeclarationWizard' : 'DeclarationDetail', { id: item.id })}
         activeOpacity={0.7}
       >
         <View style={styles.cardHeader}>
@@ -141,10 +185,30 @@ export const DeclarationsScreen: React.FC = () => {
             <Calendar size={24} color={COLORS.primary} />
           </View>
           <View style={styles.cardHeaderContent}>
-            <Text style={styles.cardTitle}>{getTipoLabel(item.tipo)}</Text>
-            <Text style={styles.cardYear}>Anno fiscale {item.anno}</Text>
+            <Text style={styles.cardTitle}>Dichiarazione dei Redditi</Text>
+            <Text style={styles.cardYear}>Anno fiscale {item.anno_fiscale}</Text>
           </View>
           <ChevronRight size={22} color={COLORS.textLight} />
+        </View>
+
+        {/* Progress bar */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { 
+                  width: `${item.completion_percentage}%`,
+                  backgroundColor: item.completion_percentage >= 100 
+                    ? COLORS.success 
+                    : item.completion_percentage >= 50 
+                      ? COLORS.primary 
+                      : COLORS.warning
+                }
+              ]} 
+            />
+          </View>
+          <Text style={styles.progressText}>{item.completion_percentage}%</Text>
         </View>
 
         <View style={styles.cardDivider} />
@@ -157,18 +221,33 @@ export const DeclarationsScreen: React.FC = () => {
             </Text>
           </View>
           <Text style={styles.dateText}>
-            Aggiornato: {formatDate(item.updated_at || item.created_at)}
+            {formatDate(item.updated_at || item.created_at)}
           </Text>
         </View>
 
-        {item.documenti_allegati !== undefined && item.documenti_allegati > 0 && (
-          <View style={styles.documentsInfo}>
-            <FileText size={14} color={COLORS.textSecondary} />
-            <Text style={styles.documentsText}>
-              {item.documenti_allegati} document{item.documenti_allegati > 1 ? 'i' : 'o'} allegat{item.documenti_allegati > 1 ? 'i' : 'o'}
-            </Text>
-          </View>
-        )}
+        {/* Badges info */}
+        <View style={styles.badgesRow}>
+          {item.documents_count > 0 && (
+            <View style={styles.infoBadge}>
+              <FileText size={12} color={COLORS.textSecondary} />
+              <Text style={styles.infoBadgeText}>{item.documents_count} doc</Text>
+            </View>
+          )}
+          {item.pending_integration_requests > 0 && (
+            <View style={[styles.infoBadge, { backgroundColor: '#f9731620' }]}>
+              <AlertTriangle size={12} color="#f97316" />
+              <Text style={[styles.infoBadgeText, { color: '#f97316' }]}>
+                {item.pending_integration_requests} richieste
+              </Text>
+            </View>
+          )}
+          {item.is_signed && (
+            <View style={[styles.infoBadge, { backgroundColor: '#22c55e20' }]}>
+              <CheckCircle size={12} color="#22c55e" />
+              <Text style={[styles.infoBadgeText, { color: '#22c55e' }]}>Firmata</Text>
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -180,7 +259,7 @@ export const DeclarationsScreen: React.FC = () => {
       </View>
       <Text style={styles.emptyTitle}>Nessuna dichiarazione</Text>
       <Text style={styles.emptyText}>
-        Le tue dichiarazioni fiscali appariranno qui
+        Tocca il pulsante + per creare la tua prima dichiarazione dei redditi
       </Text>
     </View>
   );
@@ -202,16 +281,24 @@ export const DeclarationsScreen: React.FC = () => {
         title="Dichiarazioni" 
         showHomeButton
         rightComponent={
-          <Text style={styles.headerSubtitle}>
-            {declarations.length} dichiarazion{declarations.length !== 1 ? 'i' : 'e'}
-          </Text>
+          <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={createNewDeclaration}
+            disabled={creating}
+          >
+            {creating ? (
+              <ActivityIndicator size="small" color="#ffffff" />
+            ) : (
+              <Plus size={20} color="#ffffff" />
+            )}
+          </TouchableOpacity>
         }
       />
 
       <FlatList
         data={declarations}
         renderItem={renderDeclaration}
-        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl
@@ -233,25 +320,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  header: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-  },
   loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -291,6 +369,30 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 2,
   },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  progressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: COLORS.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    minWidth: 35,
+    textAlign: 'right',
+  },
   cardDivider: {
     height: 1,
     backgroundColor: COLORS.border,
@@ -317,17 +419,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textLight,
   },
-  documentsInfo: {
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  infoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: SPACING.sm,
-    paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    gap: 6,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 4,
+    borderRadius: RADIUS.sm,
+    gap: 4,
   },
-  documentsText: {
-    fontSize: 13,
+  infoBadgeText: {
+    fontSize: 11,
     color: COLORS.textSecondary,
   },
   emptyState: {
@@ -355,5 +463,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     textAlign: 'center',
+    paddingHorizontal: SPACING.xl,
   },
 });

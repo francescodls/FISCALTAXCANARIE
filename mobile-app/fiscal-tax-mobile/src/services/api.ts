@@ -345,6 +345,100 @@ class ApiService {
       this.getTickets().catch(() => []),
     ]);
   }
+
+  // ============================================================================
+  // DICHIARAZIONI V2 - Nuovo sistema
+  // ============================================================================
+
+  // Lista dichiarazioni cliente
+  async getDeclarationsV2() {
+    return this.request<any[]>('/api/declarations/v2/declarations', {}, true);
+  }
+
+  // Dettaglio dichiarazione
+  async getDeclarationV2(id: string) {
+    return this.request<any>(`/api/declarations/v2/declarations/${id}`);
+  }
+
+  // Crea nuova dichiarazione
+  async createDeclarationV2(annoFiscale: number) {
+    this.clearCache('/api/declarations/v2/declarations');
+    return this.request<any>('/api/declarations/v2/declarations', {
+      method: 'POST',
+      body: JSON.stringify({ anno_fiscale: annoFiscale }),
+    });
+  }
+
+  // Aggiorna sezione (autosave)
+  async updateDeclarationSection(id: string, sectionName: string, sectionData: any) {
+    return this.request<any>(`/api/declarations/v2/declarations/${id}/section`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        section_name: sectionName,
+        section_data: sectionData,
+      }),
+    });
+  }
+
+  // Firma dichiarazione
+  async signDeclaration(id: string, signatureImage: string, acceptedTerms: boolean) {
+    const formData = new FormData();
+    formData.append('accepted_terms', acceptedTerms.toString());
+    formData.append('signature_image', signatureImage);
+    
+    return this.request<any>(`/api/declarations/v2/declarations/${id}/sign`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  // Invia dichiarazione
+  async submitDeclaration(id: string) {
+    this.clearCache('/api/declarations/v2/declarations');
+    return this.request<any>(`/api/declarations/v2/declarations/${id}/submit`, {
+      method: 'POST',
+    });
+  }
+
+  // Lista messaggi dichiarazione
+  async getDeclarationMessages(id: string) {
+    return this.request<any[]>(`/api/declarations/v2/declarations/${id}/messages`);
+  }
+
+  // Invia messaggio
+  async sendDeclarationMessageV2(id: string, content: string, isIntegrationRequest: boolean = false) {
+    return this.request<any>(`/api/declarations/v2/declarations/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content,
+        is_integration_request: isIntegrationRequest,
+      }),
+    });
+  }
+
+  // Lista documenti dichiarazione
+  async getDeclarationDocuments(id: string) {
+    return this.request<any[]>(`/api/declarations/v2/declarations/${id}/documents`);
+  }
+
+  // Upload documento
+  async uploadDeclarationDocument(id: string, file: any, category: string = 'generale') {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('category', category);
+    
+    return this.request<any>(`/api/declarations/v2/declarations/${id}/documents`, {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  // Elimina documento
+  async deleteDeclarationDocument(declarationId: string, documentId: string) {
+    return this.request<any>(`/api/declarations/v2/declarations/${declarationId}/documents/${documentId}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const apiService = new ApiService();
