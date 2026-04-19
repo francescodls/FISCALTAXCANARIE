@@ -501,13 +501,13 @@ async def get_tax_payment_stats(
     total_result = await db.payment_assignments.aggregate(total_pipeline).to_list(None)
     total_amount = total_result[0]["total"] if total_result else 0
     
-    # Prossime scadenze (entro 30 giorni)
+    # Prossime scadenze (entro 7 giorni - urgenti)
     from datetime import timedelta
     today = datetime.now(timezone.utc).date().isoformat()
-    thirty_days = (datetime.now(timezone.utc) + timedelta(days=30)).date().isoformat()
+    seven_days = (datetime.now(timezone.utc) + timedelta(days=7)).date().isoformat()
     
     upcoming = await db.payment_assignments.count_documents({
-        "due_date": {"$gte": today, "$lte": thirty_days},
+        "due_date": {"$gte": today, "$lte": seven_days},
         "notification_status": {"$ne": "pagata"}
     })
     

@@ -505,52 +505,52 @@ const TaxPaymentsManagement = ({ token }) => {
 
   return (
     <div className="space-y-6" data-testid="tax-payments-management">
-      {/* Header con Stats */}
+      {/* Header con Stats Operativi */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-teal-500 to-teal-600 text-white">
+        <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilters(f => ({ ...f, notification_status: 'non_inviata' }))}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-teal-100 text-sm">Modelli Attivi</p>
-                <p className="text-3xl font-bold">{stats.models_count || 0}</p>
+                <p className="text-amber-100 text-sm">Da Notificare</p>
+                <p className="text-3xl font-bold">{stats.by_status?.non_inviata?.count || 0}</p>
               </div>
-              <FileText className="w-10 h-10 text-teal-200" />
+              <Bell className="w-10 h-10 text-amber-200" />
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilters(f => ({ ...f, notification_status: 'inviata' }))}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm">Totale Assegnazioni</p>
-                <p className="text-3xl font-bold">{stats.total_assignments || 0}</p>
+                <p className="text-blue-100 text-sm">Notificati</p>
+                <p className="text-3xl font-bold">{stats.by_status?.inviata?.count || 0}</p>
               </div>
-              <Users className="w-10 h-10 text-blue-200" />
+              <Send className="w-10 h-10 text-blue-200" />
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white">
+        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilters(f => ({ ...f, notification_status: '__all__' }))}>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm">Importo Totale</p>
-                <p className="text-3xl font-bold">€{(stats.total_amount || 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}</p>
-              </div>
-              <Euro className="w-10 h-10 text-emerald-200" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-amber-100 text-sm">Scadenze 30gg</p>
+                <p className="text-red-100 text-sm">Urgenti (7gg)</p>
                 <p className="text-3xl font-bold">{stats.upcoming_deadlines || 0}</p>
               </div>
-              <Calendar className="w-10 h-10 text-amber-200" />
+              <AlertCircle className="w-10 h-10 text-red-200" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilters(f => ({ ...f, notification_status: 'pagata' }))}>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-emerald-100 text-sm">Pagati</p>
+                <p className="text-3xl font-bold">{stats.by_status?.pagata?.count || 0}</p>
+              </div>
+              <CheckCircle className="w-10 h-10 text-emerald-200" />
             </div>
           </CardContent>
         </Card>
