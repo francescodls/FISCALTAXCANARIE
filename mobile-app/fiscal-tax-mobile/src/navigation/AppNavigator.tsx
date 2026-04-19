@@ -26,6 +26,7 @@ import { CommunicationsScreen } from '../screens/CommunicationsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { DeclarationsScreen } from '../screens/DeclarationsScreen';
 import { DeclarationDetailScreen } from '../screens/DeclarationDetailScreen';
+import { DeclarationWizardScreen } from '../screens/DeclarationWizardScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
 import { DeadlineDetailScreen } from '../screens/DeadlineDetailScreen';
@@ -320,6 +321,7 @@ export const AppNavigator = () => {
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Dichiarazioni" component={DeclarationsScreen} />
             <Stack.Screen name="DeclarationDetail" component={DeclarationDetailScreen} />
+            <Stack.Screen name="DeclarationWizard" component={DeclarationWizardScreen} />
             <Stack.Screen name="DeadlineDetail" component={DeadlineDetailScreen} />
             <Stack.Screen name="Notifiche" component={NotificationsScreen} />
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />

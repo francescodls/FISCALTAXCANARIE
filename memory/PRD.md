@@ -5,6 +5,45 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 98 (19 Aprile 2026) - IN PROGRESS
+
+**Interfaccia Mobile Dichiarazioni V2 - Allineamento React Native**
+
+Implementazione del Wizard Mobile a 14 sezioni per l'app React Native:
+
+1. **DeclarationWizardScreen.tsx** - Wizard mobile completo
+   - 14 sezioni identiche al web (dati personali, famiglia, redditi, immobili, cripto, ecc.)
+   - Autosave con debounce 2 secondi
+   - Firma canvas con `react-native-signature-canvas`
+   - Upload documenti da fotocamera, galleria e file picker
+   - Navigazione step-by-step con progress bar
+   - Toggle "Non Applicabile" per ogni sezione
+
+2. **DeclarationDetailScreen.tsx** - Aggiornato a V2
+   - Usa nuove API V2 (`getDeclarationV2`, `getDeclarationMessages`, ecc.)
+   - Visualizzazione messaggi con badge "Richiesta Integrazione"
+   - Lista documenti con download
+   - Progress bar completamento
+
+3. **Dipendenze aggiunte:**
+   - `react-native-signature-canvas@5.0.2`
+   - `react-native-webview@13.16.1`
+   - `expo-image-picker@55.0.18`
+
+4. **Navigazione aggiornata:**
+   - `DeclarationWizard` rotta aggiunta a `AppNavigator.tsx`
+   - Navigazione condizionale (Wizard se bozza, Detail altrimenti)
+
+**File creati/modificati:**
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/DeclarationWizardScreen.tsx` (NUOVO)
+- `/app/mobile-app/fiscal-tax-mobile/src/screens/DeclarationDetailScreen.tsx` (AGGIORNATO)
+- `/app/mobile-app/fiscal-tax-mobile/src/navigation/AppNavigator.tsx` (AGGIORNATO)
+- `/app/mobile-app/fiscal-tax-mobile/package.json` (AGGIORNATO)
+
+**Stato:** Implementazione completata, test mobile pendenti
+
+---
+
 ### Fase 97 (19 Aprile 2026) - COMPLETATA ✅
 
 **Quality Assurance e Refactoring Tecnico - Stabilità e Robustezza**
@@ -90,6 +129,20 @@ Implementate tutte le migliorie tecniche richieste:
     └── AdminDeclarationsPage.jsx     # Dashboard admin
 ```
 
+### Struttura Mobile App (React Native)
+
+```
+/app/mobile-app/fiscal-tax-mobile/src/
+├── screens/
+│   ├── DeclarationsScreen.tsx        # Lista dichiarazioni V2
+│   ├── DeclarationWizardScreen.tsx   # Wizard mobile 14 step + firma
+│   └── DeclarationDetailScreen.tsx   # Dettaglio V2 (sola lettura)
+├── services/
+│   └── api.ts                        # API V2 complete
+└── navigation/
+    └── AppNavigator.tsx              # Navigazione con rotta Wizard
+```
+
 ### Flusso Dati
 
 ```
@@ -130,9 +183,10 @@ Cliente integra → Documento aggiunto → Admin scarica PDF/ZIP
 - ✅ COMPLETATO: Dashboard admin v2
 - ✅ COMPLETATO: Sistema documenti/PDF/ZIP
 - ✅ COMPLETATO: Stabilità e robustezza tecnica
+- ✅ IN PROGRESS: Interfaccia Mobile Dichiarazioni v2
 
 ### P1 - Prossimi Task
-- **Interfaccia Mobile Dichiarazioni v2** - Allineare React Native
+- **Test Mobile App** - Verificare flusso completo su dispositivo/emulatore
 - **Whitelist IP Brevo** - `104.198.214.223` per email funzionanti
 
 ### P2 - Future

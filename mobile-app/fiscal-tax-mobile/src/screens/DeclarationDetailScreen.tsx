@@ -1,3 +1,8 @@
+/**
+ * Dichiarazione Detail Screen - Versione V2
+ * Visualizzazione dettaglio dichiarazione per stati non editabili
+ */
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -24,38 +29,106 @@ import {
   Paperclip,
   User,
   Home,
+  AlertTriangle,
+  Eye,
+  XCircle,
+  Download,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../config/constants';
 
-interface Message {
+interface MessageV2 {
   id: string;
-  sender: 'client' | 'admin';
-  sender_name?: string;
-  text: string;
-  timestamp: string;
-  attachments?: any[];
+  sender_type: 'client' | 'admin';
+  sender_name: string;
+  content: string;
+  is_integration_request: boolean;
+  created_at: string;
 }
 
-interface DeclarationDetail {
-  _id: string;
-  tipo: string;
-  anno: number;
-  stato: string;
+interface DocumentV2 {
+  id: string;
+  filename: string;
+  file_size: number;
+  category: string;
   created_at: string;
-  updated_at?: string;
-  conversazione?: Message[];
-  documenti?: any[];
 }
+
+interface DeclarationDetailV2 {
+  id: string;
+  anno_fiscale: number;
+  status: string;
+  completion_percentage: number;
+  is_signed: boolean;
+  documents_count: number;
+  messages_count: number;
+  pending_integration_requests: number;
+  created_at: string;
+  updated_at: string;
+  sections?: Record<string, any>;
+  signature?: {
+    accepted_terms: boolean;
+    signature_image?: string;
+    signed_at?: string;
+  };
+}
+
+// Configurazione stati V2
+const STATUS_CONFIG: Record<string, { color: string; bgColor: string; icon: any; text: string }> = {
+  'bozza': {
+    color: '#eab308',
+    bgColor: '#fef9c320',
+    icon: Clock,
+    text: 'Bozza',
+  },
+  'inviata': {
+    color: '#3b82f6',
+    bgColor: '#3b82f620',
+    icon: Send,
+    text: 'Inviata',
+  },
+  'documentazione_incompleta': {
+    color: '#f97316',
+    bgColor: '#f9731620',
+    icon: AlertTriangle,
+    text: 'Doc. Incompleta',
+  },
+  'in_revisione': {
+    color: '#8b5cf6',
+    bgColor: '#8b5cf620',
+    icon: Eye,
+    text: 'In Revisione',
+  },
+  'pronta': {
+    color: '#10b981',
+    bgColor: '#10b98120',
+    icon: FileText,
+    text: 'Pronta',
+  },
+  'presentata': {
+    color: '#22c55e',
+    bgColor: '#22c55e20',
+    icon: CheckCircle,
+    text: 'Presentata',
+  },
+  'rifiutata': {
+    color: '#ef4444',
+    bgColor: '#ef444420',
+    icon: XCircle,
+    text: 'Rifiutata',
+  },
+};
 
 export const DeclarationDetailScreen: React.FC = () => {
-  const { token, user } = useAuth();
-  const navigation = useNavigation();
+  const { token } = useAuth();
+  const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { id } = route.params;
   
-  const [declaration, setDeclaration] = useState<DeclarationDetail | null>(null);
+  const [declaration, setDeclaration] = useState<DeclarationDetailV2 | null>(null);
+  const [messages, setMessages] = useState<MessageV2[]>([]);
+  const [documents, setDocuments] = useState<DocumentV2[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState('');
@@ -72,8 +145,14 @@ export const DeclarationDetailScreen: React.FC = () => {
 
   const loadDeclaration = async () => {
     try {
-      const data = await apiService.getDeclarationDetails(id);
-      setDeclaration(data as DeclarationDetail);
+      const [declData, msgsData, docsData] = await Promise.all([
+        apiService.getDeclarationV2(id),
+        apiService.getDeclarationMessages(id).catch(() => []),
+        apiService.getDeclarationDocuments(id).catch(() => []),
+      ]);
+      setDeclaration(declData);
+      setMessages(msgsData);
+      setDocuments(docsData);
     } catch (error) {
       console.error('Error loading declaration:', error);
     } finally {
@@ -92,9 +171,11 @@ export const DeclarationDetailScreen: React.FC = () => {
     
     setSending(true);
     try {
-      await apiService.sendDeclarationMessage(id, message.trim());
+      await apiService.sendDeclarationMessageV2(id, message.trim(), false);
       setMessage('');
-      await loadDeclaration();
+      // Ricarica messaggi
+      const msgsData = await apiService.getDeclarationMessages(id);
+      setMessages(msgsData);
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -106,14 +187,7 @@ export const DeclarationDetailScreen: React.FC = () => {
   };
 
   const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; bgColor: string; text: string }> = {
-      'bozza': { color: COLORS.textLight, bgColor: COLORS.textLight + '20', text: 'Bozza' },
-      'in_attesa': { color: COLORS.warning, bgColor: COLORS.warning + '20', text: 'In attesa documenti' },
-      'in_lavorazione': { color: COLORS.info, bgColor: COLORS.info + '20', text: 'In lavorazione' },
-      'completata': { color: COLORS.success, bgColor: COLORS.success + '20', text: 'Completata' },
-      'inviata': { color: COLORS.success, bgColor: COLORS.success + '20', text: 'Inviata' },
-    };
-    return configs[status] || configs['bozza'];
+    return STATUS_CONFIG[status] || STATUS_CONFIG['bozza'];
   };
 
   const formatDate = (dateString: string) => {
@@ -145,12 +219,12 @@ export const DeclarationDetailScreen: React.FC = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      (navigation as any).navigate('Main', { screen: 'HomeTab' });
+      navigation.navigate('Main', { screen: 'HomeTab' });
     }
   };
 
   const handleGoHome = () => {
-    (navigation as any).navigate('Main', { screen: 'HomeTab' });
+    navigation.navigate('Main', { screen: 'HomeTab' });
   };
 
   if (loading) {
@@ -179,8 +253,8 @@ export const DeclarationDetailScreen: React.FC = () => {
     );
   }
 
-  const statusConfig = getStatusConfig(declaration.stato);
-  const messages = declaration.conversazione || [];
+  const statusConfig = getStatusConfig(declaration.status);
+  const StatusIcon = statusConfig.icon;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -191,9 +265,10 @@ export const DeclarationDetailScreen: React.FC = () => {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>
-            {declaration.tipo?.toUpperCase() || 'Dichiarazione'} {declaration.anno}
+            Dichiarazione {declaration.anno_fiscale}
           </Text>
           <View style={[styles.statusBadgeSmall, { backgroundColor: statusConfig.bgColor }]}>
+            <StatusIcon size={12} color={statusConfig.color} />
             <Text style={[styles.statusTextSmall, { color: statusConfig.color }]}>
               {statusConfig.text}
             </Text>
@@ -231,10 +306,15 @@ export const DeclarationDetailScreen: React.FC = () => {
         >
           <Paperclip size={18} color={activeTab === 'docs' ? COLORS.primary : COLORS.textSecondary} />
           <Text style={[styles.tabText, activeTab === 'docs' && styles.tabTextActive]}>Documenti</Text>
+          {documents.length > 0 && (
+            <View style={[styles.tabBadge, { backgroundColor: COLORS.textSecondary }]}>
+              <Text style={styles.tabBadgeText}>{documents.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
+      {/* Content - Info Tab */}
       {activeTab === 'info' && (
         <ScrollView
           style={styles.content}
@@ -247,10 +327,30 @@ export const DeclarationDetailScreen: React.FC = () => {
           <View style={styles.infoCard}>
             <Text style={styles.infoCardTitle}>Stato Pratica</Text>
             <View style={[styles.statusBadgeLarge, { backgroundColor: statusConfig.bgColor }]}>
-              <CheckCircle size={20} color={statusConfig.color} />
+              <StatusIcon size={20} color={statusConfig.color} />
               <Text style={[styles.statusTextLarge, { color: statusConfig.color }]}>
                 {statusConfig.text}
               </Text>
+            </View>
+            
+            {/* Progress bar */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressBar}>
+                <View 
+                  style={[
+                    styles.progressFill, 
+                    { 
+                      width: `${declaration.completion_percentage}%`,
+                      backgroundColor: declaration.completion_percentage >= 100 
+                        ? COLORS.success 
+                        : declaration.completion_percentage >= 50 
+                          ? COLORS.primary 
+                          : COLORS.warning
+                    }
+                  ]} 
+                />
+              </View>
+              <Text style={styles.progressText}>{declaration.completion_percentage}%</Text>
             </View>
           </View>
 
@@ -260,12 +360,7 @@ export const DeclarationDetailScreen: React.FC = () => {
             <View style={styles.detailRow}>
               <Calendar size={18} color={COLORS.textSecondary} />
               <Text style={styles.detailLabel}>Anno fiscale:</Text>
-              <Text style={styles.detailValue}>{declaration.anno}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <FileText size={18} color={COLORS.textSecondary} />
-              <Text style={styles.detailLabel}>Tipo:</Text>
-              <Text style={styles.detailValue}>{declaration.tipo?.toUpperCase()}</Text>
+              <Text style={styles.detailValue}>{declaration.anno_fiscale}</Text>
             </View>
             <View style={styles.detailRow}>
               <Clock size={18} color={COLORS.textSecondary} />
@@ -279,7 +374,32 @@ export const DeclarationDetailScreen: React.FC = () => {
                 <Text style={styles.detailValue}>{formatDate(declaration.updated_at)}</Text>
               </View>
             )}
+            <View style={styles.detailRow}>
+              <FileText size={18} color={COLORS.textSecondary} />
+              <Text style={styles.detailLabel}>Documenti:</Text>
+              <Text style={styles.detailValue}>{declaration.documents_count}</Text>
+            </View>
+            {declaration.is_signed && (
+              <View style={styles.detailRow}>
+                <CheckCircle size={18} color={COLORS.success} />
+                <Text style={styles.detailLabel}>Firmata:</Text>
+                <Text style={[styles.detailValue, { color: COLORS.success }]}>Si</Text>
+              </View>
+            )}
           </View>
+
+          {/* Pending Requests Alert */}
+          {declaration.pending_integration_requests > 0 && (
+            <View style={styles.alertCard}>
+              <AlertTriangle size={24} color="#f97316" />
+              <View style={styles.alertContent}>
+                <Text style={styles.alertTitle}>Richieste in Sospeso</Text>
+                <Text style={styles.alertText}>
+                  Hai {declaration.pending_integration_requests} richieste di integrazione da completare
+                </Text>
+              </View>
+            </View>
+          )}
 
           {/* Help Card */}
           <View style={styles.helpCard}>
@@ -294,6 +414,7 @@ export const DeclarationDetailScreen: React.FC = () => {
         </ScrollView>
       )}
 
+      {/* Content - Chat Tab */}
       {activeTab === 'chat' && (
         <KeyboardAvoidingView
           style={styles.chatContainer}
@@ -320,35 +441,42 @@ export const DeclarationDetailScreen: React.FC = () => {
                   key={msg.id || index}
                   style={[
                     styles.messageBubble,
-                    msg.sender === 'client' ? styles.messageBubbleClient : styles.messageBubbleAdmin,
+                    msg.sender_type === 'client' ? styles.messageBubbleClient : styles.messageBubbleAdmin,
+                    msg.is_integration_request && styles.messageBubbleIntegration,
                   ]}
                 >
+                  {msg.is_integration_request && (
+                    <View style={styles.integrationBadge}>
+                      <AlertTriangle size={12} color="#f97316" />
+                      <Text style={styles.integrationBadgeText}>Richiesta Integrazione</Text>
+                    </View>
+                  )}
                   <View style={styles.messageHeader}>
-                    <User size={14} color={msg.sender === 'client' ? '#ffffff' : COLORS.textSecondary} />
+                    <User size={14} color={msg.sender_type === 'client' ? '#ffffff' : COLORS.textSecondary} />
                     <Text
                       style={[
                         styles.messageSender,
-                        msg.sender === 'client' ? styles.messageSenderClient : styles.messageSenderAdmin,
+                        msg.sender_type === 'client' ? styles.messageSenderClient : styles.messageSenderAdmin,
                       ]}
                     >
-                      {msg.sender === 'client' ? 'Tu' : msg.sender_name || 'Commercialista'}
+                      {msg.sender_type === 'client' ? 'Tu' : msg.sender_name || 'Commercialista'}
                     </Text>
                   </View>
                   <Text
                     style={[
                       styles.messageText,
-                      msg.sender === 'client' ? styles.messageTextClient : styles.messageTextAdmin,
+                      msg.sender_type === 'client' ? styles.messageTextClient : styles.messageTextAdmin,
                     ]}
                   >
-                    {msg.text}
+                    {msg.content}
                   </Text>
                   <Text
                     style={[
                       styles.messageTime,
-                      msg.sender === 'client' ? styles.messageTimeClient : styles.messageTimeAdmin,
+                      msg.sender_type === 'client' ? styles.messageTimeClient : styles.messageTimeAdmin,
                     ]}
                   >
-                    {formatTime(msg.timestamp)}
+                    {formatDate(msg.created_at)} {formatTime(msg.created_at)}
                   </Text>
                 </View>
               ))
@@ -380,6 +508,7 @@ export const DeclarationDetailScreen: React.FC = () => {
         </KeyboardAvoidingView>
       )}
 
+      {/* Content - Documents Tab */}
       {activeTab === 'docs' && (
         <ScrollView
           style={styles.content}
@@ -388,7 +517,7 @@ export const DeclarationDetailScreen: React.FC = () => {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
           }
         >
-          {(!declaration.documenti || declaration.documenti.length === 0) ? (
+          {documents.length === 0 ? (
             <View style={styles.emptyDocs}>
               <Paperclip size={48} color={COLORS.textLight} />
               <Text style={styles.emptyDocsTitle}>Nessun documento</Text>
@@ -397,18 +526,26 @@ export const DeclarationDetailScreen: React.FC = () => {
               </Text>
             </View>
           ) : (
-            declaration.documenti.map((doc, index) => (
-              <TouchableOpacity key={doc.id || index} style={styles.documentItem}>
+            documents.map((doc) => (
+              <View key={doc.id} style={styles.documentItem}>
                 <View style={styles.documentIcon}>
                   <FileText size={24} color={COLORS.primary} />
                 </View>
                 <View style={styles.documentInfo}>
-                  <Text style={styles.documentName}>{doc.nome || doc.file_name}</Text>
+                  <Text style={styles.documentName} numberOfLines={1}>{doc.filename}</Text>
                   <Text style={styles.documentDate}>
-                    Caricato il {formatDate(doc.uploaded_at || doc.created_at)}
+                    {(doc.file_size / 1024).toFixed(1)} KB - {formatDate(doc.created_at)}
                   </Text>
+                  {doc.category && (
+                    <View style={styles.documentCategory}>
+                      <Text style={styles.documentCategoryText}>{doc.category}</Text>
+                    </View>
+                  )}
                 </View>
-              </TouchableOpacity>
+                <TouchableOpacity style={styles.downloadButton}>
+                  <Download size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
             ))
           )}
         </ScrollView>
@@ -464,11 +601,14 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
   statusBadgeSmall: {
+    flexDirection: 'row',
     alignSelf: 'flex-start',
+    alignItems: 'center',
     paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: RADIUS.full,
     marginTop: 4,
+    gap: 4,
   },
   statusTextSmall: {
     fontSize: 12,
@@ -542,10 +682,34 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     borderRadius: RADIUS.lg,
     gap: 8,
+    marginBottom: SPACING.sm,
   },
   statusTextLarge: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+    gap: SPACING.sm,
+  },
+  progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: COLORS.border,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    minWidth: 40,
   },
   detailRow: {
     flexDirection: 'row',
@@ -561,6 +725,30 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.text,
+  },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9731615',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: '#f9731630',
+  },
+  alertContent: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f97316',
+  },
+  alertText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   helpCard: {
     flexDirection: 'row',
@@ -629,6 +817,22 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderBottomLeftRadius: 4,
     ...SHADOWS.sm,
+  },
+  messageBubbleIntegration: {
+    borderWidth: 1,
+    borderColor: '#f97316',
+    backgroundColor: '#f9731610',
+  },
+  integrationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: SPACING.xs,
+  },
+  integrationBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#f97316',
   },
   messageHeader: {
     flexDirection: 'row',
@@ -745,5 +949,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  documentCategory: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: RADIUS.sm,
+    marginTop: 4,
+  },
+  documentCategoryText: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+  },
+  downloadButton: {
+    padding: SPACING.sm,
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: RADIUS.md,
   },
 });
