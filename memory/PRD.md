@@ -5,7 +5,37 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 98 (19 Aprile 2026) - IN PROGRESS
+### Fase 99 (19 Aprile 2026) - COMPLETATA ✅
+
+**Fix Download Documenti Admin + Funzionalità Anteprima (Preview)**
+
+Risolto bug critico nel download documenti dalla pagina Admin e aggiunta funzionalità di anteprima file:
+
+1. **Backend - `declarations_v2.py`**
+   - Aggiunto parametro `preview=true` all'endpoint download documenti
+   - Con `preview=true`: `Content-Disposition: inline` (file visualizzato nel browser)
+   - Senza `preview`: `Content-Disposition: attachment` (file scaricato)
+
+2. **Frontend - `AdminDeclarationsPage.jsx`**
+   - Aggiunta funzione `downloadDocument()` nel componente `DocumentsTab`
+   - Aggiunta funzione `getDocumentUrl()` con supporto preview
+   - Aggiunta funzione `openPreview()` che apre PDF/immagini in nuova tab
+   - Pulsante "Visualizza" (icona Eye blu) ora visibile per PDF e immagini
+   - Pulsante "Scarica" (icona Download) per download diretto
+   - Aggiunti `data-testid` per testing
+
+**File modificati:**
+- `/app/backend/routes/declarations_v2.py`
+- `/app/frontend/src/pages/AdminDeclarationsPage.jsx`
+
+**Test eseguiti:**
+- ✅ curl: Download endpoint funziona con `Content-Disposition: attachment`
+- ✅ curl: Preview endpoint funziona con `Content-Disposition: inline` 
+- ✅ Screenshot: UI mostra correttamente pulsanti Visualizza/Scarica/Elimina
+
+---
+
+### Fase 98 (19 Aprile 2026) - COMPLETATA ✅
 
 **Interfaccia Mobile Dichiarazioni V2 - Allineamento React Native**
 
@@ -167,6 +197,7 @@ Cliente integra → Documento aggiunto → Admin scarica PDF/ZIP
 | `/api/declarations/v2/declarations/{id}/sign` | POST | Firma |
 | `/api/declarations/v2/declarations/{id}/submit` | POST | Invia |
 | `/api/declarations/v2/declarations/{id}/documents` | CRUD | Documenti |
+| `/api/declarations/v2/declarations/{id}/documents/{doc_id}` | GET | Download documento (`?preview=true` per inline) |
 | `/api/declarations/v2/declarations/{id}/messages` | GET/POST | Messaggi |
 | `/api/declarations/v2/admin/declarations` | GET | Lista admin |
 | `/api/declarations/v2/admin/declarations/{id}/status-notify` | PUT | Stato+notifica |
@@ -183,11 +214,13 @@ Cliente integra → Documento aggiunto → Admin scarica PDF/ZIP
 - ✅ COMPLETATO: Dashboard admin v2
 - ✅ COMPLETATO: Sistema documenti/PDF/ZIP
 - ✅ COMPLETATO: Stabilità e robustezza tecnica
-- ✅ IN PROGRESS: Interfaccia Mobile Dichiarazioni v2
+- ✅ COMPLETATO: Interfaccia Mobile Dichiarazioni v2
+- ✅ COMPLETATO: Fix download documenti Admin + Preview
 
 ### P1 - Prossimi Task
 - **Test Mobile App** - Verificare flusso completo su dispositivo/emulatore
 - **Whitelist IP Brevo** - `104.198.214.223` per email funzionanti
+- **Piano Hardening Mobile** - Punti 6 (Search), 7 (Widgets), 10 (Gesture), 11 (AI)
 
 ### P2 - Future
 - Piano Hardening Mobile (punti 6,7,10,11)

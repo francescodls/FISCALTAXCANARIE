@@ -954,9 +954,11 @@ async def download_document(
     declaration_id: str,
     document_id: str,
     token: str = Query(None, description="Token JWT per autenticazione via URL"),
+    preview: bool = Query(False, description="Se true, apre il file inline nel browser (anteprima)"),
     authorization: str = Header(None)
 ):
-    """Download singolo documento - supporta sia header Authorization che query param token"""
+    """Download singolo documento - supporta sia header Authorization che query param token.
+    Con preview=true restituisce il file per visualizzazione inline (PDF/immagini)."""
     from server import db as _db, JWT_SECRET, JWT_ALGORITHM
     db = _db
     
@@ -1012,11 +1014,14 @@ async def download_document(
     with open(file_path, "rb") as f:
         content = f.read()
     
+    # Content-Disposition: inline per preview, attachment per download
+    disposition = "inline" if preview else "attachment"
+    
     return Response(
         content=content,
         media_type=document.get("mime_type", "application/octet-stream"),
         headers={
-            "Content-Disposition": f'attachment; filename="{document["filename"]}"'
+            "Content-Disposition": f'{disposition}; filename="{document["filename"]}"'
         }
     )
 

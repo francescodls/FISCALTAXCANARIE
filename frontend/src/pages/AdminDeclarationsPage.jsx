@@ -1564,10 +1564,61 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedDocs, setSelectedDocs] = useState([]);
-  const [previewDoc, setPreviewDoc] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingZip, setDownloadingZip] = useState(false);
   const fileInputRef = React.useRef(null);
+
+  // URL documento con token (per anteprima e download diretto)
+  const getDocumentUrl = (declId, docId, preview = false) => {
+    const baseUrl = `${API_URL}/api/declarations/v2/declarations/${declId}/documents/${docId}`;
+    const params = new URLSearchParams({ token });
+    if (preview) params.append('preview', 'true');
+    return `${baseUrl}?${params.toString()}`;
+  };
+
+  // Download documento con fetch e blob
+  const downloadDocument = async (declId, docId, filename) => {
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${declId}/documents/${docId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || 'documento';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        toast.success('Download completato');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || 'Errore download documento');
+      }
+    } catch (error) {
+      console.error('Errore download:', error);
+      toast.error('Errore di connessione');
+    }
+  };
+
+  // Apri anteprima documento (PDF/immagine) in nuova tab
+  const openPreview = (doc) => {
+    const mimeType = doc.mime_type || '';
+    const isPdf = mimeType.includes('pdf');
+    const isImage = mimeType.includes('image');
+    
+    if (isPdf || isImage) {
+      // Apri in nuova tab con preview=true
+      const url = getDocumentUrl(declaration.id, doc.id, true);
+      window.open(url, '_blank');
+    } else {
+      // Per altri tipi, scarica direttamente
+      downloadDocument(declaration.id, doc.id, doc.filename);
+    }
+  };
 
   // Carica documenti
   const fetchDocuments = React.useCallback(async () => {
@@ -1834,6 +1885,7 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
                 const FileIcon = getFileIcon(doc.mime_type);
                 const isSelected = selectedDocs.includes(doc.id);
                 const isImage = doc.mime_type?.includes('image');
+                const isPdf = doc.mime_type?.includes('pdf');
                 
                 return (
                   <div 
@@ -1862,14 +1914,15 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
-                      {isImage && (
+                      {(isImage || isPdf) && (
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={() => setPreviewDoc(doc)}
-                          title="Anteprima"
+                          onClick={() => openPreview(doc)}
+                          title="Visualizza"
+                          data-testid={`preview-doc-${doc.id}`}
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-4 h-4 text-blue-600" />
                         </Button>
                       )}
                       <Button
@@ -1877,6 +1930,7 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
                         size="icon"
                         onClick={() => downloadDocument(declaration.id, doc.id, doc.filename)}
                         title="Scarica"
+                        data-testid={`download-doc-${doc.id}`}
                       >
                         <Download className="w-4 h-4 text-slate-600" />
                       </Button>
@@ -1886,6 +1940,7 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
                         onClick={() => deleteDocument(doc.id)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         title="Elimina"
+                        data-testid={`delete-doc-${doc.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -1897,28 +1952,6 @@ const DocumentsTab = ({ declaration, token, onRefresh }) => {
           )}
         </CardContent>
       </Card>
-
-      {/* Modal anteprima immagine */}
-      {previewDoc && (
-        <div 
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
-          onClick={() => setPreviewDoc(null)}
-        >
-          <div className="max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-lg p-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="font-medium">{previewDoc.filename}</h3>
-              <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(null)}>
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-            <img 
-              src={getDocumentUrl(declaration.id, previewDoc.id)}
-              alt={previewDoc.filename}
-              className="max-w-full"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };
