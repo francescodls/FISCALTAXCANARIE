@@ -5,79 +5,81 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
-### Fase 95 (19 Aprile 2026) - COMPLETATA ✅
+### Fase 96 (19 Aprile 2026) - COMPLETATA ✅
 
-**Dashboard Admin Dichiarazioni dei Redditi v2**
+**Sistema Documenti, Comunicazioni, Notifiche e Download**
 
-Implementata dashboard completa per la gestione amministrativa delle dichiarazioni con:
+Implementato sistema completo per la gestione documentale delle dichiarazioni:
 
-1. **Lista Completa Dichiarazioni**:
-   - Nome cliente, email, ragione sociale
-   - Anno fiscale
-   - Stato con badge colorato
-   - Percentuale completamento con barra visuale
-   - Numero documenti allegati
-   - Data creazione e ultima modifica
-   - Pulsante "Apri" per dettaglio
+1. **Upload Documenti Lato Cliente**:
+   - Formati supportati: PDF, JPG, JPEG, PNG
+   - Max 10MB per file
+   - Drag & drop + click per selezionare
+   - Upload permesso solo in stato "bozza" o "documentazione_incompleta"
+   - Visualizzazione lista documenti caricati con download/elimina
 
-2. **Ricerca Avanzata**:
-   - Campo ricerca per nome, cognome, ragione sociale, codice fiscale, email
-   - Filtro per stato pratica (7 opzioni)
-   - Filtro per anno fiscale
-   - Badge filtri attivi con rimozione rapida
+2. **Gestione Documenti Lato Admin**:
+   - Tab "Documenti" nel dettaglio pratica
+   - Anteprima immagini inline
+   - Download singolo documento
+   - Selezione multipla documenti
+   - Upload documenti da admin
 
-3. **Stats Cards Interattive**:
-   - Totale dichiarazioni
-   - Da Revisionare (inviate)
-   - In Revisione
-   - Doc. Incompleta
-   - Presentate
-   - Click su card filtra automaticamente
+3. **Download PDF Riepilogativo**:
+   - Genera PDF con tutti i dati compilati (reportlab)
+   - Include: info pratica, tutte le 14 sezioni, firma
+   - Nome file: `dichiarazione_{anno}_{cliente}.pdf`
 
-4. **Modal Dettaglio Pratica** con 4 tabs:
-   - **Panoramica**: ID pratica, date, progresso compilazione, dati cliente, firma
-   - **Sezioni (14)**: Visualizzazione tutti i dati compilati dal cliente
-   - **Messaggi**: Cronologia comunicazioni, invio nuovi messaggi, richiesta integrazione
-   - **Gestione Stato**: 7 stati con colori/icone, campo nota opzionale
+4. **Download ZIP Pratica Completa**:
+   - Contiene: `riepilogo_dichiarazione.pdf` + cartella `allegati/`
+   - Include tutti i documenti caricati
+   - Nome file: `pratica_{anno}_{cliente}.zip`
 
-5. **Stati Dichiarazione**:
-   - Bozza (giallo) - Cliente sta compilando
-   - Inviata (blu) - In attesa revisione
-   - Doc. Incompleta (arancione) - Richiesta integrazione
-   - In Revisione (viola) - In elaborazione
-   - Pronta (verde chiaro) - Per presentazione
-   - Presentata (verde) - Completata
-   - Rifiutata (rosso) - Non corretta
+5. **Messaggi con Allegati**:
+   - Admin può inviare messaggi con file allegato
+   - Richiesta integrazione → cambia stato a "documentazione_incompleta"
+   - Counter richieste pendenti
 
-**File modificati:**
-- `/app/frontend/src/pages/AdminDeclarationsPage.jsx` - Dashboard completa
-- `/app/backend/routes/declarations_v2.py` - API con filtri avanzati
+6. **Notifiche Push + Email**:
+   - Invio automatico su richiesta integrazione
+   - Invio automatico su cambio stato
+   - Email HTML formattata con colori stato
+
+**API implementate:**
+- `POST /api/declarations/v2/declarations/{id}/documents` - Upload
+- `GET /api/declarations/v2/declarations/{id}/documents` - Lista
+- `DELETE /api/declarations/v2/declarations/{id}/documents/{doc_id}` - Elimina
+- `GET /api/declarations/v2/admin/declarations/{id}/pdf` - Download PDF
+- `GET /api/declarations/v2/admin/declarations/{id}/zip` - Download ZIP
+- `POST /api/declarations/v2/declarations/{id}/messages/with-attachment`
+- `PUT /api/declarations/v2/admin/declarations/{id}/status-notify`
 
 **Test eseguiti:**
-- ✅ Backend: 11/14 test passati
-- ✅ Frontend: Tutti i flussi critici verificati (100%)
-- `/app/test_reports/iteration_41.json`
+- ✅ Backend: 15/15 test passati (100%)
+- ✅ Frontend: Tutti i flussi verificati (100%)
+- `/app/test_reports/iteration_42.json`
+
+---
+
+### Fase 95 (19 Aprile 2026) - COMPLETATA ✅
+
+**Dashboard Admin Dichiarazioni v2**
+- Lista completa con nome, ragione sociale, anno, stato, date, documenti
+- Ricerca avanzata per nome/cognome/CF/email/ragione sociale
+- Filtri per stato e anno
+- Modal dettaglio con 5 tabs (Panoramica, Sezioni, Documenti, Messaggi, Gestione Stato)
+- 7 stati con colori e icone
 
 ---
 
 ### Fase 94 (19 Aprile 2026) - COMPLETATA ✅
 
 **Wizard Dichiarazioni v2 - Flusso Cliente**
-
 - 14 sezioni specifiche con campi dettagliati
-- Checkbox "Non ho questa tipologia"
+- Toggle "Non applicabile" per ogni sezione
 - Auto-save con debounce 1.5s
 - Firma Canvas (react-signature-canvas)
-- Validazione firma (50% completamento + termini)
 - Compatibilità mobile
-
----
-
-### Fasi Precedenti
-
-- Fase 93: Fix rifiuto App Store Apple (Guideline 4 Design)
-- Fase 92: Fix notifiche Push + Email
-- Fase 91: Rimozione vecchia sezione Dichiarazioni
 
 ---
 
@@ -86,12 +88,11 @@ Implementata dashboard completa per la gestione amministrativa delle dichiarazio
 ### P0 - Critico
 - ✅ COMPLETATO: Wizard cliente Dichiarazioni v2
 - ✅ COMPLETATO: Dashboard Admin Dichiarazioni v2
+- ✅ COMPLETATO: Sistema documenti, comunicazioni, notifiche, download
 
 ### P1 - Prossimi Task
 - **Interfaccia Mobile Dichiarazioni v2** - Allineare app React Native
-- **Sistema notifiche** push + email per cambio stato dichiarazione
-- **Upload documenti** funzionale nella sezione "Documenti Allegati"
-- **Aggiungere IP server a whitelist Brevo**: `104.198.214.223`
+- **Aggiungere IP server a whitelist Brevo**: `104.198.214.223` (per email funzionanti)
 
 ### P2 - Future
 - Piano Hardening Mobile (punti 6,7,10,11)
@@ -111,12 +112,13 @@ Implementata dashboard completa per la gestione amministrativa delle dichiarazio
 /app/
 ├── backend/
 │   └── routes/
-│       └── declarations_v2.py ✅ (API complete con filtri avanzati)
+│       └── declarations_v2.py ✅ (API complete: CRUD, documenti, PDF, ZIP, notifiche)
+│   └── uploads/declarations/ (Storage documenti)
 ├── frontend/
 │   └── src/pages/
 │       ├── ClientDeclarationsPage.jsx ✅
-│       ├── DeclarationWizard.jsx ✅ 
-│       └── AdminDeclarationsPage.jsx ✅ (Dashboard completa)
+│       ├── DeclarationWizard.jsx ✅ (Upload documenti funzionante)
+│       └── AdminDeclarationsPage.jsx ✅ (Tab Documenti con PDF/ZIP)
 └── mobile-app/
     └── fiscal-tax-mobile/
         └── src/screens/ (da allineare con V2)
@@ -134,9 +136,14 @@ Implementata dashboard completa per la gestione amministrativa delle dichiarazio
 | `/api/declarations/v2/declarations/{id}/section` | PUT | Auto-save |
 | `/api/declarations/v2/declarations/{id}/sign` | POST | Firma |
 | `/api/declarations/v2/declarations/{id}/submit` | POST | Invia |
+| `/api/declarations/v2/declarations/{id}/documents` | GET/POST/DELETE | Documenti |
 | `/api/declarations/v2/declarations/{id}/messages` | GET/POST | Messaggi |
-| `/api/declarations/v2/admin/declarations` | GET | Lista admin (filtri) |
+| `/api/declarations/v2/declarations/{id}/messages/with-attachment` | POST | Messaggio+file |
+| `/api/declarations/v2/admin/declarations` | GET | Lista admin |
 | `/api/declarations/v2/admin/declarations/{id}/status` | PUT | Cambio stato |
+| `/api/declarations/v2/admin/declarations/{id}/status-notify` | PUT | Stato+notifica |
+| `/api/declarations/v2/admin/declarations/{id}/pdf` | GET | Download PDF |
+| `/api/declarations/v2/admin/declarations/{id}/zip` | GET | Download ZIP |
 | `/api/declarations/v2/admin/stats` | GET | Statistiche |
 
 ---
@@ -148,7 +155,16 @@ Implementata dashboard completa per la gestione amministrativa delle dichiarazio
 
 ---
 
+## Known Issues
+
+1. **Email Brevo 401 Error:** IP server da aggiungere a whitelist Brevo
+   - IP: `104.198.214.223`
+   - URL: https://app.brevo.com/security/authorised_ips
+
+---
+
 ## Test Reports
 
-- `/app/test_reports/iteration_41.json` - Admin Dashboard (100% frontend, 79% backend)
-- `/app/test_reports/iteration_40.json` - Wizard Cliente (100% passed)
+- `/app/test_reports/iteration_42.json` - Documenti/PDF/ZIP (100% passed)
+- `/app/test_reports/iteration_41.json` - Admin Dashboard (100%)
+- `/app/test_reports/iteration_40.json` - Wizard Cliente (100%)
