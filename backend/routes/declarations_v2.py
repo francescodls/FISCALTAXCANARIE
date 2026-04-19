@@ -743,3 +743,793 @@ async def admin_stats(
         "new_submissions": new_count,
         "pending_review": status_counts.get("inviata", 0) + status_counts.get("in_revisione", 0)
     }
+
+
+
+# =============================================================================
+# API DOCUMENTI
+# =============================================================================
+
+import base64
+import io
+import zipfile
+from fastapi.responses import StreamingResponse, Response
+
+# Directory per upload documenti
+UPLOAD_DIR = "/app/uploads/declarations"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+
+@router.post("/declarations/{declaration_id}/documents", response_model=Dict)
+async def upload_document(
+    declaration_id: str,
+    file: UploadFile = File(...),
+    category: str = Form(default="generale"),
+    description: str = Form(default=""),
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Upload documento alla dichiarazione.
+    Permesso solo al proprietario e solo se in stato bozza o documentazione_incompleta.
+    """
+    db = get_db()
+    
+    # Verifica proprietà e stato
+    query = {"id": declaration_id}
+    if user.get("role") == "cliente":
+        query["client_id"] = user["id"]
+    
+    declaration = await db.declarations_v2.find_one(query)
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Cliente può caricare solo in bozza o documentazione_incompleta
+    if user.get("role") == "cliente" and declaration["status"] not in ["bozza", "documentazione_incompleta"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Non puoi caricare documenti in questo stato della dichiarazione"
+        )
+    
+    # Validazione file
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Nome file mancante")
+    
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Tipo file non permesso. Formati accettati: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+    
+    # Leggi contenuto
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File troppo grande (max 10MB)")
+    
+    # Genera ID e salva file
+    doc_id = generate_id()
+    safe_filename = f"{doc_id}{ext}"
+    decl_dir = os.path.join(UPLOAD_DIR, declaration_id)
+    os.makedirs(decl_dir, exist_ok=True)
+    file_path = os.path.join(decl_dir, safe_filename)
+    
+    with open(file_path, "wb") as f:
+        f.write(content)
+    
+    # Crea record documento
+    document = {
+        "id": doc_id,
+        "filename": file.filename,
+        "stored_filename": safe_filename,
+        "file_path": file_path,
+        "file_size": len(content),
+        "mime_type": file.content_type,
+        "category": category,
+        "description": description,
+        "uploaded_by": user["id"],
+        "uploaded_by_name": user.get("full_name", user.get("email")),
+        "uploaded_by_role": "admin" if user.get("role") in ["commercialista", "super_admin", "admin"] else "cliente",
+        "created_at": now_iso()
+    }
+    
+    # Aggiorna dichiarazione
+    await db.declarations_v2.update_one(
+        {"id": declaration_id},
+        {
+            "$push": {"documents": document},
+            "$inc": {"documents_count": 1},
+            "$set": {"updated_at": now_iso()}
+        }
+    )
+    
+    logger.info(f"Documento {doc_id} caricato per dichiarazione {declaration_id}")
+    
+    return {
+        "success": True,
+        "document": document
+    }
+
+
+@router.get("/declarations/{declaration_id}/documents", response_model=List[Dict])
+async def list_documents(
+    declaration_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """Lista documenti della dichiarazione"""
+    db = get_db()
+    
+    query = {"id": declaration_id}
+    if user.get("role") == "cliente":
+        query["client_id"] = user["id"]
+    
+    declaration = await db.declarations_v2.find_one(query, {"_id": 0, "documents": 1})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    return declaration.get("documents", [])
+
+
+@router.get("/declarations/{declaration_id}/documents/{document_id}")
+async def download_document(
+    declaration_id: str,
+    document_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """Download singolo documento"""
+    db = get_db()
+    
+    query = {"id": declaration_id}
+    if user.get("role") == "cliente":
+        query["client_id"] = user["id"]
+    
+    declaration = await db.declarations_v2.find_one(query)
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Trova documento
+    document = None
+    for doc in declaration.get("documents", []):
+        if doc["id"] == document_id:
+            document = doc
+            break
+    
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    file_path = document.get("file_path")
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File non trovato sul server")
+    
+    # Leggi e restituisci file
+    with open(file_path, "rb") as f:
+        content = f.read()
+    
+    return Response(
+        content=content,
+        media_type=document.get("mime_type", "application/octet-stream"),
+        headers={
+            "Content-Disposition": f'attachment; filename="{document["filename"]}"'
+        }
+    )
+
+
+@router.delete("/declarations/{declaration_id}/documents/{document_id}")
+async def delete_document(
+    declaration_id: str,
+    document_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """Elimina documento (solo admin o proprietario in stato bozza)"""
+    db = get_db()
+    
+    declaration = await db.declarations_v2.find_one({"id": declaration_id})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    is_admin = user.get("role") in ["commercialista", "super_admin", "admin"]
+    is_owner = declaration.get("client_id") == user["id"]
+    
+    if not is_admin and not is_owner:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    
+    if not is_admin and declaration["status"] not in ["bozza"]:
+        raise HTTPException(status_code=400, detail="Non puoi eliminare documenti in questo stato")
+    
+    # Trova e rimuovi documento
+    document = None
+    for doc in declaration.get("documents", []):
+        if doc["id"] == document_id:
+            document = doc
+            break
+    
+    if not document:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    
+    # Elimina file fisico
+    file_path = document.get("file_path")
+    if file_path and os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Rimuovi dal DB
+    await db.declarations_v2.update_one(
+        {"id": declaration_id},
+        {
+            "$pull": {"documents": {"id": document_id}},
+            "$inc": {"documents_count": -1},
+            "$set": {"updated_at": now_iso()}
+        }
+    )
+    
+    return {"success": True, "message": "Documento eliminato"}
+
+
+# =============================================================================
+# API DOWNLOAD PDF E ZIP
+# =============================================================================
+
+def generate_declaration_pdf_content(declaration: Dict) -> bytes:
+    """Genera contenuto PDF della dichiarazione"""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=2*cm, bottomMargin=2*cm)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Heading1'],
+        fontSize=18,
+        alignment=TA_CENTER,
+        spaceAfter=20
+    )
+    heading_style = ParagraphStyle(
+        'SectionHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#0d9488'),
+        spaceBefore=15,
+        spaceAfter=10
+    )
+    normal_style = styles['Normal']
+    
+    elements = []
+    
+    # Header
+    elements.append(Paragraph("FISCAL TAX CANARIE", title_style))
+    elements.append(Paragraph("Dichiarazione dei Redditi", styles['Heading2']))
+    elements.append(Spacer(1, 20))
+    
+    # Info pratica
+    info_data = [
+        ["ID Pratica:", declaration.get("id", "N/A")[:8] + "..."],
+        ["Anno Fiscale:", str(declaration.get("anno_fiscale", "N/A"))],
+        ["Cliente:", declaration.get("client_name", "N/A")],
+        ["Email:", declaration.get("client_email", "N/A")],
+        ["Stato:", declaration.get("status", "N/A").upper()],
+        ["Completamento:", f"{declaration.get('completion_percentage', 0)}%"],
+        ["Data Creazione:", declaration.get("created_at", "N/A")[:10] if declaration.get("created_at") else "N/A"],
+    ]
+    
+    info_table = Table(info_data, colWidths=[4*cm, 12*cm])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.lightgrey),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0fdfa')),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 20))
+    
+    # Sezioni
+    section_names = {
+        'dati_personali': 'Dati Personali',
+        'situazione_familiare': 'Situazione Familiare',
+        'redditi_lavoro': 'Redditi da Lavoro Dipendente',
+        'redditi_autonomo': 'Redditi Autonomo / Attivita Economica',
+        'immobili': 'Immobili',
+        'canoni_locazione': 'Canoni di Locazione',
+        'plusvalenze': 'Plusvalenze',
+        'investimenti_finanziari': 'Investimenti Finanziari',
+        'criptomonete': 'Criptomonete',
+        'spese_deducibili': 'Spese Deducibili',
+        'deduzioni_agevolazioni': 'Deduzioni e Agevolazioni',
+        'documenti_allegati': 'Documenti Allegati',
+        'note_aggiuntive': 'Note Aggiuntive',
+        'autorizzazione_firma': 'Autorizzazione e Firma'
+    }
+    
+    sections = declaration.get("sections", {})
+    
+    for section_key, section_title in section_names.items():
+        section = sections.get(section_key, {})
+        
+        elements.append(Paragraph(section_title, heading_style))
+        
+        if section.get("not_applicable"):
+            elements.append(Paragraph("Il cliente ha indicato: Non applicabile / Non presente", normal_style))
+        elif not section.get("data") or len(section.get("data", {})) == 0:
+            elements.append(Paragraph("Sezione non compilata", normal_style))
+        else:
+            data = section.get("data", {})
+            for key, value in data.items():
+                if value is not None and value != "" and value != []:
+                    field_name = key.replace("_", " ").title()
+                    if isinstance(value, list):
+                        value = ", ".join(str(v) for v in value)
+                    elements.append(Paragraph(f"<b>{field_name}:</b> {value}", normal_style))
+        
+        elements.append(Spacer(1, 10))
+    
+    # Firma
+    if declaration.get("is_signed"):
+        signature = declaration.get("signature", {})
+        elements.append(Paragraph("DICHIARAZIONE FIRMATA", heading_style))
+        elements.append(Paragraph(f"Data firma: {signature.get('signed_at', 'N/A')[:19] if signature.get('signed_at') else 'N/A'}", normal_style))
+        elements.append(Paragraph("Termini accettati: Si", normal_style))
+        
+        # Aggiungi immagine firma se presente
+        if signature.get("signature_image") and signature["signature_image"].startswith("data:image"):
+            try:
+                # Estrai base64
+                img_data = signature["signature_image"].split(",")[1]
+                img_bytes = base64.b64decode(img_data)
+                img_buffer = io.BytesIO(img_bytes)
+                
+                from reportlab.platypus import Image as RLImage
+                img = RLImage(img_buffer, width=6*cm, height=2*cm)
+                elements.append(Spacer(1, 10))
+                elements.append(img)
+            except Exception as e:
+                logger.warning(f"Impossibile aggiungere immagine firma al PDF: {e}")
+    
+    # Footer
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph(
+        "Documento generato automaticamente da Fiscal Tax Canarie",
+        ParagraphStyle('Footer', parent=normal_style, fontSize=8, textColor=colors.grey)
+    ))
+    elements.append(Paragraph(
+        f"Data generazione: {now_iso()[:19]}",
+        ParagraphStyle('Footer', parent=normal_style, fontSize=8, textColor=colors.grey)
+    ))
+    
+    doc.build(elements)
+    return buffer.getvalue()
+
+
+@router.get("/admin/declarations/{declaration_id}/pdf")
+async def download_declaration_pdf(
+    declaration_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Download PDF riepilogativo della dichiarazione (solo admin)
+    """
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    
+    db = get_db()
+    
+    declaration = await db.declarations_v2.find_one({"id": declaration_id}, {"_id": 0})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    try:
+        pdf_content = generate_declaration_pdf_content(declaration)
+        
+        filename = f"dichiarazione_{declaration['anno_fiscale']}_{declaration['client_name'].replace(' ', '_')}.pdf"
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except ImportError:
+        raise HTTPException(
+            status_code=500, 
+            detail="Libreria reportlab non installata. Eseguire: pip install reportlab"
+        )
+    except Exception as e:
+        logger.error(f"Errore generazione PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore generazione PDF: {str(e)}")
+
+
+@router.get("/admin/declarations/{declaration_id}/zip")
+async def download_declaration_zip(
+    declaration_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Download ZIP con PDF riepilogativo + tutti gli allegati (solo admin)
+    """
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    
+    db = get_db()
+    
+    declaration = await db.declarations_v2.find_one({"id": declaration_id}, {"_id": 0})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Crea ZIP in memoria
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Aggiungi PDF riepilogativo
+        try:
+            pdf_content = generate_declaration_pdf_content(declaration)
+            zf.writestr(f"riepilogo_dichiarazione.pdf", pdf_content)
+        except Exception as e:
+            logger.warning(f"Impossibile generare PDF per ZIP: {e}")
+        
+        # Aggiungi documenti allegati
+        documents = declaration.get("documents", [])
+        for doc in documents:
+            file_path = doc.get("file_path")
+            if file_path and os.path.exists(file_path):
+                # Usa nome originale nel ZIP
+                zf.write(file_path, f"allegati/{doc['filename']}")
+    
+    zip_buffer.seek(0)
+    
+    client_name = declaration.get("client_name", "cliente").replace(" ", "_")
+    anno = declaration.get("anno_fiscale", "")
+    filename = f"pratica_{anno}_{client_name}.zip"
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
+
+
+# =============================================================================
+# API MESSAGGI CON ALLEGATI E NOTIFICHE
+# =============================================================================
+
+class MessageWithAttachment(BaseModel):
+    """Messaggio con possibile allegato"""
+    content: str
+    is_integration_request: bool = False
+
+
+@router.post("/declarations/{declaration_id}/messages/with-attachment", response_model=Dict)
+async def add_message_with_attachment(
+    declaration_id: str,
+    content: str = Form(...),
+    is_integration_request: bool = Form(default=False),
+    file: Optional[UploadFile] = File(default=None),
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Aggiungi messaggio con allegato opzionale.
+    Se admin invia richiesta integrazione -> push + email al cliente.
+    """
+    db = get_db()
+    
+    # Import servizi notifica
+    from push_service import get_client_push_tokens, ExpoPushService
+    from email_service import send_email
+    
+    query = {"id": declaration_id}
+    if user.get("role") == "cliente":
+        query["client_id"] = user["id"]
+    
+    declaration = await db.declarations_v2.find_one(query)
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    is_admin = user.get("role") in ["commercialista", "super_admin", "admin"]
+    
+    # Gestione allegato
+    attachment = None
+    if file and file.filename:
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Tipo file non permesso")
+        
+        file_content = await file.read()
+        if len(file_content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="File troppo grande")
+        
+        # Salva allegato
+        attach_id = generate_id()
+        safe_filename = f"{attach_id}{ext}"
+        decl_dir = os.path.join(UPLOAD_DIR, declaration_id, "messages")
+        os.makedirs(decl_dir, exist_ok=True)
+        file_path = os.path.join(decl_dir, safe_filename)
+        
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        attachment = {
+            "id": attach_id,
+            "filename": file.filename,
+            "stored_filename": safe_filename,
+            "file_path": file_path,
+            "file_size": len(file_content),
+            "mime_type": file.content_type
+        }
+    
+    # Crea messaggio
+    message = {
+        "id": generate_id(),
+        "sender_id": user["id"],
+        "sender_name": user.get("full_name", user.get("email")),
+        "sender_role": "admin" if is_admin else "cliente",
+        "content": content,
+        "is_integration_request": is_integration_request and is_admin,
+        "is_resolved": False,
+        "attachment": attachment,
+        "created_at": now_iso()
+    }
+    
+    update_ops = {
+        "$push": {"messages": message},
+        "$inc": {"messages_count": 1},
+        "$set": {"updated_at": now_iso()}
+    }
+    
+    # Se richiesta integrazione
+    if is_integration_request and is_admin:
+        update_ops["$inc"]["pending_integration_requests"] = 1
+        update_ops["$set"]["status"] = "documentazione_incompleta"
+    
+    await db.declarations_v2.update_one({"id": declaration_id}, update_ops)
+    
+    # Invia notifiche se admin invia messaggio
+    if is_admin:
+        client_id = declaration.get("client_id")
+        client_email = declaration.get("client_email")
+        client_name = declaration.get("client_name", "Cliente")
+        
+        # Push notification
+        try:
+            tokens = await get_client_push_tokens(db, client_id)
+            if tokens:
+                push_title = "Richiesta Integrazione" if is_integration_request else "Nuovo messaggio"
+                push_body = content[:100] + "..." if len(content) > 100 else content
+                
+                await ExpoPushService.send_push_notification(
+                    push_tokens=tokens,
+                    title=push_title,
+                    body=push_body,
+                    data={
+                        "type": "declaration_message",
+                        "declaration_id": declaration_id,
+                        "is_integration_request": is_integration_request,
+                        "screen": "DeclarationDetail"
+                    }
+                )
+                logger.info(f"Push notification inviata a {client_id}")
+        except Exception as e:
+            logger.warning(f"Errore invio push: {e}")
+        
+        # Email
+        try:
+            email_subject = f"{'Richiesta Integrazione' if is_integration_request else 'Nuovo messaggio'} - Dichiarazione {declaration.get('anno_fiscale')}"
+            email_html = f"""
+            <h2>Ciao {client_name},</h2>
+            <p>{'Hai ricevuto una richiesta di integrazione documenti' if is_integration_request else 'Hai ricevuto un nuovo messaggio'} 
+               per la tua dichiarazione dei redditi {declaration.get('anno_fiscale')}:</p>
+            <div style="background: {'#fff7ed' if is_integration_request else '#f0fafa'}; 
+                        border-left: 4px solid {'#f97316' if is_integration_request else '#0d9488'}; 
+                        padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+                <p style="margin: 0; white-space: pre-wrap;">{content}</p>
+            </div>
+            <p>Accedi alla tua area clienti per rispondere o caricare i documenti richiesti.</p>
+            """
+            
+            await send_email(
+                to_email=client_email,
+                to_name=client_name,
+                subject=email_subject,
+                html_content=email_html
+            )
+            logger.info(f"Email notifica inviata a {client_email}")
+        except Exception as e:
+            logger.warning(f"Errore invio email: {e}")
+    
+    updated = await db.declarations_v2.find_one({"id": declaration_id}, {"_id": 0})
+    return serialize_declaration(updated, include_sections=True)
+
+
+@router.put("/declarations/{declaration_id}/messages/{message_id}/resolve")
+async def resolve_integration_request(
+    declaration_id: str,
+    message_id: str,
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Marca una richiesta di integrazione come risolta.
+    """
+    db = get_db()
+    
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Solo admin può risolvere richieste")
+    
+    declaration = await db.declarations_v2.find_one({"id": declaration_id})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    # Trova e aggiorna messaggio
+    messages = declaration.get("messages", [])
+    found = False
+    for msg in messages:
+        if msg["id"] == message_id and msg.get("is_integration_request"):
+            msg["is_resolved"] = True
+            msg["resolved_at"] = now_iso()
+            msg["resolved_by"] = user["id"]
+            found = True
+            break
+    
+    if not found:
+        raise HTTPException(status_code=404, detail="Richiesta integrazione non trovata")
+    
+    # Conta richieste pendenti
+    pending = sum(1 for m in messages if m.get("is_integration_request") and not m.get("is_resolved"))
+    
+    await db.declarations_v2.update_one(
+        {"id": declaration_id},
+        {
+            "$set": {
+                "messages": messages,
+                "pending_integration_requests": pending,
+                "updated_at": now_iso()
+            }
+        }
+    )
+    
+    return {"success": True, "pending_requests": pending}
+
+
+# =============================================================================
+# API NOTIFICHE CAMBIO STATO
+# =============================================================================
+
+@router.put("/admin/declarations/{declaration_id}/status-notify", response_model=Dict)
+async def admin_update_status_with_notification(
+    declaration_id: str,
+    data: DeclarationStatusUpdate,
+    user: dict = Depends(get_current_user_v2)
+):
+    """
+    Admin aggiorna stato e invia notifica push + email al cliente.
+    """
+    if user.get("role") not in ["commercialista", "super_admin", "admin"]:
+        raise HTTPException(status_code=403, detail="Accesso negato")
+    
+    db = get_db()
+    
+    from push_service import get_client_push_tokens, ExpoPushService
+    from email_service import send_email
+    
+    declaration = await db.declarations_v2.find_one({"id": declaration_id})
+    
+    if not declaration:
+        raise HTTPException(status_code=404, detail="Dichiarazione non trovata")
+    
+    old_status = declaration.get("status")
+    new_status = data.new_status.value
+    
+    update_data = {
+        "status": new_status,
+        "updated_at": now_iso()
+    }
+    
+    # Aggiungi nota come messaggio di sistema
+    if data.note:
+        message = {
+            "id": generate_id(),
+            "sender_id": user["id"],
+            "sender_name": user.get("full_name", user.get("email")),
+            "sender_role": "admin",
+            "content": f"Stato aggiornato da '{old_status}' a '{new_status}': {data.note}",
+            "is_system_message": True,
+            "is_integration_request": False,
+            "created_at": now_iso()
+        }
+        await db.declarations_v2.update_one(
+            {"id": declaration_id},
+            {"$push": {"messages": message}, "$inc": {"messages_count": 1}}
+        )
+    
+    await db.declarations_v2.update_one(
+        {"id": declaration_id},
+        {"$set": update_data}
+    )
+    
+    # Invia notifiche al cliente
+    client_id = declaration.get("client_id")
+    client_email = declaration.get("client_email")
+    client_name = declaration.get("client_name", "Cliente")
+    anno = declaration.get("anno_fiscale")
+    
+    status_labels = {
+        "bozza": "Bozza",
+        "inviata": "Inviata",
+        "documentazione_incompleta": "Documentazione Incompleta",
+        "in_revisione": "In Revisione",
+        "pronta": "Pronta",
+        "presentata": "Presentata",
+        "rifiutata": "Rifiutata"
+    }
+    
+    status_label = status_labels.get(new_status, new_status)
+    
+    # Push
+    try:
+        tokens = await get_client_push_tokens(db, client_id)
+        if tokens:
+            await ExpoPushService.send_push_notification(
+                push_tokens=tokens,
+                title=f"Dichiarazione {anno} - Aggiornamento",
+                body=f"Lo stato della tua dichiarazione è ora: {status_label}",
+                data={
+                    "type": "declaration_status",
+                    "declaration_id": declaration_id,
+                    "new_status": new_status,
+                    "screen": "DeclarationDetail"
+                }
+            )
+    except Exception as e:
+        logger.warning(f"Errore push cambio stato: {e}")
+    
+    # Email
+    try:
+        status_colors = {
+            "bozza": "#eab308",
+            "inviata": "#3b82f6",
+            "documentazione_incompleta": "#f97316",
+            "in_revisione": "#8b5cf6",
+            "pronta": "#10b981",
+            "presentata": "#22c55e",
+            "rifiutata": "#ef4444"
+        }
+        color = status_colors.get(new_status, "#64748b")
+        
+        email_html = f"""
+        <h2>Ciao {client_name},</h2>
+        <p>La tua dichiarazione dei redditi {anno} ha un nuovo stato:</p>
+        <div style="background: white; border: 2px solid {color}; padding: 20px; 
+                    margin: 20px 0; border-radius: 12px; text-align: center;">
+            <p style="font-size: 24px; font-weight: bold; color: {color}; margin: 0;">
+                {status_label}
+            </p>
+        </div>
+        {f'<p style="background: #f8fafc; padding: 15px; border-radius: 8px;"><strong>Nota:</strong> {data.note}</p>' if data.note else ''}
+        <p>Accedi alla tua area clienti per maggiori dettagli.</p>
+        """
+        
+        await send_email(
+            to_email=client_email,
+            to_name=client_name,
+            subject=f"Dichiarazione {anno} - Stato: {status_label}",
+            html_content=email_html
+        )
+    except Exception as e:
+        logger.warning(f"Errore email cambio stato: {e}")
+    
+    updated = await db.declarations_v2.find_one({"id": declaration_id}, {"_id": 0})
+    return serialize_declaration(updated, include_sections=True)

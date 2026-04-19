@@ -37,7 +37,8 @@ import {
   Loader2,
   Upload,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Download
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
@@ -1128,10 +1129,113 @@ const DeclarationWizard = ({ token }) => {
     }
   };
 
+  // Upload documento
+  const [uploading, setUploading] = useState(false);
+  const [documents, setDocuments] = useState([]);
+
+  // Carica lista documenti
+  const fetchDocuments = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${id}/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const docs = await res.json();
+        setDocuments(docs);
+      }
+    } catch (e) {
+      console.error('Errore caricamento documenti:', e);
+    }
+  }, [id, token]);
+
+  useEffect(() => {
+    if (declaration) {
+      fetchDocuments();
+    }
+  }, [declaration, fetchDocuments]);
+
+  // Upload file
+  const handleFileUpload = async (files) => {
+    if (!files || files.length === 0) return;
+    
+    setUploading(true);
+    let successCount = 0;
+    
+    for (const file of files) {
+      // Validazione
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        toast.error(`${file.name}: File troppo grande (max 10MB)`);
+        continue;
+      }
+      
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) {
+        toast.error(`${file.name}: Formato non supportato`);
+        continue;
+      }
+      
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('category', 'generale');
+        formData.append('description', '');
+        
+        const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${id}/documents`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        
+        if (res.ok) {
+          successCount++;
+        } else {
+          const err = await res.json();
+          toast.error(`${file.name}: ${err.detail || 'Errore upload'}`);
+        }
+      } catch (e) {
+        toast.error(`${file.name}: Errore di connessione`);
+      }
+    }
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} file caricati con successo`);
+      fetchDocuments();
+      fetchDeclaration(); // Aggiorna contatore
+    }
+    
+    setUploading(false);
+  };
+
+  // Elimina documento
+  const deleteDocument = async (docId, docName) => {
+    if (!confirm(`Eliminare "${docName}"?`)) return;
+    
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        toast.success('Documento eliminato');
+        fetchDocuments();
+        fetchDeclaration();
+      } else {
+        const err = await res.json();
+        toast.error(err.detail || 'Errore eliminazione');
+      }
+    } catch (e) {
+      toast.error('Errore di connessione');
+    }
+  };
+
   // Sezione documenti
   const renderDocumentsSection = () => {
     const sectionData = formData['documenti_allegati'] || {};
     const isNotApplicable = sectionData.not_applicable;
+    const canUpload = declaration?.status === 'bozza' || declaration?.status === 'documentazione_incompleta';
 
     return (
       <div className="space-y-6">
@@ -1155,36 +1259,105 @@ const DeclarationWizard = ({ token }) => {
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
               <p className="text-sm text-blue-800">
                 Carica qui tutti i documenti necessari: CU, fatture, ricevute, visure catastali, ecc.
-                I file verranno associati alla tua dichiarazione.
+                Formati accettati: PDF, JPG, PNG (max 10MB per file).
               </p>
             </div>
 
-            <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-teal-400 transition-colors">
-              <Upload className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <p className="text-slate-600 mb-2">
-                Trascina i file qui o clicca per selezionarli
-              </p>
-              <p className="text-xs text-slate-400 mb-4">
-                PDF, JPG, PNG - Max 10MB per file
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.jpg,.jpeg,.png"
-                className="hidden"
-                onChange={(e) => {
-                  // TODO: Implementare upload
-                  toast.info('Upload documenti in fase di implementazione');
+            {/* Area upload */}
+            {canUpload && (
+              <div 
+                className="border-2 border-dashed rounded-lg p-8 text-center hover:border-teal-400 transition-colors cursor-pointer"
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-teal-400', 'bg-teal-50'); }}
+                onDragLeave={(e) => { e.currentTarget.classList.remove('border-teal-400', 'bg-teal-50'); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('border-teal-400', 'bg-teal-50');
+                  handleFileUpload(e.dataTransfer.files);
                 }}
-              />
-              <Button 
-                variant="outline"
                 onClick={() => fileInputRef.current?.click()}
               >
-                Seleziona File
-              </Button>
-            </div>
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-12 h-12 text-teal-500 mx-auto mb-4 animate-spin" />
+                    <p className="text-teal-600">Caricamento in corso...</p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-600 mb-2">
+                      Trascina i file qui o clicca per selezionarli
+                    </p>
+                    <p className="text-xs text-slate-400 mb-4">
+                      PDF, JPG, PNG - Max 10MB per file
+                    </p>
+                  </>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files)}
+                  data-testid="file-upload-input"
+                />
+              </div>
+            )}
+
+            {/* Lista documenti caricati */}
+            {documents.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium text-slate-900">Documenti caricati ({documents.length})</h4>
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div 
+                      key={doc.id}
+                      className="flex items-center justify-between p-3 bg-white border rounded-lg hover:bg-slate-50"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-teal-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-900 truncate">{doc.filename}</p>
+                          <p className="text-xs text-slate-500">
+                            {(doc.file_size / 1024).toFixed(1)} KB - {new Date(doc.created_at).toLocaleDateString('it-IT')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <a
+                          href={`${API_URL}/api/declarations/v2/declarations/${id}/documents/${doc.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 hover:bg-slate-100 rounded-lg"
+                          title="Scarica"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Download className="w-4 h-4 text-slate-600" />
+                        </a>
+                        {canUpload && (
+                          <button
+                            onClick={() => deleteDocument(doc.id, doc.filename)}
+                            className="p-2 hover:bg-red-100 rounded-lg"
+                            title="Elimina"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {documents.length === 0 && !canUpload && (
+              <div className="text-center py-8 text-slate-500">
+                <FileText className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                <p>Nessun documento caricato</p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium mb-1">Note sui documenti</label>

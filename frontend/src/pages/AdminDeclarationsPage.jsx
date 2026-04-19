@@ -40,7 +40,12 @@ import {
   Check,
   XCircle,
   FileCheck,
-  MoreVertical
+  MoreVertical,
+  Upload,
+  Trash2,
+  FileArchive,
+  Image,
+  Loader2
 } from 'lucide-react';
 import { toast } from '@/components/ui/sonner';
 
@@ -721,7 +726,7 @@ const AdminDeclarationsPage = ({ token }) => {
               {/* Tabs */}
               <Tabs value={detailTab} onValueChange={setDetailTab} className="w-full">
                 <div className="border-b bg-white sticky top-[120px] z-10">
-                  <TabsList className="w-full justify-start rounded-none h-auto p-0 bg-transparent">
+                  <TabsList className="w-full justify-start rounded-none h-auto p-0 bg-transparent overflow-x-auto">
                     <TabsTrigger 
                       value="overview" 
                       className="rounded-none border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:bg-transparent px-6 py-3"
@@ -733,6 +738,12 @@ const AdminDeclarationsPage = ({ token }) => {
                       className="rounded-none border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:bg-transparent px-6 py-3"
                     >
                       Sezioni ({Object.keys(selectedDeclaration.sections || {}).length})
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="documents" 
+                      className="rounded-none border-b-2 border-transparent data-[state=active]:border-teal-600 data-[state=active]:bg-transparent px-6 py-3"
+                    >
+                      Documenti ({selectedDeclaration.documents_count || 0})
                     </TabsTrigger>
                     <TabsTrigger 
                       value="messages" 
@@ -933,6 +944,15 @@ const AdminDeclarationsPage = ({ token }) => {
                   </div>
                 </TabsContent>
 
+                {/* Tab Documenti */}
+                <TabsContent value="documents" className="p-6 mt-0">
+                  <DocumentsTab 
+                    declaration={selectedDeclaration}
+                    token={token}
+                    onRefresh={() => openDetail(selectedDeclaration.id)}
+                  />
+                </TabsContent>
+
                 {/* Tab Messaggi */}
                 <TabsContent value="messages" className="p-6 mt-0">
                   <div className="space-y-4">
@@ -1093,6 +1113,375 @@ const AdminDeclarationsPage = ({ token }) => {
               </Tabs>
             </CardContent>
           </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// =============================================================================
+// COMPONENTE DOCUMENTI TAB
+// =============================================================================
+
+const DocumentsTab = ({ declaration, token, onRefresh }) => {
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [selectedDocs, setSelectedDocs] = useState([]);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingZip, setDownloadingZip] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  // Carica documenti
+  const fetchDocuments = React.useCallback(async () => {
+    if (!declaration?.id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setDocuments(await res.json());
+      }
+    } catch (e) {
+      console.error('Errore caricamento documenti:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [declaration?.id, token]);
+
+  React.useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  // Upload file
+  const handleUpload = async (files) => {
+    if (!files || files.length === 0) return;
+    
+    setUploading(true);
+    let successCount = 0;
+    
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name}: Troppo grande (max 10MB)`);
+        continue;
+      }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('category', 'admin');
+      
+      try {
+        const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        
+        if (res.ok) {
+          successCount++;
+        } else {
+          const err = await res.json();
+          toast.error(`${file.name}: ${err.detail || 'Errore'}`);
+        }
+      } catch (e) {
+        toast.error(`${file.name}: Errore connessione`);
+      }
+    }
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} file caricati`);
+      fetchDocuments();
+      onRefresh();
+    }
+    setUploading(false);
+  };
+
+  // Elimina documento
+  const deleteDocument = async (docId) => {
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success('Documento eliminato');
+        fetchDocuments();
+        onRefresh();
+      }
+    } catch (e) {
+      toast.error('Errore eliminazione');
+    }
+  };
+
+  // Download PDF riepilogo
+  const downloadPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/admin/declarations/${declaration.id}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dichiarazione_${declaration.anno_fiscale}_${declaration.client_name?.replace(/\s/g, '_')}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('PDF scaricato');
+      } else {
+        toast.error('Errore download PDF');
+      }
+    } catch (e) {
+      toast.error('Errore connessione');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  // Download ZIP completo
+  const downloadZip = async () => {
+    setDownloadingZip(true);
+    try {
+      const res = await fetch(`${API_URL}/api/declarations/v2/admin/declarations/${declaration.id}/zip`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pratica_${declaration.anno_fiscale}_${declaration.client_name?.replace(/\s/g, '_')}.zip`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success('ZIP scaricato');
+      } else {
+        toast.error('Errore download ZIP');
+      }
+    } catch (e) {
+      toast.error('Errore connessione');
+    } finally {
+      setDownloadingZip(false);
+    }
+  };
+
+  // Toggle selezione documento
+  const toggleDocSelection = (docId) => {
+    setSelectedDocs(prev => 
+      prev.includes(docId) 
+        ? prev.filter(id => id !== docId)
+        : [...prev, docId]
+    );
+  };
+
+  // Seleziona tutti
+  const selectAll = () => {
+    if (selectedDocs.length === documents.length) {
+      setSelectedDocs([]);
+    } else {
+      setSelectedDocs(documents.map(d => d.id));
+    }
+  };
+
+  // Determina icona per tipo file
+  const getFileIcon = (mimeType) => {
+    if (mimeType?.includes('pdf')) return FileText;
+    if (mimeType?.includes('image')) return Image;
+    return FileText;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-teal-600" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Azioni download */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center justify-between">
+            <span>Download Pratica</span>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={downloadPdf}
+                disabled={downloadingPdf}
+                className="gap-2"
+                data-testid="download-pdf-btn"
+              >
+                {downloadingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                PDF Riepilogo
+              </Button>
+              <Button
+                onClick={downloadZip}
+                disabled={downloadingZip}
+                className="gap-2 bg-teal-600 hover:bg-teal-700"
+                data-testid="download-zip-btn"
+              >
+                {downloadingZip ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileArchive className="w-4 h-4" />}
+                ZIP Completo
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-600">
+            <strong>PDF Riepilogo:</strong> Documento con tutti i dati compilati dal cliente.
+            <br />
+            <strong>ZIP Completo:</strong> PDF riepilogativo + tutti gli allegati caricati.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Upload admin */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Carica Documento (Admin)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div 
+            className="border-2 border-dashed rounded-lg p-6 text-center hover:border-teal-400 cursor-pointer transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={(e) => { e.preventDefault(); }}
+            onDrop={(e) => { e.preventDefault(); handleUpload(e.dataTransfer.files); }}
+          >
+            {uploading ? (
+              <Loader2 className="w-8 h-8 animate-spin text-teal-500 mx-auto" />
+            ) : (
+              <>
+                <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-sm text-slate-600">Trascina file o clicca per caricare</p>
+                <p className="text-xs text-slate-400">PDF, JPG, PNG - Max 10MB</p>
+              </>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.jpg,.jpeg,.png"
+              className="hidden"
+              onChange={(e) => handleUpload(e.target.files)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Lista documenti */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center justify-between">
+            <span>Documenti Allegati ({documents.length})</span>
+            {documents.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={selectAll}>
+                {selectedDocs.length === documents.length ? 'Deseleziona tutti' : 'Seleziona tutti'}
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {documents.length === 0 ? (
+            <div className="text-center py-8 text-slate-500">
+              <Paperclip className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+              <p>Nessun documento allegato</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {documents.map(doc => {
+                const FileIcon = getFileIcon(doc.mime_type);
+                const isSelected = selectedDocs.includes(doc.id);
+                const isImage = doc.mime_type?.includes('image');
+                
+                return (
+                  <div 
+                    key={doc.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                      isSelected ? 'bg-teal-50 border-teal-300' : 'bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleDocSelection(doc.id)}
+                        className="w-4 h-4 rounded border-slate-300"
+                      />
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <FileIcon className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900 truncate">{doc.filename}</p>
+                        <p className="text-xs text-slate-500">
+                          {(doc.file_size / 1024).toFixed(1)} KB 
+                          {' - '}Caricato da {doc.uploaded_by_name}
+                          {' - '}{new Date(doc.created_at).toLocaleDateString('it-IT')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {isImage && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => setPreviewDoc(doc)}
+                          title="Anteprima"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <a
+                        href={`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents/${doc.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 hover:bg-slate-100 rounded-lg"
+                        title="Scarica"
+                      >
+                        <Download className="w-4 h-4 text-slate-600" />
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteDocument(doc.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        title="Elimina"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal anteprima immagine */}
+      {previewDoc && (
+        <div 
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div className="max-w-4xl max-h-[90vh] overflow-auto bg-white rounded-lg p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-medium">{previewDoc.filename}</h3>
+              <Button variant="ghost" size="icon" onClick={() => setPreviewDoc(null)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            <img 
+              src={`${API_URL}/api/declarations/v2/declarations/${declaration.id}/documents/${previewDoc.id}`}
+              alt={previewDoc.filename}
+              className="max-w-full"
+            />
+          </div>
         </div>
       )}
     </div>
