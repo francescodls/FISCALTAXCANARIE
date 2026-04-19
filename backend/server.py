@@ -48,6 +48,7 @@ from routes.declarations_v2 import router as declarations_v2_router
 from routes.notifications import router as notifications_router
 from routes.deadline_types import router as deadline_types_router, tax_models_router
 from routes.privacy_routes import get_privacy_router
+from routes.tax_payments import router as tax_payments_router
 
 # Import scheduler
 from scheduler import setup_scheduler, shutdown_scheduler
@@ -6815,6 +6816,7 @@ api_router.include_router(declarations_v2_router)
 api_router.include_router(notifications_router)
 api_router.include_router(deadline_types_router)
 api_router.include_router(tax_models_router)
+api_router.include_router(tax_payments_router)
 
 # Privacy router with dependencies
 privacy_router = get_privacy_router(db, get_current_user, send_generic_email)

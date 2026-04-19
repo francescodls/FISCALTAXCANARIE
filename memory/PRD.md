@@ -5,6 +5,50 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+### Fase 100 (19 Aprile 2026) - COMPLETATA ✅
+
+**Nuova Sezione Admin: Gestione Importi Tributari**
+
+Creata una nuova sezione operativa nel pannello amministratore per gestire gli importi che ogni cliente dovrà pagare per dichiarazioni e modelli tributari.
+
+1. **Backend - `routes/tax_payments.py`** (nuovo file)
+   - CRUD completo per modelli tributari (`/api/tax-payments/models`)
+   - CRUD completo per assegnazioni importi (`/api/tax-payments/assignments`)
+   - Operazioni massive (`/api/tax-payments/assignments/bulk`)
+   - Statistiche dashboard (`/api/tax-payments/stats`)
+   - Categorie clienti dinamiche (`/api/tax-payments/client-categories`)
+   - Periodi disponibili automatici (`/api/tax-payments/periods`)
+
+2. **Frontend - `TaxPaymentsManagement.jsx`** (nuovo componente)
+   - **Tab "Assegnazioni Importi"**: Lista con filtri, selezione multipla, eliminazione massiva
+   - **Tab "Modelli Tributari"**: Gestione IVA, IGIC, Mod.130, ecc. (dinamici)
+   - **Tab "Assegnazione Rapida"**: Form per assegnare importi a più clienti per categoria
+   - Header con 4 card statistiche colorate
+
+3. **Struttura dati:**
+   - `tax_models`: id, name, description, applicable_categories[], periodicity, default_due_day
+   - `payment_assignments`: client_id, tax_model_id, amount_due, due_date, period, notification_status
+
+4. **Funzionalità operative:**
+   - Creazione modelli tributari dinamici (non hardcoded)
+   - Assegnazione importi per cliente singolo o categoria
+   - Filtri: modello, categoria, stato notifica, ricerca cliente
+   - Selezione multipla con eliminazione massiva
+   - Periodi: Q1-Q4, Mesi, Anno (automatici)
+
+**File creati:**
+- `/app/backend/routes/tax_payments.py`
+- `/app/frontend/src/components/TaxPaymentsManagement.jsx`
+
+**Test eseguiti:**
+- ✅ API curl: Creazione modelli IVA e IGIC
+- ✅ API curl: Statistiche e categorie
+- ✅ Screenshot: Tab Assegnazioni, Modelli, Assegnazione Rapida
+
+**NOTA:** Questa è la Fase 1 (struttura). La Fase 2 (notifiche, email, push) verrà implementata nel prossimo prompt.
+
+---
+
 ### Fase 99 (19 Aprile 2026) - COMPLETATA ✅
 
 **Fix Download Documenti Admin + Backblaze B2 Cloud Storage**

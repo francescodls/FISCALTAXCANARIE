@@ -48,7 +48,8 @@ import {
   Building2,
   Home,
   Bell,
-  UserCog
+  UserCog,
+  Receipt
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -60,6 +61,7 @@ import GlobalFeesManagement from "@/components/GlobalFeesManagement";
 import GlobalTicketManagement from "@/components/GlobalTicketManagement";
 import AdminProfileDialog from "@/components/AdminProfileDialog";
 import NotificationsManagement from "@/components/NotificationsManagement";
+import TaxPaymentsManagement from "@/components/TaxPaymentsManagement";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 const CommercialDashboard = () => {
@@ -739,6 +741,14 @@ const CommercialDashboard = () => {
             >
               <MessageSquare className="h-4 w-4 mr-2" />
               {t('tickets.title')}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="tax-payments" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-tax-payments"
+            >
+              <Receipt className="h-4 w-4 mr-2" />
+              Importi Tributari
             </TabsTrigger>
           </TabsList>
 
@@ -1649,6 +1659,10 @@ const CommercialDashboard = () => {
           {/* Tickets Tab */}
           <TabsContent value="tickets" className="space-y-6">
             <GlobalTicketManagement token={token} />
+          </TabsContent>
+
+          <TabsContent value="tax-payments" className="space-y-6">
+            <TaxPaymentsManagement token={token} />
           </TabsContent>
         </Tabs>
 
