@@ -667,3 +667,12 @@ credentials.json
 frontend/build/downloads/FiscalTaxCanarie-Mac-v1.3.zip
 frontend/build/FiscalTaxCanarie-Windows-v1.2.zip
 frontend/build/FiscalTaxCanarie-Mac-v1.2.zip
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
