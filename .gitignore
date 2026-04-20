@@ -664,3 +664,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+frontend/build/downloads/FiscalTaxCanarie-Mac-v1.3.zip
+frontend/build/FiscalTaxCanarie-Windows-v1.2.zip
+frontend/build/FiscalTaxCanarie-Mac-v1.2.zip

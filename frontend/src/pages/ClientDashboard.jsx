@@ -35,7 +35,10 @@ import {
   Receipt,
   ArrowRight,
   Sparkles,
-  ClipboardList
+  ClipboardList,
+  Euro,
+  CreditCard,
+  History
 } from "lucide-react";
 import { format, parseISO, isSameDay } from "date-fns";
 import { it } from "date-fns/locale";
@@ -67,6 +70,11 @@ const ClientDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [notificationsHistory, setNotificationsHistory] = useState([]);
   const [documentViewMode, setDocumentViewMode] = useState("folders"); // "folders" o "list"
+  
+  // Importi da pagare state
+  const [upcomingPayments, setUpcomingPayments] = useState([]);
+  const [expiredPayments, setExpiredPayments] = useState([]);
+  const [paymentsStats, setPaymentsStats] = useState({ upcoming_count: 0, expired_count: 0, total_upcoming_amount: 0 });
   
   // Anagrafica state
   const [editingProfile, setEditingProfile] = useState(false);
@@ -113,14 +121,15 @@ const ClientDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, deadlinesRes, docsRes, payslipsRes, notesRes, modelliRes, notificationsRes] = await Promise.all([
+      const [statsRes, deadlinesRes, docsRes, payslipsRes, notesRes, modelliRes, notificationsRes, paymentsRes] = await Promise.all([
         axios.get(`${API}/stats`, { headers }),
         axios.get(`${API}/deadlines`, { headers }),
         axios.get(`${API}/documents`, { headers }),
         axios.get(`${API}/payslips`, { headers }),
         axios.get(`${API}/notes`, { headers }),
         axios.get(`${API}/modelli-tributari`, { headers }),
-        axios.get(`${API}/my-notifications-history`, { headers }).catch(() => ({ data: [] }))
+        axios.get(`${API}/my-notifications-history`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${API}/tax-payments/client/payments?status=all`, { headers }).catch(() => ({ data: { payments: [], stats: {} } }))
       ]);
       setStats(statsRes.data);
       setDeadlines(deadlinesRes.data);
@@ -129,6 +138,15 @@ const ClientDashboard = () => {
       setNotes(notesRes.data);
       setModelliTributari(modelliRes.data);
       setNotificationsHistory(notificationsRes.data);
+      
+      // Imposta i pagamenti
+      if (paymentsRes.data?.payments) {
+        const upcoming = paymentsRes.data.payments.filter(p => p.days_left >= 0);
+        const expired = paymentsRes.data.payments.filter(p => p.days_left < 0);
+        setUpcomingPayments(upcoming);
+        setExpiredPayments(expired);
+        setPaymentsStats(paymentsRes.data.stats || { upcoming_count: 0, expired_count: 0, total_upcoming_amount: 0 });
+      }
     } catch (error) {
       toast.error(t('messages.loadError'));
     } finally {
@@ -339,6 +357,14 @@ const ClientDashboard = () => {
               {t("deadlines.title")}
             </TabsTrigger>
             <TabsTrigger 
+              value="payments" 
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              data-testid="tab-payments"
+            >
+              <Euro className="h-4 w-4 mr-2" />
+              Importi
+            </TabsTrigger>
+            <TabsTrigger 
               value="documents" 
               className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
               data-testid="tab-documents"
@@ -466,6 +492,129 @@ const ClientDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* === PROSSIMI IMPORTI DA PAGARE === */}
+            {(upcomingPayments.length > 0 || expiredPayments.length > 0) && (
+              <Card className="border border-slate-200 bg-white shadow-sm" data-testid="importi-da-pagare-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="font-heading text-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Euro className="h-5 w-5 text-teal-600" />
+                      Importi da Pagare
+                    </div>
+                    {paymentsStats.upcoming_count > 0 && (
+                      <Badge className="bg-teal-100 text-teal-700 hover:bg-teal-100">
+                        {paymentsStats.upcoming_count} in scadenza
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Riepilogo Totale */}
+                  {paymentsStats.total_upcoming_amount > 0 && (
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-teal-50 to-teal-100/50 rounded-lg border border-teal-200">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-teal-600 rounded-full flex items-center justify-center">
+                          <Euro className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-slate-600">Totale da pagare</p>
+                          <p className="text-2xl font-bold text-teal-700">
+                            €{paymentsStats.total_upcoming_amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista Pagamenti in Scadenza */}
+                  {upcomingPayments.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-orange-500" />
+                        Prossime Scadenze
+                      </h4>
+                      {upcomingPayments.slice(0, 5).map((payment) => {
+                        const urgencyColors = {
+                          urgent: 'border-red-400 bg-red-50',
+                          warning: 'border-orange-400 bg-orange-50',
+                          normal: 'border-slate-200 bg-white',
+                        };
+                        const urgencyTextColors = {
+                          urgent: 'text-red-600',
+                          warning: 'text-orange-600',
+                          normal: 'text-slate-600',
+                        };
+                        const urgencyClass = urgencyColors[payment.urgency] || urgencyColors.normal;
+                        const textClass = urgencyTextColors[payment.urgency] || urgencyTextColors.normal;
+                        
+                        return (
+                          <div 
+                            key={payment.id} 
+                            className={`flex items-center justify-between p-4 rounded-lg border ${urgencyClass} transition-all hover:shadow-sm`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${payment.urgency === 'urgent' ? 'bg-red-100' : payment.urgency === 'warning' ? 'bg-orange-100' : 'bg-slate-100'}`}>
+                                <CreditCard className={`h-5 w-5 ${textClass}`} />
+                              </div>
+                              <div>
+                                <p className="font-medium text-slate-800">{payment.tax_model_name}</p>
+                                <p className="text-sm text-slate-500">{payment.period}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-bold text-lg ${textClass}`}>
+                                €{payment.amount_due.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                              </p>
+                              <p className={`text-sm flex items-center gap-1 justify-end ${textClass}`}>
+                                <Clock className="h-3 w-3" />
+                                {payment.days_left === 0 
+                                  ? 'Scade oggi' 
+                                  : payment.days_left === 1 
+                                    ? 'Scade domani' 
+                                    : `${payment.days_left} giorni`}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Storico Pagamenti Scaduti */}
+                  {expiredPayments.length > 0 && (
+                    <div className="space-y-3 pt-4 border-t border-slate-200">
+                      <h4 className="text-sm font-semibold text-slate-500 flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Storico Scaduti
+                      </h4>
+                      {expiredPayments.slice(0, 3).map((payment) => (
+                        <div 
+                          key={payment.id} 
+                          className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 opacity-75"
+                        >
+                          <div className="flex items-center gap-3">
+                            <CreditCard className="h-4 w-4 text-slate-400" />
+                            <div>
+                              <p className="font-medium text-slate-600 text-sm">{payment.tax_model_name}</p>
+                              <p className="text-xs text-slate-400">{payment.period}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-slate-500">
+                              €{payment.amount_due.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </p>
+                            <p className="text-xs text-red-400">
+                              Scaduto da {Math.abs(payment.days_left)} giorni
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -738,6 +887,149 @@ const ClientDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Payments Tab */}
+          <TabsContent value="payments" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Importi da Pagare</h2>
+              {paymentsStats.upcoming_count > 0 && (
+                <Badge className="bg-teal-100 text-teal-700">
+                  {paymentsStats.upcoming_count} in scadenza
+                </Badge>
+              )}
+            </div>
+
+            {/* Summary Card */}
+            {paymentsStats.total_upcoming_amount > 0 && (
+              <Card className="bg-gradient-to-r from-teal-500 to-teal-600 border-0">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between text-white">
+                    <div>
+                      <p className="text-teal-100 text-sm">Totale da pagare</p>
+                      <p className="text-3xl font-bold">
+                        €{paymentsStats.total_upcoming_amount.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                      <Euro className="h-8 w-8 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Upcoming Payments */}
+            {upcomingPayments.length > 0 ? (
+              <Card className="border border-slate-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-orange-500" />
+                    Prossime Scadenze
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {upcomingPayments.map((payment) => {
+                    const urgencyColors = {
+                      urgent: 'border-l-red-500 bg-red-50',
+                      warning: 'border-l-orange-500 bg-orange-50',
+                      normal: 'border-l-teal-500 bg-white',
+                    };
+                    const urgencyClass = urgencyColors[payment.urgency] || urgencyColors.normal;
+                    
+                    return (
+                      <div 
+                        key={payment.id} 
+                        className={`flex items-center justify-between p-4 rounded-lg border border-slate-200 border-l-4 ${urgencyClass}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                            payment.urgency === 'urgent' ? 'bg-red-100' : 
+                            payment.urgency === 'warning' ? 'bg-orange-100' : 'bg-teal-100'
+                          }`}>
+                            <CreditCard className={`h-6 w-6 ${
+                              payment.urgency === 'urgent' ? 'text-red-600' : 
+                              payment.urgency === 'warning' ? 'text-orange-600' : 'text-teal-600'
+                            }`} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">{payment.tax_model_name}</p>
+                            <p className="text-sm text-slate-500">{payment.period}</p>
+                            <p className="text-xs text-slate-400 mt-1">
+                              Scadenza: {format(parseISO(payment.due_date), 'dd MMMM yyyy', { locale: it })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-xl font-bold ${
+                            payment.urgency === 'urgent' ? 'text-red-600' : 
+                            payment.urgency === 'warning' ? 'text-orange-600' : 'text-teal-600'
+                          }`}>
+                            €{payment.amount_due.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                          </p>
+                          <Badge variant={
+                            payment.urgency === 'urgent' ? 'destructive' : 
+                            payment.urgency === 'warning' ? 'outline' : 'secondary'
+                          } className="mt-1">
+                            {payment.days_left === 0 
+                              ? 'Scade oggi!' 
+                              : payment.days_left === 1 
+                                ? 'Scade domani' 
+                                : `${payment.days_left} giorni`}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border border-slate-200">
+                <CardContent className="p-12 text-center">
+                  <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-green-500" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-800 mb-2">Nessun importo in scadenza</h3>
+                  <p className="text-slate-500">Non hai pagamenti da effettuare al momento.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Expired Payments (History) */}
+            {expiredPayments.length > 0 && (
+              <Card className="border border-slate-200">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg flex items-center gap-2 text-slate-500">
+                    <History className="h-5 w-5" />
+                    Storico Scaduti
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {expiredPayments.map((payment) => (
+                    <div 
+                      key={payment.id} 
+                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <CreditCard className="h-5 w-5 text-slate-400" />
+                        <div>
+                          <p className="font-medium text-slate-600">{payment.tax_model_name}</p>
+                          <p className="text-xs text-slate-400">{payment.period}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium text-slate-500">
+                          €{payment.amount_due.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-xs text-red-400">
+                          Scaduto il {format(parseISO(payment.due_date), 'dd/MM/yyyy', { locale: it })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Documents Tab */}
