@@ -8,6 +8,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Dimensions,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -28,6 +30,7 @@ import {
   ArrowRight,
   Euro,
   CreditCard,
+  X,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -97,6 +100,23 @@ export const CalendarScreen: React.FC = () => {
   // Payments data
   const [paymentsMarkedDates, setPaymentsMarkedDates] = useState<Record<string, any>>({});
   const [paymentsData, setPaymentsData] = useState<any[]>([]);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+
+  // Separa scadenze attive e scadute
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const activeDeadlines = deadlines.filter(d => {
+    const dueDate = new Date(d.date || d.due_date || '');
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate >= today;
+  }).sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
+  
+  const expiredDeadlines = deadlines.filter(d => {
+    const dueDate = new Date(d.date || d.due_date || '');
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate < today;
+  }).sort((a, b) => new Date(b.date || b.due_date || '').getTime() - new Date(a.date || a.due_date || '').getTime());
 
   useEffect(() => {
     if (token) {
@@ -211,24 +231,22 @@ export const CalendarScreen: React.FC = () => {
   };
 
   const getFilteredDeadlines = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    let filtered = deadlines;
+    // Usa solo scadenze attive (non scadute)
+    let filtered = activeDeadlines;
     
     if (filter === 'urgent') {
-      filtered = deadlines.filter(d => {
+      filtered = activeDeadlines.filter(d => {
         const deadlineDate = new Date(d.date || d.due_date || '');
         const diffDays = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         return diffDays <= 3 && d.status !== 'completed';
       });
     } else if (filter === 'pending') {
-      filtered = deadlines.filter(d => d.status !== 'completed');
+      filtered = activeDeadlines.filter(d => d.status !== 'completed');
     } else if (filter === 'completed') {
-      filtered = deadlines.filter(d => d.status === 'completed');
+      filtered = activeDeadlines.filter(d => d.status === 'completed');
     }
     
-    return filtered.sort((a, b) => new Date(a.date || a.due_date || '').getTime() - new Date(b.date || b.due_date || '').getTime());
+    return filtered;
   };
 
   const formatDate = (dateString: string) => {
@@ -400,23 +418,18 @@ export const CalendarScreen: React.FC = () => {
     const deadlinesToShow = showUnifiedList ? unifiedDeadlines : selectedDateDeadlines;
     
     // Conta scadenze per categoria (per statistiche)
-    const urgentCount = unifiedDeadlines.filter(d => {
+    const urgentCount = activeDeadlines.filter(d => {
       const daysUntil = getDaysUntil(d.date || d.due_date || '');
       return daysUntil <= 3 && daysUntil >= 0 && d.status !== 'completed';
-    }).length;
-    
-    const overdueCount = unifiedDeadlines.filter(d => {
-      const daysUntil = getDaysUntil(d.date || d.due_date || '');
-      return daysUntil < 0 && d.status !== 'completed';
     }).length;
 
     return (
       <>
         {/* Stats Banner */}
-        {unifiedDeadlines.length > 0 && (
+        {(activeDeadlines.length > 0 || expiredDeadlines.length > 0) && (
           <View style={[styles.statsBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.statItem}>
-              <Text style={[styles.statNumber, { color: colors.text }]}>{unifiedDeadlines.filter(d => d.status !== 'completed').length}</Text>
+              <Text style={[styles.statNumber, { color: colors.text }]}>{activeDeadlines.filter(d => d.status !== 'completed').length}</Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Attive</Text>
             </View>
             {urgentCount > 0 && (
@@ -425,11 +438,14 @@ export const CalendarScreen: React.FC = () => {
                 <Text style={[styles.statLabel, { color: colors.error }]}>Urgenti</Text>
               </View>
             )}
-            {overdueCount > 0 && (
-              <View style={[styles.statItem, styles.statItemOverdue]}>
-                <Text style={[styles.statNumber, { color: colors.error }]}>{overdueCount}</Text>
-                <Text style={[styles.statLabel, { color: colors.error }]}>Scadute</Text>
-              </View>
+            {expiredDeadlines.length > 0 && (
+              <TouchableOpacity 
+                style={[styles.statItem, styles.statItemOverdue]}
+                onPress={() => setShowExpiredModal(true)}
+              >
+                <Text style={[styles.statNumber, { color: colors.error }]}>{expiredDeadlines.length}</Text>
+                <Text style={[styles.statLabel, { color: colors.error }]}>Scadute ›</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -757,8 +773,65 @@ export const CalendarScreen: React.FC = () => {
     );
   }
 
+  // Render item per scadenze scadute
+  const renderExpiredItem = ({ item }: { item: Deadline }) => {
+    const daysAgo = Math.abs(getDaysUntil(item.date || item.due_date || ''));
+    return (
+      <View style={[styles.expiredItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.expiredItemIcon}>
+          <AlertCircle size={20} color={colors.error} />
+        </View>
+        <View style={styles.expiredItemContent}>
+          <Text style={[styles.expiredItemTitle, { color: colors.text }]}>{item.title}</Text>
+          {item.description && (
+            <Text style={[styles.expiredItemDesc, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.description}
+            </Text>
+          )}
+          <Text style={[styles.expiredItemDate, { color: colors.error }]}>
+            Scaduta da {daysAgo} {daysAgo === 1 ? 'giorno' : 'giorni'} • {formatShortDate(item.date || item.due_date || '')}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      {/* Modal Scadenze Scadute */}
+      <Modal
+        visible={showExpiredModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowExpiredModal(false)}
+      >
+        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.modalHeader, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Archivio Scadute</Text>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setShowExpiredModal(false)}
+            >
+              <X size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={expiredDeadlines}
+            renderItem={renderExpiredItem}
+            keyExtractor={(item) => item._id || item.id || ''}
+            contentContainerStyle={styles.expiredList}
+            ListEmptyComponent={
+              <View style={styles.emptyExpired}>
+                <CheckCircle size={48} color={colors.success} />
+                <Text style={[styles.emptyExpiredText, { color: colors.textSecondary }]}>
+                  Nessuna scadenza scaduta
+                </Text>
+              </View>
+            }
+          />
+        </SafeAreaView>
+      </Modal>
+
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>{t.deadlines.title}</Text>
@@ -1152,5 +1225,68 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#10b981',
+  },
+  // Modal scadute styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalCloseButton: {
+    padding: SPACING.xs,
+  },
+  expiredList: {
+    padding: SPACING.lg,
+  },
+  expiredItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: SPACING.md,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    marginBottom: SPACING.sm,
+  },
+  expiredItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#fee2e2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  expiredItemContent: {
+    flex: 1,
+  },
+  expiredItemTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  expiredItemDesc: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  expiredItemDate: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  emptyExpired: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xl * 2,
+  },
+  emptyExpiredText: {
+    fontSize: 16,
+    marginTop: SPACING.md,
   },
 });

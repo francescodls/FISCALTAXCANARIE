@@ -282,10 +282,32 @@ const ClientDashboard = () => {
     return typeMap[type] || type;
   };
 
-  const upcomingDeadlines = deadlines
+  // Separa scadenze attive (oggi incluso) da scadenze scadute (dal giorno dopo)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const activeDeadlines = deadlines
+    .filter(d => {
+      const dueDate = new Date(d.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate >= today; // Include oggi
+    })
+    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+  
+  const expiredDeadlines = deadlines
+    .filter(d => {
+      const dueDate = new Date(d.due_date);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate < today; // Scadute (da ieri in poi)
+    })
+    .sort((a, b) => new Date(b.due_date) - new Date(a.due_date)); // Più recenti prima
+
+  const upcomingDeadlines = activeDeadlines
     .filter(d => d.status !== "completata")
-    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
     .slice(0, 5);
+
+  // Stato per mostrare archivio scadute
+  const [showExpiredDeadlines, setShowExpiredDeadlines] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -823,37 +845,115 @@ const ClientDashboard = () => {
 
             {/* All Deadlines List */}
             <Card className="bg-white border border-slate-200">
-              <CardHeader>
-                <CardTitle className="font-heading text-xl">Tutte le Scadenze Fiscali</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="font-heading text-xl">Scadenze Programmate</CardTitle>
+                {expiredDeadlines.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={() => setShowExpiredDeadlines(!showExpiredDeadlines)}
+                  >
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    {expiredDeadlines.length} Scadute
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {deadlines.map((deadline) => (
-                    <div 
-                      key={deadline.id} 
-                      className="flex items-center justify-between p-4 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        {getStatusIcon(deadline.status)}
-                        <div>
-                          <p className="font-medium text-slate-900">{deadline.title}</p>
-                          <p className="text-sm text-slate-500">{deadline.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge className={`status-${deadline.status}`}>
-                          {getStatusLabel(deadline.status)}
-                        </Badge>
-                        <Badge className="bg-slate-100 text-slate-600 border border-slate-200">
-                          {deadline.category}
-                        </Badge>
-                        <Badge className="bg-teal-50 text-teal-700 border border-teal-100">
-                          {format(parseISO(deadline.due_date), "d MMM yyyy", { locale: it })}
-                        </Badge>
-                      </div>
+                {/* Modal/Sezione Scadute */}
+                {showExpiredDeadlines && expiredDeadlines.length > 0 && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-semibold text-red-700 flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5" />
+                        Archivio Scadenze Scadute
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowExpiredDeadlines(false)}
+                        className="text-red-600 hover:bg-red-100"
+                      >
+                        Chiudi
+                      </Button>
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {expiredDeadlines.map((deadline) => (
+                        <div 
+                          key={deadline.id} 
+                          className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-100"
+                        >
+                          <div className="flex items-center gap-3">
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                            <div>
+                              <p className="font-medium text-slate-700 text-sm">{deadline.title}</p>
+                              <p className="text-xs text-slate-500">{deadline.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-red-100 text-red-700 border-0 text-xs">
+                              Scaduta il {format(parseISO(deadline.due_date), "d MMM", { locale: it })}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista Scadenze Attive */}
+                {activeDeadlines.length > 0 ? (
+                  <div className="space-y-3">
+                    {activeDeadlines.map((deadline) => {
+                      const dueDate = new Date(deadline.due_date);
+                      dueDate.setHours(0, 0, 0, 0);
+                      const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                      const isUrgent = diffDays <= 3;
+                      const isToday = diffDays === 0;
+                      
+                      return (
+                        <div 
+                          key={deadline.id} 
+                          className={`flex items-center justify-between p-4 rounded-lg hover:shadow-sm transition-all ${
+                            isToday ? 'bg-orange-50 border border-orange-200' : 
+                            isUrgent ? 'bg-amber-50 border border-amber-200' : 
+                            'bg-stone-50 border border-stone-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-4">
+                            {getStatusIcon(deadline.status)}
+                            <div>
+                              <p className="font-medium text-slate-900">{deadline.title}</p>
+                              <p className="text-sm text-slate-500">{deadline.description}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge className={`status-${deadline.status}`}>
+                              {getStatusLabel(deadline.status)}
+                            </Badge>
+                            <Badge className="bg-slate-100 text-slate-600 border border-slate-200">
+                              {deadline.category}
+                            </Badge>
+                            <Badge className={`${
+                              isToday ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                              isUrgent ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                              'bg-teal-50 text-teal-700 border-teal-100'
+                            }`}>
+                              {isToday ? 'Oggi' : 
+                               diffDays === 1 ? 'Domani' :
+                               `${diffDays} giorni`}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-500">
+                    <CalendarIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Nessuna scadenza programmata</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
