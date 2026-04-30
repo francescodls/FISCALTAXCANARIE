@@ -31,6 +31,16 @@ class DeadlineTypeCreate(BaseModel):
     priority: str = "normale"  # bassa, normale, alta, urgente
     color: str = "#3caca4"
     icon: str = "calendar"
+    # Nuovi campi per configurazione notifiche avanzate
+    notification_config: Optional[Dict[str, Any]] = None  # Configurazione notifiche
+    # Formato: {
+    #   "enabled": true,
+    #   "channels": ["push", "email"],
+    #   "relative_reminders": [20, 15, 7, 3, 1, 0],  # Giorni prima della scadenza
+    #   "fixed_dates": [],  # Liste di date fisse specifiche
+    #   "message_template": "..."
+    # }
+    auto_assign_to_category: bool = True  # Se true, genera automaticamente le scadenze per i clienti della categoria
 
 class DeadlineTypeUpdate(BaseModel):
     name: Optional[str] = None
@@ -48,6 +58,8 @@ class DeadlineTypeUpdate(BaseModel):
     priority: Optional[str] = None
     color: Optional[str] = None
     icon: Optional[str] = None
+    notification_config: Optional[Dict[str, Any]] = None
+    auto_assign_to_category: Optional[bool] = None
 
 class TaxModelCreate(BaseModel):
     codice: str
@@ -147,6 +159,15 @@ async def create_deadline_type(data: DeadlineTypeCreate, user: dict = Depends(re
         if not tax_model:
             raise HTTPException(status_code=400, detail="Modello tributario non trovato")
     
+    # Configurazione notifiche di default se non specificata
+    notification_config = data.notification_config or {
+        "enabled": True,
+        "channels": ["push", "email"],
+        "relative_reminders": data.reminder_days or [7, 3, 1, 0],
+        "fixed_dates": [],
+        "message_template": "Promemoria: {deadline_name} scade il {due_date}"
+    }
+    
     deadline_type = {
         "id": str(uuid.uuid4()),
         "name": data.name,
@@ -164,6 +185,8 @@ async def create_deadline_type(data: DeadlineTypeCreate, user: dict = Depends(re
         "priority": data.priority,
         "color": data.color,
         "icon": data.icon,
+        "notification_config": notification_config,
+        "auto_assign_to_category": data.auto_assign_to_category,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "created_by": user["id"],
         "updated_at": datetime.now(timezone.utc).isoformat()
@@ -175,7 +198,150 @@ async def create_deadline_type(data: DeadlineTypeCreate, user: dict = Depends(re
     if "_id" in deadline_type:
         del deadline_type["_id"]
     
+    # Se auto_assign_to_category è abilitato, genera le scadenze per tutti i clienti delle categorie
+    if data.auto_assign_to_category and data.assigned_category_ids:
+        await auto_generate_deadlines_for_category(db, deadline_type, user["id"])
+    
     return deadline_type
+
+
+async def auto_generate_deadlines_for_category(db, deadline_type: dict, created_by: str):
+    """
+    Genera automaticamente le scadenze per tutti i clienti delle categorie specificate.
+    Questa funzione crea le istanze delle scadenze nel calendario di ogni cliente.
+    """
+    from datetime import date
+    
+    category_ids = deadline_type.get("assigned_category_ids", [])
+    if not category_ids:
+        return
+    
+    # Trova tutti i clienti attivi delle categorie specificate (escludi archiviati)
+    query = {
+        "role": "cliente",
+        "stato": {"$ne": "cessato"},
+        "tipo_cliente": {"$in": category_ids}
+    }
+    
+    clients = await db.users.find(query, {"_id": 0, "id": 1, "full_name": 1}).to_list(None)
+    
+    if not clients:
+        return
+    
+    # Calcola le date di scadenza per l'anno corrente e prossimo
+    current_year = date.today().year
+    due_dates = calculate_deadline_dates(deadline_type, current_year)
+    due_dates.extend(calculate_deadline_dates(deadline_type, current_year + 1))
+    
+    # Crea le scadenze per ogni cliente
+    deadlines_to_insert = []
+    
+    for client in clients:
+        for due_date in due_dates:
+            # Determina il periodo (es: "1T 2026", "2T 2026", etc.)
+            period = get_period_label(deadline_type["frequency"], due_date)
+            
+            deadline = {
+                "id": str(uuid.uuid4()),
+                "title": f"{deadline_type['name']} - {period}",
+                "description": deadline_type.get("description", ""),
+                "due_date": due_date.isoformat(),
+                "date": due_date.isoformat(),
+                "category": deadline_type.get("name", "Fiscale"),
+                "status": "da_fare",
+                "priority": deadline_type.get("priority", "normale"),
+                "color": deadline_type.get("color", "#3caca4"),
+                "client_ids": [client["id"]],
+                "deadline_type_id": deadline_type["id"],
+                "tax_model_id": deadline_type.get("tax_model_id"),
+                "notification_config": deadline_type.get("notification_config"),
+                "auto_generated": True,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": created_by
+            }
+            deadlines_to_insert.append(deadline)
+    
+    if deadlines_to_insert:
+        await db.deadlines.insert_many(deadlines_to_insert)
+        
+    return len(deadlines_to_insert)
+
+
+def calculate_deadline_dates(deadline_type: dict, year: int) -> list:
+    """Calcola le date di scadenza per un anno specifico in base alla frequenza"""
+    from datetime import date
+    import calendar
+    
+    dates = []
+    frequency = deadline_type.get("frequency", "trimestrale")
+    due_day = deadline_type.get("due_day") or 20
+    
+    if frequency == "annuale":
+        due_month = deadline_type.get("due_month") or 4
+        # Gestisci il giorno corretto per il mese
+        last_day = calendar.monthrange(year, due_month)[1]
+        actual_day = min(due_day, last_day)
+        dates.append(date(year, due_month, actual_day))
+        
+    elif frequency == "semestrale":
+        for month in [6, 12]:
+            last_day = calendar.monthrange(year, month)[1]
+            actual_day = min(due_day, last_day)
+            dates.append(date(year, month, actual_day))
+            
+    elif frequency == "trimestrale":
+        # Scadenze tipiche: aprile, luglio, ottobre, gennaio (dell'anno dopo per il 4T)
+        quarters = [(4, year), (7, year), (10, year), (1, year + 1)]
+        for month, y in quarters:
+            if y == year or (y == year + 1 and month == 1):
+                last_day = calendar.monthrange(y, month)[1]
+                actual_day = min(due_day, last_day)
+                dates.append(date(y, month, actual_day))
+                
+    elif frequency == "mensile":
+        for month in range(1, 13):
+            last_day = calendar.monthrange(year, month)[1]
+            actual_day = min(due_day, last_day)
+            dates.append(date(year, month, actual_day))
+            
+    elif frequency == "una_tantum":
+        due_month = deadline_type.get("due_month") or date.today().month
+        last_day = calendar.monthrange(year, due_month)[1]
+        actual_day = min(due_day, last_day)
+        dates.append(date(year, due_month, actual_day))
+    
+    # Filtra date passate di più di 30 giorni
+    today = date.today()
+    from datetime import timedelta
+    cutoff = today - timedelta(days=30)
+    dates = [d for d in dates if d >= cutoff]
+    
+    return dates
+
+
+def get_period_label(frequency: str, due_date) -> str:
+    """Genera un'etichetta per il periodo basata sulla frequenza e data"""
+    year = due_date.year
+    month = due_date.month
+    
+    if frequency == "trimestrale":
+        if month in [1, 2, 3]:
+            return f"4T {year - 1}"  # Gennaio è il 4T dell'anno precedente
+        elif month in [4, 5, 6]:
+            return f"1T {year}"
+        elif month in [7, 8, 9]:
+            return f"2T {year}"
+        else:
+            return f"3T {year}"
+    elif frequency == "semestrale":
+        return f"{'1S' if month <= 6 else '2S'} {year}"
+    elif frequency == "mensile":
+        mesi = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+        return f"{mesi[month-1]} {year}"
+    elif frequency == "annuale":
+        return str(year)
+    else:
+        return f"{due_date.strftime('%d/%m/%Y')}"
 
 @router.put("/{type_id}")
 async def update_deadline_type(
@@ -304,6 +470,90 @@ async def generate_deadlines_from_type(
         "clients_count": len(clients),
         "dates_count": len(due_dates)
     }
+
+
+@router.post("/assign-to-client/{client_id}")
+async def assign_deadlines_to_client(
+    client_id: str,
+    user: dict = Depends(require_commercialista)
+):
+    """
+    Assegna automaticamente tutte le scadenze pertinenti a un cliente.
+    Utile quando un cliente viene creato o cambia categoria.
+    """
+    db = get_db()
+    from datetime import date
+    
+    # Trova il cliente
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    if client.get("stato") == "cessato":
+        raise HTTPException(status_code=400, detail="Cliente archiviato, impossibile assegnare scadenze")
+    
+    client_category = client.get("tipo_cliente")
+    if not client_category:
+        return {"message": "Cliente senza categoria, nessuna scadenza assegnata", "count": 0}
+    
+    # Trova tutti i tipi di scadenza attivi per la categoria del cliente
+    deadline_types = await db.deadline_types.find({
+        "is_active": True,
+        "auto_assign_to_category": True,
+        "assigned_category_ids": client_category
+    }, {"_id": 0}).to_list(None)
+    
+    if not deadline_types:
+        return {"message": "Nessun tipo di scadenza configurato per questa categoria", "count": 0}
+    
+    current_year = date.today().year
+    deadlines_created = 0
+    
+    for dt in deadline_types:
+        # Calcola le date per l'anno corrente e prossimo
+        due_dates = calculate_deadline_dates(dt, current_year)
+        due_dates.extend(calculate_deadline_dates(dt, current_year + 1))
+        
+        for due_date in due_dates:
+            # Verifica se esiste già questa scadenza per questo cliente
+            existing = await db.deadlines.find_one({
+                "client_ids": client_id,
+                "deadline_type_id": dt["id"],
+                "due_date": due_date.isoformat()
+            })
+            
+            if existing:
+                continue
+            
+            period = get_period_label(dt["frequency"], due_date)
+            
+            deadline = {
+                "id": str(uuid.uuid4()),
+                "title": f"{dt['name']} - {period}",
+                "description": dt.get("description", ""),
+                "due_date": due_date.isoformat(),
+                "date": due_date.isoformat(),
+                "category": dt.get("name", "Fiscale"),
+                "status": "da_fare",
+                "priority": dt.get("priority", "normale"),
+                "color": dt.get("color", "#3caca4"),
+                "client_ids": [client_id],
+                "deadline_type_id": dt["id"],
+                "tax_model_id": dt.get("tax_model_id"),
+                "notification_config": dt.get("notification_config"),
+                "auto_generated": True,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": user["id"]
+            }
+            
+            await db.deadlines.insert_one(deadline)
+            deadlines_created += 1
+    
+    return {
+        "message": f"Scadenze assegnate al cliente {client.get('full_name', client_id)}",
+        "count": deadlines_created
+    }
+
 
 # ==================== TAX MODELS ENDPOINTS ====================
 

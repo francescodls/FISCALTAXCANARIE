@@ -18,7 +18,7 @@ import {
   Calendar, Plus, Settings, FileText, Trash2, Edit, Check, X,
   Users, User, Building2, Home, Briefcase, Search, Clock,
   AlertTriangle, RefreshCw, Repeat, ChevronRight, Eye,
-  ListChecks, BookOpen, Sparkles
+  ListChecks, BookOpen, Sparkles, Bell, Mail, CalendarDays
 } from "lucide-react";
 
 // Categorie clienti
@@ -440,11 +440,35 @@ const DeadlineTypeForm = ({ initialData, taxModels, clients, token, onSuccess, o
     assigned_client_ids: initialData?.assigned_client_ids || [],
     is_active: initialData?.is_active ?? true,
     priority: initialData?.priority || "normale",
-    color: initialData?.color || "#3caca4"
+    color: initialData?.color || "#3caca4",
+    auto_assign_to_category: initialData?.auto_assign_to_category ?? true,
+    notification_config: initialData?.notification_config || {
+      enabled: true,
+      channels: ["push", "email"],
+      relative_reminders: [20, 15, 7, 3, 1, 0],
+      fixed_dates: [],
+      message_template: "Promemoria: {deadline_name} scade il {due_date}"
+    }
   });
 
   const [clientSearch, setClientSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showFixedDateInput, setShowFixedDateInput] = useState(false);
+  const [newFixedDate, setNewFixedDate] = useState("");
+
+  // Opzioni promemoria relativi
+  const REMINDER_OPTIONS = [
+    { days: 30, label: "30 giorni prima" },
+    { days: 20, label: "20 giorni prima" },
+    { days: 15, label: "15 giorni prima" },
+    { days: 10, label: "10 giorni prima" },
+    { days: 7, label: "7 giorni prima" },
+    { days: 5, label: "5 giorni prima" },
+    { days: 3, label: "3 giorni prima" },
+    { days: 2, label: "2 giorni prima" },
+    { days: 1, label: "1 giorno prima" },
+    { days: 0, label: "Il giorno stesso" },
+  ];
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -471,6 +495,69 @@ const DeadlineTypeForm = ({ initialData, taxModels, clients, token, onSuccess, o
     const q = clientSearch.toLowerCase();
     return c.full_name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q);
   });
+
+  // Toggle promemoria relativo
+  const toggleRelativeReminder = (days) => {
+    setData(prev => {
+      const current = prev.notification_config?.relative_reminders || [];
+      const updated = current.includes(days)
+        ? current.filter(d => d !== days)
+        : [...current, days].sort((a, b) => b - a);
+      return {
+        ...prev,
+        notification_config: {
+          ...prev.notification_config,
+          relative_reminders: updated
+        }
+      };
+    });
+  };
+
+  // Aggiungi data fissa
+  const addFixedDate = () => {
+    if (!newFixedDate) return;
+    setData(prev => {
+      const current = prev.notification_config?.fixed_dates || [];
+      if (current.includes(newFixedDate)) return prev;
+      return {
+        ...prev,
+        notification_config: {
+          ...prev.notification_config,
+          fixed_dates: [...current, newFixedDate].sort()
+        }
+      };
+    });
+    setNewFixedDate("");
+    setShowFixedDateInput(false);
+  };
+
+  // Rimuovi data fissa
+  const removeFixedDate = (date) => {
+    setData(prev => ({
+      ...prev,
+      notification_config: {
+        ...prev.notification_config,
+        fixed_dates: (prev.notification_config?.fixed_dates || []).filter(d => d !== date)
+      }
+    }));
+  };
+
+  // Toggle canale notifica
+  const toggleChannel = (channel) => {
+    setData(prev => {
+      const current = prev.notification_config?.channels || [];
+      const updated = current.includes(channel)
+        ? current.filter(c => c !== channel)
+        : [...current, channel];
+      return {
+        ...prev,
+        notification_config: {
+          ...prev.notification_config,
+          channels: updated
+        }
+      };
+    });
+  };
 
   const handleSubmit = async () => {
     if (!data.name.trim()) {
@@ -727,6 +814,182 @@ const DeadlineTypeForm = ({ initialData, taxModels, clients, token, onSuccess, o
             ))}
           </div>
         </ScrollArea>
+      </div>
+
+      {/* ====== SEZIONE NOTIFICHE ====== */}
+      <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+        <div className="flex items-center gap-2 mb-4">
+          <Bell className="h-5 w-5 text-blue-600" />
+          <h3 className="font-semibold text-blue-900">Configurazione Notifiche</h3>
+          <Switch
+            checked={data.notification_config?.enabled ?? true}
+            onCheckedChange={(c) => setData(p => ({
+              ...p,
+              notification_config: { ...p.notification_config, enabled: c }
+            }))}
+          />
+        </div>
+
+        {data.notification_config?.enabled && (
+          <div className="space-y-4">
+            {/* Canali di notifica */}
+            <div>
+              <Label className="text-sm text-slate-600 mb-2 block">Canali di Notifica</Label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => toggleChannel("push")}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                    data.notification_config?.channels?.includes("push")
+                      ? "bg-blue-100 border-blue-300 text-blue-700"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Bell className="h-4 w-4" />
+                  <span className="text-sm">Push</span>
+                  {data.notification_config?.channels?.includes("push") && (
+                    <Check className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleChannel("email")}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                    data.notification_config?.channels?.includes("email")
+                      ? "bg-blue-100 border-blue-300 text-blue-700"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Mail className="h-4 w-4" />
+                  <span className="text-sm">Email</span>
+                  {data.notification_config?.channels?.includes("email") && (
+                    <Check className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Promemoria Relativi */}
+            <div>
+              <Label className="text-sm text-slate-600 mb-2 block">
+                Promemoria Relativi alla Scadenza
+              </Label>
+              <p className="text-xs text-slate-500 mb-3">
+                Seleziona quando inviare i promemoria rispetto alla data di scadenza
+              </p>
+              <div className="grid grid-cols-5 gap-2">
+                {REMINDER_OPTIONS.map(({ days, label }) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => toggleRelativeReminder(days)}
+                    className={`px-2 py-1.5 text-xs rounded border transition-all ${
+                      data.notification_config?.relative_reminders?.includes(days)
+                        ? "bg-blue-500 border-blue-500 text-white"
+                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {data.notification_config?.relative_reminders?.length > 0 && (
+                <p className="text-xs text-blue-600 mt-2">
+                  ✓ {data.notification_config.relative_reminders.length} promemoria configurati
+                </p>
+              )}
+            </div>
+
+            {/* Date Fisse */}
+            <div>
+              <Label className="text-sm text-slate-600 mb-2 block">
+                Date Fisse Personalizzate
+              </Label>
+              <p className="text-xs text-slate-500 mb-3">
+                Aggiungi date specifiche per promemoria extra (opzionale)
+              </p>
+              
+              {data.notification_config?.fixed_dates?.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {data.notification_config.fixed_dates.map(date => (
+                    <Badge key={date} className="bg-purple-100 text-purple-700 pr-1">
+                      <CalendarDays className="h-3 w-3 mr-1" />
+                      {new Date(date).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })}
+                      <button onClick={() => removeFixedDate(date)} className="ml-1 hover:text-purple-900">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {showFixedDateInput ? (
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={newFixedDate}
+                    onChange={(e) => setNewFixedDate(e.target.value)}
+                    className="w-40"
+                  />
+                  <Button size="sm" onClick={addFixedDate} disabled={!newFixedDate}>
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowFixedDateInput(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowFixedDateInput(true)}
+                  className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Aggiungi data
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ====== AUTO-ASSEGNAZIONE ====== */}
+      <div className="border border-green-200 rounded-lg p-4 bg-green-50/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-green-600" />
+            <div>
+              <h3 className="font-semibold text-green-900">Assegnazione Automatica</h3>
+              <p className="text-xs text-green-700">
+                Genera automaticamente le scadenze per tutti i clienti delle categorie selezionate
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={data.auto_assign_to_category}
+            onCheckedChange={(c) => setData(p => ({ ...p, auto_assign_to_category: c }))}
+          />
+        </div>
+        {data.auto_assign_to_category && data.assigned_category_ids.length > 0 && (
+          <div className="mt-3 p-3 bg-white rounded-lg border border-green-200">
+            <p className="text-sm text-green-700">
+              <Sparkles className="h-4 w-4 inline mr-1" />
+              Quando crei questo tipo, le scadenze verranno generate automaticamente per:
+            </p>
+            <ul className="mt-2 space-y-1">
+              {data.assigned_category_ids.map(catId => {
+                const cat = CLIENT_CATEGORIES.find(c => c.id === catId);
+                return cat ? (
+                  <li key={catId} className="text-sm text-slate-600 flex items-center gap-2">
+                    <Check className="h-3 w-3 text-green-500" />
+                    Tutti i clienti <strong>{cat.label}</strong>
+                  </li>
+                ) : null;
+              })}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Attivo */}
