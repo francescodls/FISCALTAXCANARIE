@@ -49,7 +49,9 @@ import {
   Home,
   Bell,
   UserCog,
-  Receipt
+  Receipt,
+  Archive,
+  ArchiveRestore
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { it } from "date-fns/locale";
@@ -69,6 +71,8 @@ const CommercialDashboard = () => {
   const { t } = useLanguage();
   const [stats, setStats] = useState({});
   const [clients, setClients] = useState([]);
+  const [archivedClients, setArchivedClients] = useState([]);
+  const [showArchivedClients, setShowArchivedClients] = useState(false);
   const [activityLogs, setActivityLogs] = useState([]);
   const [pendingDocs, setPendingDocs] = useState([]);
   const [scheduledNotifications, setScheduledNotifications] = useState([]);
@@ -217,9 +221,10 @@ const CommercialDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, clientsRes, logsRes, pendingRes, invitationsRes, scheduledRes] = await Promise.all([
+      const [statsRes, clientsRes, archivedRes, logsRes, pendingRes, invitationsRes, scheduledRes] = await Promise.all([
         axios.get(`${API}/stats`, { headers }),
         axios.get(`${API}/clients`, { headers }),
+        axios.get(`${API}/clients?only_archived=true`, { headers }),
         axios.get(`${API}/activity-logs?limit=20`, { headers }),
         axios.get(`${API}/documents/pending-verification`, { headers }),
         axios.get(`${API}/invitations`, { headers }),
@@ -227,6 +232,7 @@ const CommercialDashboard = () => {
       ]);
       setStats(statsRes.data);
       setClients(clientsRes.data);
+      setArchivedClients(archivedRes.data);
       setActivityLogs(logsRes.data);
       setPendingDocs(pendingRes.data);
       setPendingInvitations(invitationsRes.data);
@@ -380,6 +386,31 @@ const CommercialDashboard = () => {
       fetchData(); // Ricarica per aggiornare la lista
     } catch (error) {
       toast.error(error.response?.data?.detail || "Errore nel reinvio dell'invito");
+    }
+  };
+
+  // Archivia cliente
+  const handleArchiveClient = async (clientId, clientName) => {
+    if (!window.confirm(`Sei sicuro di voler archiviare "${clientName}"?\n\nIl cliente non riceverà più notifiche massive e non comparirà nella lista principale, ma tutti i dati e documenti resteranno salvati.`)) {
+      return;
+    }
+    try {
+      await axios.post(`${API}/clients/${clientId}/archive`, {}, { headers });
+      toast.success(`${clientName} archiviato con successo`);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nell'archiviazione");
+    }
+  };
+
+  // Ripristina cliente archiviato
+  const handleRestoreClient = async (clientId, clientName) => {
+    try {
+      await axios.post(`${API}/clients/${clientId}/restore`, {}, { headers });
+      toast.success(`${clientName} ripristinato con successo`);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Errore nel ripristino");
     }
   };
 
@@ -747,7 +778,22 @@ const CommercialDashboard = () => {
           <TabsContent value="clients">
             <Card className="bg-white border border-slate-200">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="font-heading text-xl">{t("clients.myClients")}</CardTitle>
+                <div className="flex items-center gap-4">
+                  <CardTitle className="font-heading text-xl">
+                    {showArchivedClients ? "Clienti Archiviati" : t("clients.myClients")}
+                  </CardTitle>
+                  {archivedClients.length > 0 && (
+                    <Button
+                      variant={showArchivedClients ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowArchivedClients(!showArchivedClients)}
+                      className={showArchivedClients ? "bg-slate-600 hover:bg-slate-700" : ""}
+                    >
+                      <Archive className="h-4 w-4 mr-2" />
+                      {showArchivedClients ? "Mostra Attivi" : `Archiviati (${archivedClients.length})`}
+                    </Button>
+                  )}
+                </div>
                 <div className="flex items-center gap-4">
                   <div className="relative w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -770,13 +816,14 @@ const CommercialDashboard = () => {
                       <SelectItem value="privato">{t("clients.private")}</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Dialog open={showCreateDialog} onOpenChange={(open) => {
-                    if (open) {
-                      setShowCreateDialog(true);
-                    } else {
-                      closeCreateDialog();
-                    }
-                  }}>
+                  {!showArchivedClients && (
+                    <Dialog open={showCreateDialog} onOpenChange={(open) => {
+                      if (open) {
+                        setShowCreateDialog(true);
+                      } else {
+                        closeCreateDialog();
+                      }
+                    }}>
                     <DialogTrigger asChild>
                       <Button className="bg-teal-500 hover:bg-teal-600 active:bg-slate-900 active:scale-95 text-white transition-all" data-testid="create-client-btn">
                         <Plus className="h-4 w-4 mr-2" />
@@ -979,6 +1026,7 @@ const CommercialDashboard = () => {
                       )}
                     </DialogContent>
                   </Dialog>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -1038,24 +1086,50 @@ const CommercialDashboard = () => {
                 )}
 
                 {/* Lista Clienti Registrati */}
-                {filteredClients.length > 0 ? (
+                {(showArchivedClients ? archivedClients : filteredClients).length > 0 ? (
                   <div className="space-y-3">
-                    {filteredClients.map((client) => (
+                    {(showArchivedClients ? archivedClients : filteredClients)
+                      .filter(c => {
+                        if (!searchTerm) return true;
+                        const term = searchTerm.toLowerCase();
+                        return c.full_name?.toLowerCase().includes(term) ||
+                               c.email?.toLowerCase().includes(term) ||
+                               c.codice_fiscale?.toLowerCase().includes(term);
+                      })
+                      .map((client) => (
                       <div 
                         key={client.id} 
-                        className="flex items-center justify-between p-4 bg-stone-50 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer group"
+                        className={`flex items-center justify-between p-4 rounded-lg transition-colors cursor-pointer group ${
+                          showArchivedClients ? 'bg-slate-100 hover:bg-slate-200' : 'bg-stone-50 hover:bg-stone-100'
+                        }`}
                         onClick={() => navigate(`/admin/client/${client.id}`)}
                         data-testid={`client-row-${client.id}`}
                       >
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-white rounded-full border border-slate-200 flex items-center justify-center">
-                            <User className="h-6 w-6 text-slate-400" />
+                          <div className={`w-12 h-12 rounded-full border flex items-center justify-center ${
+                            showArchivedClients ? 'bg-slate-200 border-slate-300' : 'bg-white border-slate-200'
+                          }`}>
+                            {showArchivedClients ? (
+                              <Archive className="h-5 w-5 text-slate-400" />
+                            ) : (
+                              <User className="h-6 w-6 text-slate-400" />
+                            )}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-slate-900">{client.full_name || "In attesa di registrazione"}</p>
-                              {getStatusBadge(client.stato)}
-                              {getTipoClienteBadge(client.tipo_cliente)}
+                              <p className={`font-medium ${showArchivedClients ? 'text-slate-600' : 'text-slate-900'}`}>
+                                {client.full_name || "In attesa di registrazione"}
+                              </p>
+                              {showArchivedClients ? (
+                                <Badge className="bg-slate-200 text-slate-600 border border-slate-300">
+                                  Archiviato
+                                </Badge>
+                              ) : (
+                                <>
+                                  {getStatusBadge(client.stato)}
+                                  {getTipoClienteBadge(client.tipo_cliente)}
+                                </>
+                              )}
                             </div>
                             <p className="text-sm text-slate-500">
                               {client.email || client.email_notifica || "Nessuna email"}
@@ -1086,6 +1160,27 @@ const CommercialDashboard = () => {
                               {client.notes_count}
                             </Badge>
                           </div>
+                          {/* Pulsante Archivia/Ripristina */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={showArchivedClients ? "text-green-600 hover:text-green-700 hover:bg-green-50" : "text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (showArchivedClients) {
+                                handleRestoreClient(client.id, client.full_name);
+                              } else {
+                                handleArchiveClient(client.id, client.full_name);
+                              }
+                            }}
+                            title={showArchivedClients ? "Ripristina cliente" : "Archivia cliente"}
+                          >
+                            {showArchivedClients ? (
+                              <ArchiveRestore className="h-4 w-4" />
+                            ) : (
+                              <Archive className="h-4 w-4" />
+                            )}
+                          </Button>
                           <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-teal-500 transition-colors" />
                         </div>
                       </div>
@@ -1093,10 +1188,19 @@ const CommercialDashboard = () => {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <p className="text-slate-500">
-                      {searchTerm ? "Nessun cliente trovato" : "Nessun cliente registrato"}
-                    </p>
+                    {showArchivedClients ? (
+                      <>
+                        <Archive className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                        <p className="text-slate-500">Nessun cliente archiviato</p>
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                        <p className="text-slate-500">
+                          {searchTerm ? "Nessun cliente trovato" : "Nessun cliente registrato"}
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>

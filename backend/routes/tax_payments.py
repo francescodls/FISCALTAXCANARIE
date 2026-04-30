@@ -396,10 +396,13 @@ async def bulk_create_assignments(
             errors.append({"client_id": None, "error": "client_id mancante"})
             continue
         
-        # Verifica cliente
-        client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+        # Verifica cliente (escludi archiviati)
+        client = await db.users.find_one(
+            {"id": client_id, "role": "cliente", "stato": {"$ne": "cessato"}}, 
+            {"_id": 0}
+        )
         if not client:
-            errors.append({"client_id": client_id, "error": "Cliente non trovato"})
+            errors.append({"client_id": client_id, "error": "Cliente non trovato o archiviato"})
             continue
         
         # Cerca esistente
@@ -891,9 +894,9 @@ async def send_bulk_notifications(
     # Raccogli tutti i client_id
     client_ids = list(set(a["client_id"] for a in assignments))
     
-    # Trova tutti i clienti
+    # Trova tutti i clienti ATTIVI (escludi archiviati)
     clients = await db.users.find(
-        {"id": {"$in": client_ids}},
+        {"id": {"$in": client_ids}, "stato": {"$ne": "cessato"}},
         {"_id": 0, "id": 1, "full_name": 1, "email": 1, "push_token": 1}
     ).to_list(None)
     

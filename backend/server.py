@@ -1533,6 +1533,8 @@ async def cancel_invite(invite_id: str, user: dict = Depends(require_super_admin
 async def get_clients(
     tipo_cliente: Optional[str] = None,
     list_id: Optional[str] = None,
+    include_archived: bool = False,
+    only_archived: bool = False,
     user: dict = Depends(require_commercialista)
 ):
     query = {"role": "cliente"}
@@ -1540,6 +1542,12 @@ async def get_clients(
         query["tipo_cliente"] = tipo_cliente
     if list_id:
         query["lists"] = list_id
+    
+    # Filtra per stato archiviazione
+    if only_archived:
+        query["stato"] = "cessato"
+    elif not include_archived:
+        query["stato"] = {"$ne": "cessato"}
     
     clients = await db.users.find(query, {"_id": 0, "password": 0}).to_list(1000)
     
@@ -1721,6 +1729,61 @@ async def delete_client(client_id: str, permanent: bool = False, user: dict = De
         
         await log_activity("archiviazione_cliente", f"Cliente {client_id} archiviato", user["id"])
         return {"message": "Cliente archiviato"}
+
+# Endpoint dedicato per archiviare un cliente
+@api_router.post("/clients/{client_id}/archive")
+async def archive_client(client_id: str, user: dict = Depends(require_commercialista)):
+    """Archivia un cliente (lo rimuove dalla vista operativa senza eliminare dati)"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    if client.get("stato") == "cessato":
+        raise HTTPException(status_code=400, detail="Cliente già archiviato")
+    
+    result = await db.users.update_one(
+        {"id": client_id, "role": "cliente"},
+        {"$set": {
+            "stato": "cessato",
+            "archived_at": datetime.now(timezone.utc).isoformat(),
+            "archived_by": user["id"]
+        }}
+    )
+    
+    await log_activity("archiviazione_cliente", f"Cliente {client.get('full_name', client_id)} archiviato", user["id"])
+    return {"message": "Cliente archiviato con successo", "client_id": client_id}
+
+# Endpoint per ripristinare un cliente archiviato
+@api_router.post("/clients/{client_id}/restore")
+async def restore_client(client_id: str, user: dict = Depends(require_commercialista)):
+    """Ripristina un cliente archiviato"""
+    client = await db.users.find_one({"id": client_id, "role": "cliente"}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    
+    if client.get("stato") != "cessato":
+        raise HTTPException(status_code=400, detail="Cliente non è archiviato")
+    
+    result = await db.users.update_one(
+        {"id": client_id, "role": "cliente"},
+        {"$set": {"stato": "attivo"},
+         "$unset": {"archived_at": "", "archived_by": ""}}
+    )
+    
+    await log_activity("ripristino_cliente", f"Cliente {client.get('full_name', client_id)} ripristinato", user["id"])
+    return {"message": "Cliente ripristinato con successo", "client_id": client_id}
+
+# Endpoint per ottenere statistiche clienti archiviati
+@api_router.get("/clients/archived/stats")
+async def get_archived_clients_stats(user: dict = Depends(require_commercialista)):
+    """Ottiene statistiche sui clienti archiviati"""
+    total_archived = await db.users.count_documents({"role": "cliente", "stato": "cessato"})
+    total_active = await db.users.count_documents({"role": "cliente", "stato": {"$ne": "cessato"}})
+    
+    return {
+        "total_archived": total_archived,
+        "total_active": total_active
+    }
 
 # ==================== CLIENT LISTS (CATEGORIE) ====================
 
