@@ -8,7 +8,6 @@ from .fees import router as fees_router
 from .admin import router as admin_router
 
 # New modular routes
-from .tickets import router as tickets_router, admin_router as tickets_admin_router
 from .fees_routes import router as fees_global_router, client_fees_router
 from .declarations import router as declarations_router
 
@@ -21,8 +20,6 @@ __all__ = [
     "fees_router",
     "admin_router",
     # New routes
-    "tickets_router",
-    "tickets_admin_router",
     "fees_global_router",
     "client_fees_router",
     "declarations_router",

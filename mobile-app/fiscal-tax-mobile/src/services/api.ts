@@ -192,38 +192,6 @@ class ApiService {
     return this.request('/api/notifications/read-all', { method: 'PUT' });
   }
 
-  // Ticket
-  async getTickets() {
-    return this.request<any[]>('/api/tickets', {}, true); // cached
-  }
-
-  async getTicketDetails(ticketId: string) {
-    return this.request<any>(`/api/tickets/${ticketId}`);
-  }
-
-  async createTicket(data: { subject: string; message: string; category?: string; priority?: string }) {
-    this.clearCache('/api/tickets'); // Invalidate cache
-    return this.request('/api/tickets', {
-      method: 'POST',
-      body: JSON.stringify({ 
-        subject: data.subject, 
-        content: data.message,  // Backend usa 'content' invece di 'message'
-      }),
-    });
-  }
-
-  async getTicketMessages(ticketId: string) {
-    return this.request<any[]>(`/api/tickets/${ticketId}/messages`);
-  }
-
-  async sendTicketMessage(ticketId: string, message: string) {
-    this.clearCache('/api/tickets'); // Invalidate cache
-    return this.request(`/api/tickets/${ticketId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({ content: message }),
-    });
-  }
-
   // Scadenze
   async getDeadlines() {
     return this.request<any[]>('/api/deadlines', {}, true); // cached
@@ -342,7 +310,6 @@ class ApiService {
       this.getDocuments().catch(() => []),
       this.getDeadlines().catch(() => []),
       this.getNotifications().catch(() => []),
-      this.getTickets().catch(() => []),
     ]);
   }
 

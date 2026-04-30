@@ -58,7 +58,6 @@ import ConsulentiManagement from "@/components/ConsulentiManagement";
 import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import GlobalFeesManagement from "@/components/GlobalFeesManagement";
-import GlobalTicketManagement from "@/components/GlobalTicketManagement";
 import AdminProfileDialog from "@/components/AdminProfileDialog";
 import NotificationsManagement from "@/components/NotificationsManagement";
 import TaxPaymentsManagement from "@/components/TaxPaymentsManagement";
@@ -733,14 +732,6 @@ const CommercialDashboard = () => {
             >
               <Euro className="h-4 w-4 mr-2" />
               {t('fees.title')}
-            </TabsTrigger>
-            <TabsTrigger 
-              value="tickets" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
-              data-testid="tab-tickets"
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              {t('tickets.title')}
             </TabsTrigger>
             <TabsTrigger 
               value="tax-payments" 
@@ -1654,11 +1645,6 @@ const CommercialDashboard = () => {
           {/* Fees Tab */}
           <TabsContent value="fees" className="space-y-6">
             <GlobalFeesManagement token={token} />
-          </TabsContent>
-
-          {/* Tickets Tab */}
-          <TabsContent value="tickets" className="space-y-6">
-            <GlobalTicketManagement token={token} />
           </TabsContent>
 
           <TabsContent value="tax-payments" className="space-y-6">

@@ -41,7 +41,6 @@ import secrets
 
 # Import modular routes
 from routes.deps import set_db
-from routes.tickets import router as tickets_router, admin_router as tickets_admin_router
 from routes.fees_routes import router as fees_global_router, client_fees_router
 from routes.declarations import router as declarations_router
 from routes.declarations_v2 import router as declarations_v2_router
@@ -1188,16 +1187,13 @@ async def delete_account(user: dict = Depends(get_current_user)):
         # 6. Elimina le scadenze personali dell'utente
         await db.deadlines.delete_many({"client_id": user_id})
         
-        # 7. Elimina i ticket dell'utente
-        await db.tickets.delete_many({"client_id": user_id})
-        
-        # 8. Elimina i thread di comunicazione dell'utente
+        # 7. Elimina i thread di comunicazione dell'utente
         await db.communication_threads.delete_many({"client_id": user_id})
         
-        # 9. Elimina i reset password pendenti
+        # 8. Elimina i reset password pendenti
         await db.password_resets.delete_many({"user_id": user_id})
         
-        # 10. Infine, elimina l'utente stesso
+        # 9. Infine, elimina l'utente stesso
         result = await db.users.delete_one({"id": user_id})
         
         if result.deleted_count == 0:
@@ -6807,8 +6803,6 @@ async def reply_to_communication_thread(
 
 # Include router and middleware
 # Include modular routes (new refactored routes)
-api_router.include_router(tickets_router)
-api_router.include_router(tickets_admin_router)
 api_router.include_router(fees_global_router)
 api_router.include_router(client_fees_router)
 api_router.include_router(declarations_router)
@@ -6842,7 +6836,6 @@ from push_service import (
     send_document_notification,
     send_deadline_notification,
     send_message_notification,
-    send_ticket_reply_notification,
     send_custom_notification,
     get_client_push_tokens
 )

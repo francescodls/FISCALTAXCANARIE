@@ -55,7 +55,6 @@ import EmployeeManagementAdmin from "@/components/EmployeeManagementAdmin";
 import ClientNotificationsHistory from "@/components/ClientNotificationsHistory";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
-import TicketManagementAdmin from "@/components/TicketManagementAdmin";
 import CompanyStructureSection from "@/components/CompanyStructureSection";
 
 const ClientDetail = () => {
@@ -839,10 +838,6 @@ const ClientDetail = () => {
                     <Calendar className="h-4 w-4 mr-2" />
                     {deadlines.length} Scadenze
                   </Badge>
-                  <Badge className="bg-purple-50 text-purple-700 border border-purple-100 px-4 py-2">
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Ticket
-                  </Badge>
                   <Button
                     variant="outline"
                     onClick={async () => {
@@ -909,14 +904,6 @@ const ClientDetail = () => {
             >
               <Calendar className="h-4 w-4 mr-2" />
               Scadenze
-            </TabsTrigger>
-            <TabsTrigger 
-              value="tickets" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-6"
-              data-testid="tab-tickets"
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Ticket
             </TabsTrigger>
             <TabsTrigger 
               value="notifications" 
@@ -1448,16 +1435,6 @@ const ClientDetail = () => {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Tickets Tab */}
-          <TabsContent value="tickets" className="space-y-6">
-            <TicketManagementAdmin 
-              token={token}
-              clientId={clientId}
-              clientName={client?.full_name}
-              API={API}
-            />
           </TabsContent>
 
           {/* Deadlines Tab */}

@@ -7,45 +7,22 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  TextInput,
-  Modal,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import {
-  MessageSquare,
   Mail,
-  Plus,
   Clock,
   CheckCircle,
-  AlertCircle,
   ChevronRight,
-  X,
-  Send,
-  Tag,
   User,
+  Bell,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
 import { CardSkeleton } from '../components/UIStates';
-
-interface Ticket {
-  _id: string;
-  id?: string;
-  subject: string;
-  status: 'open' | 'pending' | 'in_progress' | 'waiting_client' | 'closed';
-  category?: string;
-  created_at: string;
-  updated_at?: string;
-  last_message?: string;
-  unread_count?: number;
-}
 
 interface Message {
   _id: string;
@@ -69,31 +46,14 @@ interface CommunicationThread {
   created_by_name?: string;
 }
 
-const TICKET_CATEGORIES = [
-  { id: 'contabilita', labelKey: 'accounting', icon: '📊' },
-  { id: 'imposte', labelKey: 'taxes', icon: '💰' },
-  { id: 'documenti', labelKey: 'documents', icon: '📄' },
-  { id: 'societa', labelKey: 'corporate', icon: '🏢' },
-  { id: 'assistenza', labelKey: 'support', icon: '❓' },
-];
-
 export const CommunicationsScreen: React.FC = () => {
   const { token } = useAuth();
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
-  const [activeTab, setActiveTab] = useState<'messages' | 'tickets'>('messages');
-  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [threads, setThreads] = useState<CommunicationThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // New ticket modal
-  const [showNewTicket, setShowNewTicket] = useState(false);
-  const [newTicketCategory, setNewTicketCategory] = useState('');
-  const [newTicketSubject, setNewTicketSubject] = useState('');
-  const [newTicketMessage, setNewTicketMessage] = useState('');
-  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -104,13 +64,11 @@ export const CommunicationsScreen: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [ticketsData, notificationsData, threadsData] = await Promise.all([
-        apiService.getTickets().catch(() => []),
+      const [notificationsData, threadsData] = await Promise.all([
         apiService.getNotifications().catch(() => []),
         apiService.getCommunicationThreads().catch(() => []),
       ]);
       
-      setTickets(ticketsData);
       setThreads(threadsData || []);
       
       // Convert notifications to messages format
@@ -136,76 +94,11 @@ export const CommunicationsScreen: React.FC = () => {
     setRefreshing(false);
   }, []);
 
-  const createTicket = async () => {
-    // Validazione
-    if (!newTicketCategory) {
-      Alert.alert(t.common.error, t.tickets.selectCategory);
-      return;
-    }
-    if (!newTicketSubject.trim()) {
-      Alert.alert(t.common.error, t.tickets.enterSubject);
-      return;
-    }
-    if (!newTicketMessage.trim()) {
-      Alert.alert(t.common.error, t.tickets.enterMessage);
-      return;
-    }
-    if (newTicketMessage.trim().length < 10) {
-      Alert.alert(t.common.error, t.tickets.messageMinLength);
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const result = await apiService.createTicket({
-        subject: newTicketSubject.trim(),
-        message: newTicketMessage.trim(),
-        category: newTicketCategory,
-      });
-      
-      // Reset form
-      setNewTicketSubject('');
-      setNewTicketMessage('');
-      setNewTicketCategory('');
-      setShowNewTicket(false);
-      
-      // Ricarica i dati
-      await loadData();
-      
-      // Feedback successo
-      Alert.alert(
-        t.tickets.ticketSent,
-        t.tickets.ticketSentDesc,
-        [{ text: t.common.ok }]
-      );
-    } catch (error: any) {
-      console.error('Error creating ticket:', error);
-      Alert.alert(
-        t.common.error,
-        error?.message || t.tickets.ticketError,
-        [{ text: t.common.retry }]
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; bgColor: string; icon: any; text: string }> = {
-      'open': { color: COLORS.info, bgColor: COLORS.info + '15', icon: Clock, text: t.tickets.status.open },
-      'pending': { color: COLORS.warning, bgColor: COLORS.warning + '15', icon: Clock, text: t.tickets.status.pending },
-      'in_progress': { color: COLORS.primary, bgColor: COLORS.primary + '15', icon: AlertCircle, text: t.tickets.status.inProgress },
-      'waiting_client': { color: '#8b5cf6', bgColor: '#8b5cf6' + '15', icon: User, text: t.tickets.status.waitingClient },
-      'closed': { color: COLORS.success, bgColor: COLORS.success + '15', icon: CheckCircle, text: t.tickets.status.closed },
-    };
-    return configs[status] || configs['open'];
-  };
-
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
       const now = new Date();
-      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffTime = now.getTime() - date.getTime();
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays === 0) {
@@ -222,343 +115,143 @@ export const CommunicationsScreen: React.FC = () => {
     }
   };
 
-  const renderTicket = ({ item }: { item: Ticket }) => {
-    const statusConfig = getStatusConfig(item.status);
-    const StatusIcon = statusConfig.icon;
-
-    return (
-      <TouchableOpacity
-        style={styles.ticketCard}
-        onPress={() => {
-          navigation.navigate('TicketDetail', { ticketId: item._id || item.id });
-        }}
-        activeOpacity={0.7}
-      >
-        <View style={styles.ticketHeader}>
-          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
-            <StatusIcon size={14} color={statusConfig.color} />
-            <Text style={[styles.statusText, { color: statusConfig.color }]}>
-              {statusConfig.text}
-            </Text>
-          </View>
-          <Text style={styles.ticketDate}>{formatDate(item.updated_at || item.created_at)}</Text>
-        </View>
-        
-        <Text style={styles.ticketSubject} numberOfLines={1}>{item.subject}</Text>
-        
-        {item.last_message && (
-          <Text style={styles.ticketLastMessage} numberOfLines={2}>
-            {item.last_message}
-          </Text>
-        )}
-        
-        <View style={styles.ticketFooter}>
-          {item.category && (
-            <View style={styles.categoryTag}>
-              <Tag size={12} color={COLORS.textSecondary} />
-              <Text style={styles.categoryText}>{item.category}</Text>
-            </View>
-          )}
-          <ChevronRight size={20} color={COLORS.textLight} />
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderMessage = ({ item }: { item: Message }) => (
-    <TouchableOpacity
-      style={[styles.messageCard, !item.read && styles.messageUnread]}
-      activeOpacity={0.7}
-    >
-      <View style={styles.messageIconContainer}>
-        <Mail size={20} color={item.read ? COLORS.textSecondary : COLORS.primary} />
-      </View>
-      <View style={styles.messageContent}>
-        <View style={styles.messageHeader}>
-          <Text style={[styles.messageTitle, !item.read && styles.messageTitleUnread]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.messageDate}>{formatDate(item.created_at)}</Text>
-        </View>
-        <Text style={styles.messagePreview} numberOfLines={2}>{item.content}</Text>
-      </View>
-      {!item.read && <View style={styles.unreadDot} />}
-    </TouchableOpacity>
-  );
-
-  // Render thread item (admin communications with replies)
   const renderThread = ({ item }: { item: CommunicationThread }) => {
-    const lastMessage = item.messages[item.messages.length - 1];
     const isUnread = !item.read_by_client;
-    
+    const lastMessage = item.messages && item.messages.length > 0 
+      ? item.messages[item.messages.length - 1] 
+      : null;
+
     return (
       <TouchableOpacity
-        style={[styles.threadCard, isUnread && styles.threadCardUnread]}
+        style={[styles.threadCard, isUnread && styles.unreadCard]}
         onPress={() => navigation.navigate('ThreadDetail', { threadId: item.id })}
         activeOpacity={0.7}
       >
-        <View style={[styles.threadIconContainer, isUnread && styles.threadIconUnread]}>
-          <MessageSquare size={20} color={isUnread ? '#fff' : COLORS.textSecondary} />
+        <View style={styles.threadIcon}>
+          <Mail size={24} color={isUnread ? COLORS.light.primary : COLORS.light.textSecondary} />
         </View>
         <View style={styles.threadContent}>
-          <View style={styles.threadHeaderRow}>
-            <Text style={[styles.threadSubject, isUnread && styles.threadSubjectUnread]} numberOfLines={1}>
+          <View style={styles.threadHeader}>
+            <Text style={[styles.threadSubject, isUnread && styles.unreadText]} numberOfLines={1}>
               {item.subject}
             </Text>
-            {isUnread && <View style={styles.newBadge}><Text style={styles.newBadgeText}>Nuovo</Text></View>}
+            {isUnread && <View style={styles.unreadDot} />}
           </View>
-          <Text style={styles.threadFrom}>Da: Fiscal Tax Canarie</Text>
-          <Text style={styles.threadPreview} numberOfLines={2}>
-            {lastMessage?.content || ''}
-          </Text>
-          <View style={styles.threadFooter}>
-            <Text style={styles.threadDate}>{formatDate(item.updated_at || item.created_at)}</Text>
-            <View style={styles.replyHint}>
-              <Text style={styles.replyHintText}>Tocca per rispondere</Text>
-              <ChevronRight size={14} color={COLORS.primary} />
-            </View>
+          {lastMessage && (
+            <Text style={styles.threadPreview} numberOfLines={2}>
+              {lastMessage.content}
+            </Text>
+          )}
+          <View style={styles.threadMeta}>
+            <User size={12} color={COLORS.light.textSecondary} />
+            <Text style={styles.threadMetaText}>
+              {item.created_by_name || 'Studio'}
+            </Text>
+            <Clock size={12} color={COLORS.light.textSecondary} style={{ marginLeft: 12 }} />
+            <Text style={styles.threadMetaText}>
+              {formatDate(item.updated_at || item.created_at)}
+            </Text>
           </View>
         </View>
+        <ChevronRight size={20} color={COLORS.light.textSecondary} />
       </TouchableOpacity>
     );
   };
 
-  // Combined data for messages tab
-  const getCombinedMessagesData = () => {
-    const combined: any[] = [];
-    
-    // Add threads first (admin communications)
-    threads.forEach(thread => {
-      combined.push({
-        ...thread,
-        _itemType: 'thread',
-        _sortDate: thread.updated_at || thread.created_at,
-      });
-    });
-    
-    // Add regular notifications
-    messages.forEach(msg => {
-      combined.push({
-        ...msg,
-        _itemType: 'message',
-        _sortDate: msg.created_at,
-      });
-    });
-    
-    // Sort by date descending
-    combined.sort((a, b) => new Date(b._sortDate).getTime() - new Date(a._sortDate).getTime());
-    
-    return combined;
+  const renderMessage = ({ item }: { item: Message }) => {
+    return (
+      <TouchableOpacity
+        style={[styles.messageCard, !item.read && styles.unreadCard]}
+        activeOpacity={0.7}
+      >
+        <View style={styles.messageIcon}>
+          <Bell size={20} color={!item.read ? COLORS.light.primary : COLORS.light.textSecondary} />
+        </View>
+        <View style={styles.messageContent}>
+          <Text style={[styles.messageTitle, !item.read && styles.unreadText]} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text style={styles.messagePreview} numberOfLines={2}>
+            {item.content}
+          </Text>
+          <Text style={styles.messageDate}>{formatDate(item.created_at)}</Text>
+        </View>
+        {!item.read && <View style={styles.unreadDot} />}
+      </TouchableOpacity>
+    );
   };
 
-  const renderCombinedItem = ({ item }: { item: any }) => {
-    if (item._itemType === 'thread') {
-      return renderThread({ item });
-    }
-    return renderMessage({ item });
-  };
-
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIcon}>
-        {activeTab === 'tickets' ? (
-          <MessageSquare size={48} color={COLORS.textLight} />
-        ) : (
-          <Mail size={48} color={COLORS.textLight} />
-        )}
-      </View>
-      <Text style={styles.emptyTitle}>
-        {activeTab === 'tickets' ? t.tickets.noTickets : t.tickets.noMessages}
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Mail size={64} color={COLORS.light.textSecondary} style={{ opacity: 0.5 }} />
+      <Text style={styles.emptyTitle}>{t.notifications.noNotifications}</Text>
+      <Text style={styles.emptySubtitle}>
+        Le comunicazioni dallo studio appariranno qui
       </Text>
-      <Text style={styles.emptyText}>
-        {activeTab === 'tickets'
-          ? t.tickets.noTicketsDesc
-          : t.tickets.noMessagesDesc}
-      </Text>
-      {activeTab === 'tickets' && (
-        <TouchableOpacity
-          style={styles.emptyButton}
-          onPress={() => setShowNewTicket(true)}
-        >
-          <Plus size={18} color="#ffffff" />
-          <Text style={styles.emptyButtonText}>{t.tickets.openTicket}</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t.tickets.title}</Text>
+          <Text style={styles.headerTitle}>{t.communications?.title || 'Comunicazioni'}</Text>
         </View>
-        <View style={{ padding: 24 }}>
-          <CardSkeleton count={5} />
+        <View style={styles.loadingContainer}>
+          {[1, 2, 3].map((i) => (
+            <CardSkeleton key={i} style={{ marginBottom: 12 }} />
+          ))}
         </View>
       </SafeAreaView>
     );
   }
 
+  const allItems = [...threads, ...messages.filter(m => !threads.some(th => th.id === m._id))];
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t.tickets.title}</Text>
-        {activeTab === 'tickets' && (
-          <TouchableOpacity
-            style={styles.newButton}
-            onPress={() => setShowNewTicket(true)}
-          >
-            <Plus size={20} color="#ffffff" />
-          </TouchableOpacity>
-        )}
+        <Text style={styles.headerTitle}>{t.communications?.title || 'Comunicazioni'}</Text>
+        <Text style={styles.headerSubtitle}>
+          {threads.filter(th => !th.read_by_client).length + messages.filter(m => !m.read).length} non lette
+        </Text>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'messages' && styles.tabActive]}
-          onPress={() => setActiveTab('messages')}
-        >
-          <Mail size={18} color={activeTab === 'messages' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'messages' && styles.tabTextActive]}>
-            {t.tickets.messages}
-          </Text>
-          {(threads.filter(th => !th.read_by_client).length + messages.filter(m => !m.read).length) > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>
-                {threads.filter(th => !th.read_by_client).length + messages.filter(m => !m.read).length}
-              </Text>
+      {threads.length === 0 && messages.length === 0 ? (
+        renderEmpty()
+      ) : (
+        <>
+          {/* Threads Section */}
+          {threads.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Messaggi dallo Studio</Text>
+              <FlatList
+                data={threads}
+                renderItem={renderThread}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.listContent}
+              />
             </View>
           )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'tickets' && styles.tabActive]}
-          onPress={() => setActiveTab('tickets')}
-        >
-          <MessageSquare size={18} color={activeTab === 'tickets' ? COLORS.primary : COLORS.textSecondary} />
-          <Text style={[styles.tabText, activeTab === 'tickets' && styles.tabTextActive]}>
-            {t.tickets.tickets}
-          </Text>
-          {tickets.filter(t => t.status !== 'closed').length > 0 && (
-            <View style={styles.tabBadge}>
-              <Text style={styles.tabBadgeText}>
-                {tickets.filter(t => t.status !== 'closed').length}
-              </Text>
+
+          {/* Notifications Section */}
+          {messages.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Notifiche</Text>
+              <FlatList
+                data={messages}
+                renderItem={renderMessage}
+                keyExtractor={(item) => item._id}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+                contentContainerStyle={styles.listContent}
+              />
             </View>
           )}
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <FlatList
-        data={activeTab === 'tickets' ? tickets : getCombinedMessagesData()}
-        renderItem={activeTab === 'tickets' ? renderTicket as any : renderCombinedItem}
-        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={COLORS.primary}
-          />
-        }
-        ListEmptyComponent={renderEmptyState}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {/* New Ticket Modal */}
-      <Modal
-        visible={showNewTicket}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowNewTicket(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-          >
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowNewTicket(false)}>
-                <X size={24} color={COLORS.text} />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>{t.tickets.newTicket}</Text>
-              <View style={{ width: 24 }} />
-            </View>
-
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {/* Category Selection */}
-              <Text style={styles.inputLabel}>{t.tickets.category}</Text>
-              <View style={styles.categoriesGrid}>
-                {TICKET_CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.id}
-                    style={[
-                      styles.categoryCard,
-                      newTicketCategory === cat.id && styles.categoryCardActive,
-                    ]}
-                    onPress={() => setNewTicketCategory(cat.id)}
-                  >
-                    <Text style={styles.categoryEmoji}>{cat.icon}</Text>
-                    <Text style={[
-                      styles.categoryLabel,
-                      newTicketCategory === cat.id && styles.categoryLabelActive,
-                    ]}>
-                      {t.tickets.categoryOptions[cat.labelKey as keyof typeof t.tickets.categoryOptions]}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Subject */}
-              <Text style={styles.inputLabel}>{t.tickets.subject}</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder={t.tickets.subjectPlaceholder}
-                placeholderTextColor={COLORS.textLight}
-                value={newTicketSubject}
-                onChangeText={setNewTicketSubject}
-                maxLength={100}
-              />
-
-              {/* Message */}
-              <Text style={styles.inputLabel}>{t.tickets.message}</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                placeholder={t.tickets.messagePlaceholder}
-                placeholderTextColor={COLORS.textLight}
-                value={newTicketMessage}
-                onChangeText={setNewTicketMessage}
-                multiline
-                maxLength={1000}
-                textAlignVertical="top"
-              />
-
-              {/* Submit Button */}
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  (!newTicketCategory || !newTicketSubject.trim() || !newTicketMessage.trim() || creating) &&
-                    styles.submitButtonDisabled,
-                ]}
-                onPress={createTicket}
-                disabled={!newTicketCategory || !newTicketSubject.trim() || !newTicketMessage.trim() || creating}
-              >
-                {creating ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <>
-                    <Send size={18} color="#ffffff" />
-                    <Text style={styles.submitButtonText}>{t.tickets.sendTicket}</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
+        </>
+      )}
     </SafeAreaView>
   );
 };
@@ -566,415 +259,158 @@ export const CommunicationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fb',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: COLORS.light.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.light.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.light.border,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: COLORS.text,
-    letterSpacing: -0.5,
+    color: COLORS.light.text,
   },
-  newButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    gap: 12,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
-    gap: 8,
-  },
-  tabActive: {
-    backgroundColor: COLORS.primary + '15',
-  },
-  tabText: {
+  headerSubtitle: {
     fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-  },
-  tabTextActive: {
-    color: COLORS.primary,
-  },
-  tabBadge: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  tabBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  listContent: {
-    padding: 24,
-    paddingBottom: 100,
-  },
-  ticketCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  ticketHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 5,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  ticketDate: {
-    fontSize: 12,
-    color: COLORS.textLight,
-  },
-  ticketSubject: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  ticketLastMessage: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  ticketFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  categoryTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  categoryText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  messageCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  messageUnread: {
-    backgroundColor: COLORS.primary + '08',
-    borderColor: COLORS.primary + '30',
-  },
-  messageIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  messageContent: {
-    flex: 1,
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  messageTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: COLORS.text,
-    flex: 1,
-    marginRight: 8,
-  },
-  messageTitleUnread: {
-    fontWeight: '600',
-  },
-  messageDate: {
-    fontSize: 12,
-    color: COLORS.textLight,
-  },
-  messagePreview: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-  },
-  unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.primary,
-    marginLeft: 8,
+    color: COLORS.light.textSecondary,
     marginTop: 4,
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
+  loadingContainer: {
+    padding: SPACING.lg,
   },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+  section: {
+    marginTop: SPACING.md,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 25,
-    gap: 8,
-  },
-  emptyButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 24,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginBottom: 12,
-    marginTop: 20,
-  },
-  categoriesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  categoryCard: {
-    width: '48%',
-    backgroundColor: '#f8f9fb',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  categoryCardActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
-  },
-  categoryEmoji: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  categoryLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  categoryLabelActive: {
-    color: COLORS.primary,
-    fontWeight: '600',
-  },
-  textInput: {
-    backgroundColor: '#f8f9fb',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: COLORS.text,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  textArea: {
-    height: 120,
-    textAlignVertical: 'top',
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: 14,
-    marginTop: 24,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: COLORS.textLight,
-  },
-  submitButtonText: {
+  sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: COLORS.light.text,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
   },
-  // Thread styles
+  listContent: {
+    paddingHorizontal: SPACING.lg,
+  },
   threadCard: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    alignItems: 'center',
+    backgroundColor: COLORS.light.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: COLORS.light.border,
   },
-  threadCardUnread: {
-    borderColor: COLORS.primary,
-    borderLeftWidth: 4,
+  unreadCard: {
+    backgroundColor: '#f0fdf4',
+    borderColor: COLORS.light.primary,
   },
-  threadIconContainer: {
+  threadIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f1f5f9',
-    justifyContent: 'center',
+    backgroundColor: COLORS.light.background,
     alignItems: 'center',
-    marginRight: 14,
-  },
-  threadIconUnread: {
-    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    marginRight: SPACING.md,
   },
   threadContent: {
     flex: 1,
   },
-  threadHeaderRow: {
+  threadHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-    gap: 8,
   },
   threadSubject: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: COLORS.light.text,
     flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
   },
-  threadSubjectUnread: {
+  unreadText: {
     fontWeight: '700',
   },
-  newBadge: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  newBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#ffffff',
-    textTransform: 'uppercase',
-  },
-  threadFrom: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginBottom: 6,
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.light.primary,
+    marginLeft: 8,
   },
   threadPreview: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    lineHeight: 18,
-    marginBottom: 8,
+    fontSize: 14,
+    color: COLORS.light.textSecondary,
+    marginTop: 4,
   },
-  threadFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  threadDate: {
-    fontSize: 11,
-    color: COLORS.textLight,
-  },
-  replyHint: {
+  threadMeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 8,
   },
-  replyHintText: {
+  threadMetaText: {
     fontSize: 12,
-    color: COLORS.primary,
+    color: COLORS.light.textSecondary,
+    marginLeft: 4,
+  },
+  messageCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.light.surface,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.light.border,
+  },
+  messageIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.light.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.md,
+  },
+  messageContent: {
+    flex: 1,
+  },
+  messageTitle: {
+    fontSize: 15,
     fontWeight: '500',
+    color: COLORS.light.text,
+  },
+  messagePreview: {
+    fontSize: 13,
+    color: COLORS.light.textSecondary,
+    marginTop: 2,
+  },
+  messageDate: {
+    fontSize: 12,
+    color: COLORS.light.textSecondary,
+    marginTop: 4,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.xl,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.light.text,
+    marginTop: SPACING.lg,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: COLORS.light.textSecondary,
+    marginTop: SPACING.sm,
+    textAlign: 'center',
   },
 });
+
+export default CommunicationsScreen;
