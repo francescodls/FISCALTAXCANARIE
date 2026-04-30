@@ -16,7 +16,8 @@ scheduler = AsyncIOScheduler()
 async def check_deadline_reminders():
     """
     Controlla le scadenze e invia promemoria automatici.
-    Eseguito ogni giorno alle 9:00.
+    Eseguito ogni giorno alle 9:00 e 18:00.
+    Legge la notification_config personalizzata da ogni scadenza o tipo scadenza.
     """
     from server import db, notify_deadline_reminder
     from push_service import send_deadline_notification
@@ -25,13 +26,14 @@ async def check_deadline_reminders():
     
     try:
         today = datetime.now(timezone.utc).date()
-        reminder_days = [7, 3, 1, 0]  # Giorni prima della scadenza
+        today_str = today.isoformat()
+        default_reminder_days = [7, 3, 1, 0]  # Giorni di default
         sent_count = 0
         errors = []
         
-        # Trova tutte le scadenze attive
+        # Trova tutte le scadenze attive (non completate e non scadute da troppo)
         deadlines = await db.deadlines.find({
-            "status": {"$ne": "completed"}
+            "status": {"$nin": ["completed", "completata", "annullata"]}
         }).to_list(1000)
         
         for deadline in deadlines:
@@ -47,8 +49,31 @@ async def check_deadline_reminders():
                     
                 days_until = (due_date - today).days
                 
-                # Verifica se oggi è un giorno di promemoria
-                if days_until in reminder_days:
+                # Determina i giorni di promemoria dalla configurazione
+                notification_config = deadline.get("notification_config") or {}
+                
+                # Se non c'è config nella scadenza, prova a caricarla dal tipo scadenza
+                if not notification_config and deadline.get("deadline_type_id"):
+                    deadline_type = await db.deadline_types.find_one(
+                        {"id": deadline["deadline_type_id"]},
+                        {"_id": 0, "notification_config": 1}
+                    )
+                    if deadline_type:
+                        notification_config = deadline_type.get("notification_config") or {}
+                
+                # Verifica se le notifiche sono abilitate
+                if notification_config.get("enabled") is False:
+                    continue
+                
+                # Usa i giorni personalizzati o quelli di default
+                reminder_days = notification_config.get("relative_reminders") or default_reminder_days
+                
+                # Verifica anche le date fisse
+                fixed_dates = notification_config.get("fixed_dates") or []
+                is_fixed_date = today_str in fixed_dates
+                
+                # Verifica se oggi è un giorno di promemoria (relativo o fisso)
+                if days_until in reminder_days or is_fixed_date:
                     # Ottieni i clienti associati
                     client_ids = deadline.get("client_ids", [])
                     if not client_ids and deadline.get("client_id"):
@@ -67,20 +92,24 @@ async def check_deadline_reminders():
                     
                     days_text = "oggi" if days_until == 0 else f"tra {days_until} giorni"
                     
+                    # Determina i canali di notifica
+                    channels = notification_config.get("channels") or ["push", "email"]
+                    
                     for client in clients:
                         client_id = client.get("id") or str(client.get("_id"))
                         
                         try:
-                            # Push notification
-                            await send_deadline_notification(
-                                db,
-                                client_id,
-                                f"[Promemoria] {deadline['title']} - {days_text}",
-                                deadline.get("id") or str(deadline.get("_id")),
-                                due_date_str
-                            )
+                            # Push notification (solo se canale abilitato)
+                            if "push" in channels:
+                                await send_deadline_notification(
+                                    db,
+                                    client_id,
+                                    f"[Promemoria] {deadline['title']} - {days_text}",
+                                    deadline.get("id") or str(deadline.get("_id")),
+                                    due_date_str
+                                )
                             
-                            # Notifica in-app
+                            # Notifica in-app (sempre attiva)
                             import uuid
                             await db.client_notifications.insert_one({
                                 "id": str(uuid.uuid4()),
@@ -94,8 +123,8 @@ async def check_deadline_reminders():
                                 "created_at": datetime.now(timezone.utc).isoformat()
                             })
                             
-                            # Email (se disponibile)
-                            if client.get("email"):
+                            # Email (solo se canale abilitato e email disponibile)
+                            if "email" in channels and client.get("email"):
                                 try:
                                     await notify_deadline_reminder(
                                         client_email=client["email"],

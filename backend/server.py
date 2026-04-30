@@ -45,7 +45,7 @@ from routes.fees_routes import router as fees_global_router, client_fees_router
 from routes.declarations import router as declarations_router
 from routes.declarations_v2 import router as declarations_v2_router
 from routes.notifications import router as notifications_router
-from routes.deadline_types import router as deadline_types_router, tax_models_router
+from routes.deadline_types import router as deadline_types_router, tax_models_router, auto_assign_deadlines_to_client_internal
 from routes.privacy_routes import get_privacy_router
 from routes.tax_payments import router as tax_payments_router
 
@@ -364,10 +364,10 @@ class DeadlineResponse(BaseModel):
     description: str
     due_date: str
     category: str
-    is_recurring: bool
+    is_recurring: bool = False
     recurrence_type: Optional[str] = None
     recurrence_end_date: Optional[str] = None
-    applies_to_all: bool
+    applies_to_all: bool = False
     client_ids: List[str]
     list_ids: List[str] = []
     status: str
@@ -378,6 +378,11 @@ class DeadlineResponse(BaseModel):
     last_reminder_sent: Optional[str] = None
     next_occurrence: Optional[str] = None
     created_at: Optional[str] = None
+    # Nuovi campi per auto-generazione
+    deadline_type_id: Optional[str] = None
+    tax_model_id: Optional[str] = None
+    notification_config: Optional[Dict[str, Any]] = None
+    auto_generated: bool = False
 
 class ClientInListResponse(BaseModel):
     id: str
@@ -803,6 +808,19 @@ async def register(request: Request, user_data: UserCreate):
             logger.warning(f"Sincronizzazione Brevo fallita per {user_data.email}: {brevo_result.get('error')}")
     except Exception as e:
         logger.error(f"Errore sincronizzazione Brevo: {e}")
+    
+    # Auto-assegna scadenze standard basate sulla categoria del cliente
+    try:
+        assign_result = await auto_assign_deadlines_to_client_internal(
+            db=db,
+            client_id=user_id,
+            client_category=tipo_cliente,
+            created_by="system"
+        )
+        if assign_result.get("count", 0) > 0:
+            logger.info(f"Auto-assegnate {assign_result['count']} scadenze al cliente {user_data.email}")
+    except Exception as e:
+        logger.error(f"Errore auto-assegnazione scadenze per {user_data.email}: {e}")
     
     token = create_token(user_id, user_data.email, "cliente")
     user_response = UserResponse(
@@ -1689,6 +1707,19 @@ async def update_client(client_id: str, update_data: ClientUpdate, user: dict = 
                     logger.warning(f"Aggiornamento lista Brevo fallito per {client['email']}: {brevo_result.get('error')}")
             except Exception as e:
                 logger.error(f"Errore aggiornamento lista Brevo: {e}")
+            
+            # Auto-assegna nuove scadenze per la nuova categoria
+            try:
+                assign_result = await auto_assign_deadlines_to_client_internal(
+                    db=db,
+                    client_id=client_id,
+                    client_category=tipo_cliente,
+                    created_by=user["id"]
+                )
+                if assign_result.get("count", 0) > 0:
+                    logger.info(f"Auto-assegnate {assign_result['count']} scadenze al cliente {client_id} dopo cambio categoria")
+            except Exception as e:
+                logger.error(f"Errore auto-assegnazione scadenze dopo cambio categoria: {e}")
     
     result = await db.users.update_one({"id": client_id, "role": "cliente"}, {"$set": update_dict})
     if result.matched_count == 0:
@@ -4433,12 +4464,29 @@ async def create_client(client_data: ClientCreate, user: dict = Depends(require_
         user["id"]
     )
     
+    # Auto-assegna scadenze standard basate sulla categoria del cliente
+    tipo_cliente = client_data.tipo_cliente or "autonomo"
+    deadlines_assigned = 0
+    try:
+        assign_result = await auto_assign_deadlines_to_client_internal(
+            db=db,
+            client_id=client_id,
+            client_category=tipo_cliente,
+            created_by=user["id"]
+        )
+        deadlines_assigned = assign_result.get("count", 0)
+        if deadlines_assigned > 0:
+            logger.info(f"Auto-assegnate {deadlines_assigned} scadenze al cliente {client_data.full_name}")
+    except Exception as e:
+        logger.error(f"Errore auto-assegnazione scadenze per {client_data.full_name}: {e}")
+    
     return {
         "success": True,
-        "message": f"Cliente '{client_data.full_name}' creato con successo" + (f". Invito inviato a {client_data.email}" if email_sent else ""),
+        "message": f"Cliente '{client_data.full_name}' creato con successo" + (f". Invito inviato a {client_data.email}" if email_sent else "") + (f". {deadlines_assigned} scadenze assegnate" if deadlines_assigned > 0 else ""),
         "client_id": client_id,
         "invitation_link": invitation_link,
-        "email_sent": email_sent
+        "email_sent": email_sent,
+        "deadlines_assigned": deadlines_assigned
     }
 
 # ==================== CLIENT INVITATION ROUTES (legacy) ====================

@@ -252,10 +252,17 @@ async def auto_generate_deadlines_for_category(db, deadline_type: dict, created_
                 "priority": deadline_type.get("priority", "normale"),
                 "color": deadline_type.get("color", "#3caca4"),
                 "client_ids": [client["id"]],
+                "list_ids": [],
+                "applies_to_all": False,
+                "is_recurring": deadline_type.get("frequency") != "una_tantum",
+                "recurrence_type": deadline_type.get("frequency"),
                 "deadline_type_id": deadline_type["id"],
                 "tax_model_id": deadline_type.get("tax_model_id"),
                 "notification_config": deadline_type.get("notification_config"),
                 "auto_generated": True,
+                "send_notification": True,
+                "send_reminders": True,
+                "reminder_days": deadline_type.get("reminder_days", [7, 3, 1, 0]),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "created_by": created_by
             }
@@ -538,10 +545,17 @@ async def assign_deadlines_to_client(
                 "priority": dt.get("priority", "normale"),
                 "color": dt.get("color", "#3caca4"),
                 "client_ids": [client_id],
+                "list_ids": [],
+                "applies_to_all": False,
+                "is_recurring": dt.get("frequency") != "una_tantum",
+                "recurrence_type": dt.get("frequency"),
                 "deadline_type_id": dt["id"],
                 "tax_model_id": dt.get("tax_model_id"),
                 "notification_config": dt.get("notification_config"),
                 "auto_generated": True,
+                "send_notification": True,
+                "send_reminders": True,
+                "reminder_days": dt.get("reminder_days", [7, 3, 1, 0]),
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "created_by": user["id"]
             }
@@ -556,6 +570,91 @@ async def assign_deadlines_to_client(
 
 
 # ==================== TAX MODELS ENDPOINTS ====================
+
+# ==================== HELPER FUNCTION FOR AUTO-ASSIGN (chiamabile da server.py) ====================
+
+async def auto_assign_deadlines_to_client_internal(db, client_id: str, client_category: str, created_by: str = "system"):
+    """
+    Funzione interna per assegnare automaticamente le scadenze a un cliente.
+    Può essere chiamata direttamente da server.py senza passare per l'endpoint HTTP.
+    
+    Args:
+        db: Database connection
+        client_id: ID del cliente
+        client_category: Categoria del cliente (autonomo, societa, ecc.)
+        created_by: ID dell'utente che ha creato la scadenza (o "system")
+    
+    Returns:
+        dict con count delle scadenze create
+    """
+    from datetime import date
+    
+    if not client_category:
+        return {"count": 0, "message": "Cliente senza categoria"}
+    
+    # Trova tutti i tipi di scadenza attivi per la categoria del cliente
+    deadline_types = await db.deadline_types.find({
+        "is_active": True,
+        "auto_assign_to_category": True,
+        "assigned_category_ids": client_category
+    }, {"_id": 0}).to_list(None)
+    
+    if not deadline_types:
+        return {"count": 0, "message": "Nessun tipo scadenza configurato"}
+    
+    current_year = date.today().year
+    deadlines_created = 0
+    
+    for dt in deadline_types:
+        # Calcola le date per l'anno corrente e prossimo
+        due_dates = calculate_deadline_dates(dt, current_year)
+        due_dates.extend(calculate_deadline_dates(dt, current_year + 1))
+        
+        for due_date in due_dates:
+            # Verifica se esiste già questa scadenza per questo cliente
+            existing = await db.deadlines.find_one({
+                "client_ids": client_id,
+                "deadline_type_id": dt["id"],
+                "due_date": due_date.isoformat()
+            })
+            
+            if existing:
+                continue
+            
+            period = get_period_label(dt["frequency"], due_date)
+            
+            deadline = {
+                "id": str(uuid.uuid4()),
+                "title": f"{dt['name']} - {period}",
+                "description": dt.get("description", ""),
+                "due_date": due_date.isoformat(),
+                "date": due_date.isoformat(),
+                "category": dt.get("name", "Fiscale"),
+                "status": "da_fare",
+                "priority": dt.get("priority", "normale"),
+                "color": dt.get("color", "#3caca4"),
+                "client_ids": [client_id],
+                "list_ids": [],
+                "applies_to_all": False,
+                "is_recurring": dt.get("frequency") != "una_tantum",
+                "recurrence_type": dt.get("frequency"),
+                "deadline_type_id": dt["id"],
+                "tax_model_id": dt.get("tax_model_id"),
+                "notification_config": dt.get("notification_config"),
+                "auto_generated": True,
+                "send_notification": True,
+                "send_reminders": True,
+                "reminder_days": dt.get("reminder_days", [7, 3, 1, 0]),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": created_by
+            }
+            
+            await db.deadlines.insert_one(deadline)
+            deadlines_created += 1
+    
+    return {"count": deadlines_created, "message": f"{deadlines_created} scadenze assegnate"}
+
+# ==================== TAX MODELS ENDPOINTS (continuation) ====================
 
 @tax_models_router.get("")
 async def get_tax_models(user: dict = Depends(require_commercialista)):
