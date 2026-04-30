@@ -688,67 +688,67 @@ const CommercialDashboard = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-white border border-slate-200 p-1 rounded-lg flex-wrap">
+          <TabsList className="bg-white border border-slate-200 p-1 rounded-lg inline-flex w-auto">
             <TabsTrigger 
               value="clients" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-clients"
             >
-              <Users className="h-4 w-4 mr-2" />
+              <Users className="h-4 w-4 mr-1.5" />
               {t("clients.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="pending" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-pending"
             >
-              <Eye className="h-4 w-4 mr-2" />
+              <Eye className="h-4 w-4 mr-1.5" />
               {t("dashboard.toVerify")}
               {pendingDocs.length > 0 && (
-                <Badge className="ml-2 bg-red-500 text-white text-xs">{pendingDocs.length}</Badge>
+                <Badge className="ml-1.5 bg-red-500 text-white text-xs">{pendingDocs.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger 
               value="search" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-search"
             >
-              <Sparkles className="h-4 w-4 mr-2" />
+              <Sparkles className="h-4 w-4 mr-1.5" />
               {t("common.search")} AI
             </TabsTrigger>
             <TabsTrigger 
               value="stats" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-stats"
             >
-              <BarChart3 className="h-4 w-4 mr-2" />
+              <BarChart3 className="h-4 w-4 mr-1.5" />
               {t("dashboard.stats")}
             </TabsTrigger>
             <TabsTrigger 
               value="notifications" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-notifications"
             >
-              <Send className="h-4 w-4 mr-2" />
+              <Send className="h-4 w-4 mr-1.5" />
               Notifiche
               {scheduledNotifications.length > 0 && (
-                <Badge className="ml-2 bg-amber-500 text-white text-xs">{scheduledNotifications.length}</Badge>
+                <Badge className="ml-1.5 bg-amber-500 text-white text-xs">{scheduledNotifications.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger 
               value="consulenti" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-consulenti"
             >
-              <Briefcase className="h-4 w-4 mr-2" />
+              <Briefcase className="h-4 w-4 mr-1.5" />
               {t("consulenti.title")}
             </TabsTrigger>
             <TabsTrigger 
               value="employees" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4 relative"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap relative"
               data-testid="tab-employees"
             >
-              <Users className="h-4 w-4 mr-2" />
+              <Users className="h-4 w-4 mr-1.5" />
               {t("employees.title")}
               {employeeNotifCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
@@ -758,18 +758,18 @@ const CommercialDashboard = () => {
             </TabsTrigger>
             <TabsTrigger 
               value="fees" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-fees"
             >
-              <Euro className="h-4 w-4 mr-2" />
+              <Euro className="h-4 w-4 mr-1.5" />
               {t('fees.title')}
             </TabsTrigger>
             <TabsTrigger 
               value="tax-payments" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
+              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-3 whitespace-nowrap"
               data-testid="tab-tax-payments"
             >
-              <Receipt className="h-4 w-4 mr-2" />
+              <Receipt className="h-4 w-4 mr-1.5" />
               Importi Tributari
             </TabsTrigger>
           </TabsList>
