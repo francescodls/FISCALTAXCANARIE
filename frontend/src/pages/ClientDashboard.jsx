@@ -49,7 +49,6 @@ import LanguageSelector from "@/components/LanguageSelector";
 import EmployeeManagementClient from "@/components/EmployeeManagementClient";
 import DocumentFolderBrowser from "@/components/DocumentFolderBrowser";
 import DocumentPreview from "@/components/DocumentPreview";
-import TicketManagementClient from "@/components/TicketManagementClient";
 import PrivacySection from "@/components/PrivacySection";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { DialogFooter } from "@/components/ui/dialog";
@@ -377,14 +376,6 @@ const ClientDashboard = () => {
               data-testid="tab-payslips"
             >
               {t("payslips.title")}
-            </TabsTrigger>
-            <TabsTrigger 
-              value="tickets" 
-              className="text-slate-600 data-[state=active]:bg-teal-500 data-[state=active]:text-white px-4"
-              data-testid="tab-tickets"
-            >
-              <MessageSquare className="h-4 w-4 mr-2" />
-              Ticket
             </TabsTrigger>
             <TabsTrigger 
               value="communications" 
@@ -767,28 +758,6 @@ const ClientDashboard = () => {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Quick Access to Tickets */}
-            <Card className="bg-white border border-slate-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="font-heading text-lg flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-teal-500" />
-                  Ticket di Assistenza
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-slate-500 mb-4">
-                  Hai bisogno di assistenza? Apri un ticket per contattare lo studio.
-                </p>
-                <Button 
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-white"
-                  onClick={() => setActiveTab("tickets")}
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Vai ai Ticket
-                </Button>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Deadlines Tab */}
@@ -1274,15 +1243,6 @@ const ClientDashboard = () => {
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
-
-          {/* Tickets Tab */}
-          <TabsContent value="tickets" className="space-y-6">
-            <TicketManagementClient 
-              token={token}
-              clientId={user?.id}
-              API={API}
-            />
           </TabsContent>
 
           {/* Communications History Tab */}

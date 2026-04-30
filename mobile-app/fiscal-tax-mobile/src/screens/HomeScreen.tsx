@@ -17,7 +17,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   FileText,
   Bell,
-  MessageSquare,
   Calendar,
   ChevronRight,
   AlertCircle,
@@ -50,7 +49,6 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface DashboardStats {
   practicesInProgress: number;
   practicesCompleted: number;
-  ticketsOpen: number;
   unreadNotifications: number;
   upcomingDeadlines: number;
   newDocuments: number;
@@ -58,7 +56,7 @@ interface DashboardStats {
 
 interface ActionItem {
   id: string;
-  type: 'ticket' | 'message' | 'document';
+  type: 'message' | 'document';
   title: string;
   description: string;
   priority: 'high' | 'medium' | 'low';
@@ -123,7 +121,6 @@ export const HomeScreen: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats>({
     practicesInProgress: 0,
     practicesCompleted: 0,
-    ticketsOpen: 0,
     unreadNotifications: 0,
     upcomingDeadlines: 0,
     newDocuments: 0,
@@ -306,11 +303,10 @@ export const HomeScreen: React.FC = () => {
       dismissedRef.current = new Set(state.dismissed);
       viewedRef.current = new Set(state.viewed);
       
-      const [notifications, documents, declarations, tickets, deadlinesData, modelsData, paymentsData] = await Promise.all([
+      const [notifications, documents, declarations, deadlinesData, modelsData, paymentsData] = await Promise.all([
         apiService.getNotifications().catch(() => []),
         apiService.getDocuments().catch(() => []),
         apiService.getDeclarations().catch(() => []),
-        apiService.getTickets().catch(() => []),
         apiService.getDeadlines().catch(() => []),
         apiService.getTaxModels().catch(() => []),
         apiService.getClientPayments('upcoming').catch(() => ({ payments: [], stats: { upcoming_count: 0, total_upcoming_amount: 0 } })),
@@ -326,7 +322,6 @@ export const HomeScreen: React.FC = () => {
       }
 
       const unread = notifications.filter((n: any) => !n.read);
-      const openTickets = tickets.filter((t: any) => t.status !== 'closed');
       const inProgress = declarations.filter((d: any) => 
         d.stato === 'in_lavorazione' || d.stato === 'in_attesa'
       ).length;
@@ -345,7 +340,6 @@ export const HomeScreen: React.FC = () => {
         practicesCompleted: declarations.filter((d: any) => 
           d.stato === 'completata' || d.stato === 'inviata'
         ).length,
-        ticketsOpen: openTickets.length,
         unreadNotifications: unread.length,
         upcomingDeadlines: futureDeadlines.length,
         newDocuments: documents.filter((d: any) => {
@@ -358,18 +352,6 @@ export const HomeScreen: React.FC = () => {
 
       // Action items
       const actions: ActionItem[] = [];
-
-      if (openTickets.length > 0) {
-        actions.push({
-          id: 'ticket-1',
-          type: 'ticket',
-          title: t.home.openTickets.replace('{count}', openTickets.length.toString()),
-          description: t.home.checkTickets,
-          priority: 'medium',
-          action: t.home.manage,
-          route: 'Comunicazioni',
-        });
-      }
 
       if (unread.length > 0) {
         actions.push({
@@ -504,7 +486,6 @@ export const HomeScreen: React.FC = () => {
 
   const getActionIcon = (type: string) => {
     switch (type) {
-      case 'ticket': return MessageSquare;
       case 'message': return Bell;
       case 'document': return FileText;
       default: return AlertCircle;
@@ -829,14 +810,14 @@ export const HomeScreen: React.FC = () => {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.quickAccessCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('Comunicazioni')}>
+            <TouchableOpacity style={[styles.quickAccessCard, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => navigation.navigate('Calendario')}>
               <View style={[styles.quickAccessIcon, { backgroundColor: colors.info + '15' }]}>
-                <MessageSquare size={24} color={colors.info} />
+                <Calendar size={24} color={colors.info} />
               </View>
-              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.tickets.tickets}</Text>
-              {stats.ticketsOpen > 0 && (
-                <View style={[styles.quickAccessBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.quickAccessBadgeText}>{stats.ticketsOpen}</Text>
+              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.calendar.title}</Text>
+              {stats.upcomingDeadlines > 0 && (
+                <View style={[styles.quickAccessBadge, { backgroundColor: colors.info }]}>
+                  <Text style={styles.quickAccessBadgeText}>{stats.upcomingDeadlines}</Text>
                 </View>
               )}
             </TouchableOpacity>

@@ -31,7 +31,6 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { GuidaModelliScreen } from '../screens/GuidaModelliScreen';
 import { DeadlineDetailScreen } from '../screens/DeadlineDetailScreen';
 import { SearchScreen } from '../screens/SearchScreen';
-import { TicketDetailScreen } from '../screens/TicketDetailScreen';
 import { ThreadDetailScreen } from '../screens/ThreadDetailScreen';
 // Profile Sub-screens
 import { ChangePasswordScreen } from '../screens/ChangePasswordScreen';
@@ -277,15 +276,6 @@ export const AppNavigator = () => {
           nav.navigate('Main', { screen: 'ComunicazioniTab' });
           break;
           
-        case 'ticket':
-          // Naviga al dettaglio ticket
-          if (data.ticket_id) {
-            nav.navigate('TicketDetail', { ticketId: data.ticket_id });
-          } else {
-            nav.navigate('Main', { screen: 'ComunicazioniTab' });
-          }
-          break;
-          
         case 'notification':
           // Naviga al centro notifiche o al thread se presente
           if (data.thread_id) {
@@ -329,7 +319,6 @@ export const AppNavigator = () => {
             <Stack.Screen name="Notifiche" component={NotificationsScreen} />
             <Stack.Screen name="GuidaModelli" component={GuidaModelliScreen} />
             <Stack.Screen name="Ricerca" component={SearchScreen} />
-            <Stack.Screen name="TicketDetail" component={TicketDetailScreen} />
             <Stack.Screen name="ThreadDetail" component={ThreadDetailScreen} />
             {/* Profile Sub-screens */}
             <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
