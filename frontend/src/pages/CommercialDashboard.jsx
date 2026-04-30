@@ -592,28 +592,28 @@ const CommercialDashboard = () => {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <Card 
             className="bg-white border border-slate-200 card-hover cursor-pointer"
-            onClick={() => setActiveTab("clients")}
-            data-testid="stats-total-clients"
+            onClick={() => { setActiveTab("clients"); setShowArchivedClients(false); }}
+            data-testid="stats-active-clients"
           >
             <CardContent className="p-4 flex flex-col items-center text-center">
               <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center mb-2">
                 <Users className="h-5 w-5 text-white" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">{stats.clients_count || 0}</p>
-              <p className="text-xs text-slate-500">{t("dashboard.totalClients")}</p>
+              <p className="text-2xl font-bold text-slate-900">{clients.length}</p>
+              <p className="text-xs text-slate-500">Clienti Attivi</p>
             </CardContent>
           </Card>
           <Card 
             className="bg-white border border-slate-200 card-hover cursor-pointer"
-            onClick={() => setActiveTab("consulenti")}
-            data-testid="stats-team"
+            onClick={() => { setActiveTab("clients"); setShowArchivedClients(true); }}
+            data-testid="stats-archived-clients"
           >
             <CardContent className="p-4 flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center mb-2">
-                <UserCog className="h-5 w-5 text-white" />
+              <div className="w-10 h-10 bg-slate-500 rounded-xl flex items-center justify-center mb-2">
+                <Archive className="h-5 w-5 text-white" />
               </div>
-              <p className="text-2xl font-bold text-slate-900">{teamCount}</p>
-              <p className="text-xs text-slate-500">Team</p>
+              <p className="text-2xl font-bold text-slate-900">{archivedClients.length}</p>
+              <p className="text-xs text-slate-500">Clienti Archiviati</p>
             </CardContent>
           </Card>
           <Card 

@@ -50,15 +50,20 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
    - `DeadlineTypeCreate/Update`: + notification_config, auto_assign_to_category
    - `DeadlineResponse`: + deadline_type_id, tax_model_id, notification_config, auto_generated
 
+6. **Dashboard Admin - Card Clienti Separate:**
+   - Card "Clienti Attivi" (verde) → mostra solo clienti attivi
+   - Card "Clienti Archiviati" (grigia) → mostra solo clienti archiviati
+   - Click su card → naviga alla lista corrispondente
+   - Separazione visiva chiara tra clienti attivi e archiviati
+
 **File modificati:**
 - `/app/backend/routes/deadline_types.py`
 - `/app/backend/scheduler.py`
 - `/app/backend/server.py` (register, create_client, update_client)
 - `/app/frontend/src/components/DeadlineTypesManagement.jsx`
+- `/app/frontend/src/pages/CommercialDashboard.jsx` (card stats)
 
 **Test risultati:** Backend 83% (10/12 passed), Frontend 100%
-- 104 scadenze totali, 96 auto-generate
-- 2 tipi scadenza nel sistema
 
 ---
 
