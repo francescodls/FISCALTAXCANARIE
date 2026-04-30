@@ -5,6 +5,64 @@ App per studio legale e commercialisti "Fiscal Tax Canarie" alle Isole Canarie. 
 
 ## What's Been Implemented
 
+
+### Fase 102 (30 Aprile 2026) - COMPLETATA ✅
+
+**Configurazione Notifiche Avanzate per Tipi di Scadenza + Auto-Assegnazione**
+
+1. **Backend - Nuove funzionalità:**
+   - `notification_config` nei tipi scadenza con:
+     - `enabled`: boolean per abilitare/disabilitare
+     - `channels`: array ["push", "email"] per selezionare canali
+     - `relative_reminders`: array di giorni prima della scadenza [20, 15, 7, 3, 1, 0]
+     - `fixed_dates`: array di date fisse per promemoria extra
+   - `auto_assign_to_category`: boolean per generazione automatica scadenze
+   - Funzione `auto_generate_deadlines_for_category()` per creare scadenze alla creazione tipo
+   - Funzione `auto_assign_deadlines_to_client_internal()` per assegnare scadenze a nuovi clienti
+
+2. **Auto-assegnazione scadenze:**
+   - Alla creazione di un tipo scadenza con `auto_assign_to_category=true`:
+     - Sistema genera automaticamente scadenze per tutti i clienti della categoria
+     - Calcola date per anno corrente e prossimo
+   - Alla creazione di un nuovo cliente:
+     - Sistema assegna automaticamente tutte le scadenze standard della sua categoria
+   - Al cambio categoria cliente:
+     - Sistema assegna scadenze della nuova categoria
+
+3. **Scheduler notifiche aggiornato:**
+   - Legge `notification_config` da ogni scadenza o tipo scadenza
+   - Rispetta il flag `enabled` 
+   - Invia notifiche solo sui canali configurati (push/email)
+   - Supporta promemoria relativi personalizzati
+   - Supporta date fisse per promemoria extra
+
+4. **Frontend UI - DeadlineTypesManagement.jsx:**
+   - Sezione "Configurazione Notifiche" con:
+     - Switch abilitazione
+     - Bottoni canali (Push/Email)
+     - Griglia promemoria relativi (30, 20, 15, 10, 7, 5, 3, 2, 1, 0 giorni)
+     - Date picker per date fisse personalizzate
+   - Sezione "Assegnazione Automatica" con:
+     - Switch per abilitare auto-generazione
+     - Preview categorie selezionate
+
+5. **Modelli aggiornati:**
+   - `DeadlineTypeCreate/Update`: + notification_config, auto_assign_to_category
+   - `DeadlineResponse`: + deadline_type_id, tax_model_id, notification_config, auto_generated
+
+**File modificati:**
+- `/app/backend/routes/deadline_types.py`
+- `/app/backend/scheduler.py`
+- `/app/backend/server.py` (register, create_client, update_client)
+- `/app/frontend/src/components/DeadlineTypesManagement.jsx`
+
+**Test risultati:** Backend 83% (10/12 passed), Frontend 100%
+- 104 scadenze totali, 96 auto-generate
+- 2 tipi scadenza nel sistema
+
+---
+
+
 ### Fase 101 (19 Aprile 2026) - COMPLETATA ✅
 
 **Visualizzazione Importi da Pagare nell'App Mobile Cliente**
