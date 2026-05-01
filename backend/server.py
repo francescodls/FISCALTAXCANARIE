@@ -101,6 +101,16 @@ DEFAULT_FOLDER_CATEGORIES = [
 
 app = FastAPI(title="Fiscal Tax Canarie API")
 
+# CORS deve essere il PRIMO middleware - CRITICO per le richieste preflight
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permetti tutte le origini
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
 # Add rate limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -7078,13 +7088,7 @@ async def admin_send_push(
 
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS già configurato all'inizio del file
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
