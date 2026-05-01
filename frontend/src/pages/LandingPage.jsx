@@ -70,7 +70,7 @@ const LandingPage = () => {
       <header className="glass-header sticky top-0 z-50 border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#2b7c77] to-[#1d5754] rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg font-heading">FT</span>
             </div>
             <span className="font-heading font-bold text-xl text-slate-900">Fiscal Tax Canarie</span>
@@ -87,7 +87,7 @@ const LandingPage = () => {
             </Button>
             <Button 
               onClick={() => navigate("/register")}
-              className="bg-teal-500 hover:bg-teal-600 text-white font-semibold px-6"
+              className="bg-gradient-to-r from-[#2b7c77] to-[#3caca4] hover:from-[#1d5754] hover:to-[#2b7c77] text-white font-semibold px-6"
               data-testid="header-register-btn"
             >
               {t("auth.register")}
@@ -103,7 +103,7 @@ const LandingPage = () => {
             <div className="space-y-8 animate-fadeIn">
               <h1 className="font-heading text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 leading-tight">
                 {t("landing.heroTitle")}{" "}
-                <span className="text-teal-500">Fiscal Tax Canarie</span>
+                <span className="bg-gradient-to-r from-[#2b7c77] to-[#3caca4] bg-clip-text text-transparent">Fiscal Tax Canarie</span>
               </h1>
               <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-xl">
                 {t("landing.heroSubtitle")}
@@ -111,7 +111,7 @@ const LandingPage = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button 
                   onClick={() => navigate("/register")}
-                  className="bg-teal-500 hover:bg-teal-600 text-white font-bold px-8 py-6 h-auto text-lg rounded-lg btn-press"
+                  className="bg-gradient-to-r from-[#2b7c77] to-[#3caca4] hover:from-[#1d5754] hover:to-[#2b7c77] text-white font-bold px-8 py-6 h-auto text-lg rounded-lg btn-press"
                   data-testid="hero-cta-btn"
                 >
                   {t("landing.ctaButton")}
@@ -128,10 +128,10 @@ const LandingPage = () => {
               </div>
             </div>
             <div className="relative hidden lg:block">
-              <div className="absolute inset-0 bg-teal-500/10 rounded-3xl transform rotate-3"></div>
+              <div className="absolute inset-0 bg-gradient-to-br from-[#2b7c77]/20 to-[#3caca4]/10 rounded-3xl transform rotate-3"></div>
               <img 
-                src="https://images.unsplash.com/photo-1758691737182-d42aefd6dee8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBicmlnaHQlMjBvZmZpY2UlMjB0ZWFtfGVufDB8fHx8MTc3MzA4NzUwNHww&ixlib=rb-4.1.0&q=85"
-                alt="Fiscal Tax Canarie Team"
+                src="https://images.unsplash.com/photo-1758519289013-9442fb2aeac6?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxNzV8MHwxfHNlYXJjaHwyfHxmaW5hbmNpYWwlMjBhZHZpc29yJTIwbWVldGluZyUyMGNsaWVudCUyMHByb2Zlc3Npb25hbHxlbnwwfHx8fDE3Nzc2NjI1Mjh8MA&ixlib=rb-4.1.0&q=85"
+                alt="Tax Consultant Meeting"
                 className="relative rounded-3xl shadow-2xl object-cover w-full h-[500px]"
               />
             </div>
@@ -158,7 +158,7 @@ const LandingPage = () => {
                 data-testid={`feature-card-${index}`}
               >
                 <CardContent className="p-8">
-                  <div className="w-14 h-14 bg-teal-500 rounded-xl flex items-center justify-center mb-6">
+                  <div className="w-14 h-14 bg-gradient-to-br from-[#2b7c77] to-[#3caca4] rounded-xl flex items-center justify-center mb-6">
                     <feature.icon className="h-7 w-7 text-white" />
                   </div>
                   <h3 className="font-heading font-semibold text-xl text-slate-900 mb-3">
@@ -174,8 +174,8 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* CTA Section con sfondo teal e testo bianco */}
-      <section className="py-20 md:py-32 bg-teal-500">
+      {/* CTA Section con sfondo gradient teal e testo bianco */}
+      <section className="py-20 md:py-32 bg-gradient-to-br from-[#2b7c77] to-[#3caca4]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-8">
@@ -201,7 +201,7 @@ const LandingPage = () => {
               <div className="space-y-4">
                 <Button 
                   onClick={() => navigate("/login")}
-                  className="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-6 h-auto text-lg rounded-lg btn-press"
+                  className="w-full bg-gradient-to-r from-[#2b7c77] to-[#3caca4] hover:from-[#1d5754] hover:to-[#2b7c77] text-white font-bold py-6 h-auto text-lg rounded-lg btn-press"
                   data-testid="cta-login-btn"
                 >
                   {t("auth.login")}
@@ -226,7 +226,7 @@ const LandingPage = () => {
           <div className="grid md:grid-cols-3 gap-12">
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-gradient-to-br from-[#2b7c77] to-[#3caca4] rounded-lg flex items-center justify-center">
                   <span className="text-white font-bold text-lg font-heading">FT</span>
                 </div>
                 <span className="font-heading font-bold text-xl">Fiscal Tax Canarie</span>
