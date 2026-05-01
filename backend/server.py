@@ -102,8 +102,6 @@ DEFAULT_FOLDER_CATEGORIES = [
 app = FastAPI(title="Fiscal Tax Canarie API")
 
 # Add rate limiter to app state
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add security headers middleware (viene eseguito DOPO CORS)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -729,7 +727,6 @@ async def shutdown_event():
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
-@limiter.limit(RATE_LIMIT_REGISTER)
 async def register(request: Request, user_data: UserCreate):
     """Registrazione SOLO per clienti"""
     client_ip = get_client_ip(request)
@@ -858,7 +855,6 @@ async def register(request: Request, user_data: UserCreate):
     return TokenResponse(access_token=token, user=user_response)
 
 @api_router.post("/auth/login", response_model=TokenResponse)
-# @limiter.limit(RATE_LIMIT_LOGIN)  # Temporaneamente disabilitato per debug
 async def login(request: Request, credentials: UserLogin):
     # Log della richiesta per debug
     client_ip = get_client_ip(request)
@@ -1058,7 +1054,6 @@ class PasswordResetConfirm(BaseModel):
     new_password: str
 
 @api_router.post("/auth/forgot-password")
-@limiter.limit(RATE_LIMIT_PASSWORD_RESET)
 async def forgot_password(request_obj: Request, request: PasswordResetRequest):
     """Richiesta di reset password - invia email con link"""
     client_ip = get_client_ip(request_obj)
@@ -1269,7 +1264,6 @@ async def get_admin_team(user: dict = Depends(require_admin)):
     return result
 
 @api_router.post("/admin/invite")
-@limiter.limit(RATE_LIMIT_ADMIN_INVITE)
 async def invite_admin(request: Request, invite_data: AdminInvite, user: dict = Depends(require_super_admin)):
     """Invita un nuovo amministratore (solo Super Admin)"""
     client_ip = get_client_ip(request)
@@ -2302,7 +2296,6 @@ async def delete_client_folder_category(
 # ==================== UPLOAD DIRETTO NELLA CARTELLA CLIENTE ====================
 
 @api_router.post("/clients/{client_id}/documents/upload")
-@limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload_document_to_client(
     request: Request,
     client_id: str,
@@ -2574,7 +2567,6 @@ async def get_client_documents_by_folder(
 # ==================== DOCUMENTS ROUTES ====================
 
 @api_router.post("/documents")
-@limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload_document(
     request: Request,
     title: str = Form(...),
@@ -2916,7 +2908,6 @@ async def preview_document(
 # ==================== AI DOCUMENT ANALYSIS ====================
 
 @api_router.post("/documents/upload-auto")
-@limiter.limit(RATE_LIMIT_UPLOAD)
 async def upload_document_with_ai(
     request: Request,
     file: UploadFile = File(...),

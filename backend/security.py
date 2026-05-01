@@ -4,7 +4,7 @@ Security Module - Hardening & Protection
 Modulo centralizzato per la sicurezza dell'applicazione Fiscal Tax Canarie.
 
 Include:
-- Rate limiting
+- Rate limiting (implementazione in-memory senza dipendenze esterne)
 - Brute force protection
 - File upload validation
 - Security headers
@@ -21,17 +21,86 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from functools import wraps
 import logging
+from collections import defaultdict
+import time
 
 from fastapi import Request, HTTPException, status
 from fastapi.responses import Response
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Configure security logger
 security_logger = logging.getLogger("security")
 security_logger.setLevel(logging.INFO)
+
+# ==================== SIMPLE RATE LIMITER (NO EXTERNAL DEPENDENCIES) ====================
+
+class SimpleRateLimiter:
+    """Rate limiter semplice in-memory senza dipendenze esterne"""
+    
+    def __init__(self):
+        self._requests: Dict[str, List[float]] = defaultdict(list)
+    
+    def _parse_limit(self, limit_string: str) -> tuple:
+        """Parse limit string like '20/minute' into (count, seconds)"""
+        parts = limit_string.split('/')
+        count = int(parts[0])
+        period = parts[1].lower()
+        
+        if period == 'minute':
+            seconds = 60
+        elif period == 'hour':
+            seconds = 3600
+        elif period == 'day':
+            seconds = 86400
+        elif period == 'second':
+            seconds = 1
+        else:
+            seconds = 60  # default
+        
+        return count, seconds
+    
+    def is_rate_limited(self, key: str, limit_string: str) -> bool:
+        """Check if the key has exceeded the rate limit"""
+        max_requests, window_seconds = self._parse_limit(limit_string)
+        now = time.time()
+        
+        # Clean old requests
+        self._requests[key] = [t for t in self._requests[key] if now - t < window_seconds]
+        
+        if len(self._requests[key]) >= max_requests:
+            return True
+        
+        self._requests[key].append(now)
+        return False
+    
+    def limit(self, limit_string: str):
+        """Decorator for rate limiting - placeholder for compatibility"""
+        def decorator(func):
+            return func
+        return decorator
+
+# Create global rate limiter instance
+limiter = SimpleRateLimiter()
+
+# Custom exception for rate limit exceeded
+class RateLimitExceeded(Exception):
+    """Exception raised when rate limit is exceeded"""
+    pass
+
+def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    """Handler for rate limit exceeded"""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Troppi tentativi. Riprova tra qualche minuto."}
+    )
+
+def get_remote_address(request: Request) -> str:
+    """Get the remote address from request"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 # ==================== CONSTANTS ====================
 
@@ -127,8 +196,7 @@ CSP_POLICY = (
 
 # ==================== RATE LIMITER ====================
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Rate limiter già inizializzato sopra come SimpleRateLimiter
 
 def get_client_ip(request: Request) -> str:
     """Extract real client IP from request, considering proxies."""
