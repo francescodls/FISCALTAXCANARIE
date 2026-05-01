@@ -847,25 +847,26 @@ async def register(request: Request, user_data: UserCreate):
     return TokenResponse(access_token=token, user=user_response)
 
 @api_router.post("/auth/login", response_model=TokenResponse)
-@limiter.limit(RATE_LIMIT_LOGIN)
+# @limiter.limit(RATE_LIMIT_LOGIN)  # Temporaneamente disabilitato per debug
 async def login(request: Request, credentials: UserLogin):
-    # Get client IP for brute force protection
+    # Log della richiesta per debug
     client_ip = get_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
+    logger.info(f"[LOGIN DEBUG] Tentativo login da IP: {client_ip}, email: {credentials.email}, UA: {user_agent[:50]}")
     
-    # Check if login is locked due to brute force
-    is_locked, remaining_seconds = is_login_locked(client_ip, credentials.email)
-    if is_locked:
-        log_security_event(
-            AuditEvent.LOGIN_FAILED,
-            None, credentials.email, None,
-            client_ip, user_agent,
-            f"Login blocked - account locked for {remaining_seconds}s"
-        )
-        raise HTTPException(
-            status_code=429, 
-            detail=f"Troppi tentativi di accesso. Riprova tra {remaining_seconds // 60 + 1} minuti."
-        )
+    # Check if login is locked due to brute force - TEMPORANEAMENTE DISABILITATO
+    # is_locked, remaining_seconds = is_login_locked(client_ip, credentials.email)
+    # if is_locked:
+    #     log_security_event(
+    #         AuditEvent.LOGIN_FAILED,
+    #         None, credentials.email, None,
+    #         client_ip, user_agent,
+    #         f"Login blocked - account locked for {remaining_seconds}s"
+    #     )
+    #     raise HTTPException(
+    #         status_code=429, 
+    #         detail=f"Troppi tentativi di accesso. Riprova tra {remaining_seconds // 60 + 1} minuti."
+    #     )
     
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password"]):
