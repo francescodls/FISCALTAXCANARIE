@@ -69,7 +69,7 @@ export const CommunicationsScreen: React.FC = () => {
         apiService.getCommunicationThreads().catch(() => []),
       ]);
       
-      setThreads(threadsData || []);
+      setThreads(Array.isArray(threadsData) ? threadsData : []);
       
       // Convert notifications to messages format
       const msgs = notificationsData.map((n: any) => ({
@@ -198,9 +198,7 @@ export const CommunicationsScreen: React.FC = () => {
           <Text style={styles.headerTitle}>{t.communications?.title || 'Comunicazioni'}</Text>
         </View>
         <View style={styles.loadingContainer}>
-          {[1, 2, 3].map((i) => (
-            <CardSkeleton key={i} style={{ marginBottom: 12 }} />
-          ))}
+          <CardSkeleton count={3} />
         </View>
       </SafeAreaView>
     );

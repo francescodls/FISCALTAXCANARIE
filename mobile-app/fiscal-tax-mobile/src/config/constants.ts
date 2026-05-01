@@ -3,8 +3,7 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 if (!apiUrl) {
   console.warn('EXPO_PUBLIC_API_URL not set, using default production URL');
 }
-// TEMPORANEO: Usa preview URL finché produzione non è fixata
-export const API_URL = apiUrl || 'https://tribute-models-docs.preview.emergentagent.com';
+export const API_URL = apiUrl || 'https://app.fiscaltaxcanarie.com';
 
 // Colori del brand - Fiscal Tax Canarie (aggiornati)
 export const COLORS = {
@@ -18,6 +17,7 @@ export const COLORS = {
   text: '#0f172a',           // Testo principale più scuro
   textSecondary: '#64748b',  // Testo secondario
   textLight: '#94a3b8',      // Testo leggero
+  light: '#f8fafc',          // Colore chiaro (alias per background)
   border: '#e2e8f0',         // Bordi
   borderDark: '#cbd5e1',     // Bordi più scuri
   success: '#059669',        // Verde successo più saturo
