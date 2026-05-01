@@ -101,22 +101,23 @@ DEFAULT_FOLDER_CATEGORIES = [
 
 app = FastAPI(title="Fiscal Tax Canarie API")
 
-# CORS deve essere il PRIMO middleware - CRITICO per le richieste preflight
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Permetti tutte le origini
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
 # Add rate limiter to app state
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Add security headers middleware
+# Add security headers middleware (viene eseguito DOPO CORS)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# CORS deve essere l'ULTIMO middleware aggiunto (così viene eseguito PER PRIMO)
+# In FastAPI/Starlette l'ordine è INVERSO
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
