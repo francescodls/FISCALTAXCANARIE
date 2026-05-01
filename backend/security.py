@@ -49,7 +49,7 @@ PASSWORD_REQUIRE_DIGIT = True
 PASSWORD_REQUIRE_SPECIAL = False  # Optional for now
 
 # Rate limiting settings
-RATE_LIMIT_LOGIN = "5/minute"
+RATE_LIMIT_LOGIN = "20/minute"
 RATE_LIMIT_REGISTER = "3/minute"
 RATE_LIMIT_PASSWORD_RESET = "3/minute"
 RATE_LIMIT_ADMIN_INVITE = "10/minute"
