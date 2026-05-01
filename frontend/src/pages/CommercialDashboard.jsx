@@ -245,6 +245,9 @@ const CommercialDashboard = () => {
   };
 
   const filteredClients = clients.filter(client => {
+    // Escludi sempre i clienti archiviati dalla lista attivi (sicurezza extra)
+    if (client.stato === "cessato") return false;
+    
     // Filtro per ricerca testuale
     const matchesSearch = client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1086,9 +1089,9 @@ const CommercialDashboard = () => {
                 )}
 
                 {/* Lista Clienti Registrati */}
-                {(showArchivedClients ? archivedClients : filteredClients).length > 0 ? (
+                {(showArchivedClients ? archivedClients.filter(c => c.stato === "cessato") : filteredClients).length > 0 ? (
                   <div className="space-y-3">
-                    {(showArchivedClients ? archivedClients : filteredClients)
+                    {(showArchivedClients ? archivedClients.filter(c => c.stato === "cessato") : filteredClients)
                       .filter(c => {
                         if (!searchTerm) return true;
                         const term = searchTerm.toLowerCase();
