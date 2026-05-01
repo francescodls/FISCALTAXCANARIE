@@ -312,8 +312,15 @@ export const HomeScreen: React.FC = () => {
         apiService.getClientPayments('upcoming').catch(() => ({ payments: [], stats: { upcoming_count: 0, total_upcoming_amount: 0 } })),
       ]);
       
+      // Ensure all data is arrays
+      const notificationsArray = Array.isArray(notifications) ? notifications : [];
+      const documentsArray = Array.isArray(documents) ? documents : [];
+      const declarationsArray = Array.isArray(declarations) ? declarations : [];
+      const deadlinesArray = Array.isArray(deadlinesData) ? deadlinesData : [];
+      const modelsArray = Array.isArray(modelsData) ? modelsData : [];
+      
       // Set tax models
-      setTaxModels(modelsData || []);
+      setTaxModels(modelsArray);
       
       // Set upcoming payments
       if (paymentsData?.payments) {
@@ -321,15 +328,15 @@ export const HomeScreen: React.FC = () => {
         setPaymentsStats(paymentsData.stats);
       }
 
-      const unread = notifications.filter((n: any) => !n.read);
-      const inProgress = declarations.filter((d: any) => 
+      const unread = notificationsArray.filter((n: any) => !n.read);
+      const inProgress = declarationsArray.filter((d: any) => 
         d.stato === 'in_lavorazione' || d.stato === 'in_attesa'
       ).length;
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const futureDeadlines = deadlinesData.filter((d: any) => {
+      const futureDeadlines = deadlinesArray.filter((d: any) => {
         const deadlineDate = new Date(d.date || d.due_date);
         deadlineDate.setHours(0, 0, 0, 0);
         return deadlineDate >= today;
@@ -337,12 +344,12 @@ export const HomeScreen: React.FC = () => {
 
       setStats({
         practicesInProgress: inProgress,
-        practicesCompleted: declarations.filter((d: any) => 
+        practicesCompleted: declarationsArray.filter((d: any) => 
           d.stato === 'completata' || d.stato === 'inviata'
         ).length,
         unreadNotifications: unread.length,
         upcomingDeadlines: futureDeadlines.length,
-        newDocuments: documents.filter((d: any) => {
+        newDocuments: documentsArray.filter((d: any) => {
           const created = new Date(d.created_at);
           const weekAgo = new Date();
           weekAgo.setDate(weekAgo.getDate() - 7);

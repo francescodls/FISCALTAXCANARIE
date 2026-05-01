@@ -78,9 +78,14 @@ const MainTabs = () => {
         apiService.getDeadlines().catch(() => []),
       ]);
       
+      // Ensure arrays before filtering
+      const notifArray = Array.isArray(notifications) ? notifications : [];
+      const threadsArray = Array.isArray(threads) ? threads : [];
+      const deadlinesArray = Array.isArray(deadlines) ? deadlines : [];
+      
       // Count unread messages
-      const unreadNotifs = notifications.filter((n: any) => !n.read).length;
-      const unreadThreads = threads.filter((t: any) => !t.read_by_client).length;
+      const unreadNotifs = notifArray.filter((n: any) => !n.read).length;
+      const unreadThreads = threadsArray.filter((t: any) => !t.read_by_client).length;
       setUnreadMessages(unreadNotifs + unreadThreads);
       
       // Count upcoming deadlines (next 7 days)
@@ -89,7 +94,7 @@ const MainTabs = () => {
       const nextWeek = new Date(today);
       nextWeek.setDate(nextWeek.getDate() + 7);
       
-      const upcoming = deadlines.filter((d: any) => {
+      const upcoming = deadlinesArray.filter((d: any) => {
         const deadlineDate = new Date(d.date || d.due_date);
         return deadlineDate >= today && deadlineDate <= nextWeek && d.status !== 'completed';
       }).length;
