@@ -39,8 +39,9 @@ const isValidAdminEmail = (email) => {
   return email.toLowerCase().endsWith(`@${ADMIN_ALLOWED_DOMAIN}`);
 };
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API = `${BACKEND_URL}/api`;
+// In produzione usa URL relativo, in development usa la variabile d'ambiente
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || '';
+export const API = BACKEND_URL ? `${BACKEND_URL}/api` : '/api';
 
 // Auth Context
 const AuthContext = createContext(null);
