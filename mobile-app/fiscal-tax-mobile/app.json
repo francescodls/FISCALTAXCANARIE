@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fiscal Tax Canarie",
     "slug": "fiscal-tax-canarie",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d9488"
+      "backgroundColor": "#2b7c77"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fiscaltaxcanarie.clientapp",
-      "buildNumber": "25",
+      "buildNumber": "26",
       "infoPlist": {
         "NSCameraUsageDescription": "Questa app utilizza la fotocamera per scansionare documenti.",
         "NSPhotoLibraryUsageDescription": "Questa app accede alla galleria per caricare documenti.",
@@ -29,10 +29,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0d9488"
+        "backgroundColor": "#2b7c77"
       },
       "package": "com.fiscaltaxcanarie.clientapp",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
