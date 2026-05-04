@@ -821,7 +821,7 @@ export const HomeScreen: React.FC = () => {
               <View style={[styles.quickAccessIcon, { backgroundColor: colors.info + '15' }]}>
                 <Calendar size={24} color={colors.info} />
               </View>
-              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.calendar.title}</Text>
+              <Text style={[styles.quickAccessTitle, { color: colors.text }]}>{t.calendar?.title || 'Calendario'}</Text>
               {stats.upcomingDeadlines > 0 && (
                 <View style={[styles.quickAccessBadge, { backgroundColor: colors.info }]}>
                   <Text style={styles.quickAccessBadgeText}>{stats.upcomingDeadlines}</Text>

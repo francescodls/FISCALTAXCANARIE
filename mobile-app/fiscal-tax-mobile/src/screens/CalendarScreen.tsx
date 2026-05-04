@@ -129,13 +129,15 @@ export const CalendarScreen: React.FC = () => {
   const loadDeadlines = async () => {
     try {
       const data = await apiService.getDeadlines();
-      setDeadlines(data.map((d: any) => ({
+      const deadlinesArray = Array.isArray(data) ? data : [];
+      setDeadlines(deadlinesArray.map((d: any) => ({
         ...d,
         status: d.status || 'pending',
         priority: d.priority || 'medium',
       })));
     } catch (error) {
       console.error('Error loading deadlines:', error);
+      setDeadlines([]);
     } finally {
       setLoading(false);
     }
@@ -146,10 +148,12 @@ export const CalendarScreen: React.FC = () => {
       const month = currentMonth.getMonth() + 1;
       const year = currentMonth.getFullYear();
       const data = await apiService.getClientPaymentsCalendar(month, year);
-      setPaymentsMarkedDates(data.marked_dates || {});
-      setPaymentsData(data.calendar_data || []);
+      setPaymentsMarkedDates(data?.marked_dates || {});
+      setPaymentsData(Array.isArray(data?.calendar_data) ? data.calendar_data : []);
     } catch (error) {
       console.error('Error loading payments:', error);
+      setPaymentsMarkedDates({});
+      setPaymentsData([]);
     }
   };
 

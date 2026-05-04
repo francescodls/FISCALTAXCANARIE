@@ -385,4 +385,13 @@ export const es: TranslationKeys = {
     watchVideo: 'Ver Video Explicativo',
     learnMore: 'Más información en el sitio oficial',
   },
+  
+  // Calendar
+  calendar: {
+    title: 'Calendario',
+    deadlines: 'Vencimientos',
+    payments: 'Pagos',
+    noEvents: 'Sin eventos',
+    upcoming: 'Próximos vencimientos',
+  },
 };

@@ -117,7 +117,7 @@ class ApiService {
           lastError = error;
         }
 
-        if (attempt < MAX_RETRIES && (lastError.isTimeout || lastError.isNetworkError)) {
+        if (attempt < MAX_RETRIES && lastError && (lastError.isTimeout || lastError.isNetworkError)) {
           await this.delay(RETRY_DELAY * (attempt + 1));
           continue;
         }

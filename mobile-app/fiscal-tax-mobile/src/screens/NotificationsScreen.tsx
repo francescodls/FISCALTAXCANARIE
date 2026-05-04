@@ -52,9 +52,10 @@ export const NotificationsScreen: React.FC = () => {
   const loadNotifications = async () => {
     try {
       const data = await apiService.getNotifications();
-      setNotifications(data);
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading notifications:', error);
+      setNotifications([]);
     } finally {
       setLoading(false);
     }

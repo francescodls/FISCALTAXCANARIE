@@ -63,7 +63,7 @@ export const ThreadDetailScreen: React.FC = () => {
   const loadThread = useCallback(async () => {
     try {
       const data = await apiService.getCommunicationThread(params.threadId);
-      setThread(data);
+      setThread(data as Thread);
     } catch (error) {
       console.error('Error loading thread:', error);
       Alert.alert('Errore', 'Impossibile caricare la conversazione');
@@ -82,7 +82,7 @@ export const ThreadDetailScreen: React.FC = () => {
     setSending(true);
     try {
       const updatedThread = await apiService.replyToThread(params.threadId, replyText.trim());
-      setThread(updatedThread);
+      setThread(updatedThread as Thread);
       setReplyText('');
       
       // Scroll to bottom after sending

@@ -110,9 +110,10 @@ export const DeclarationsScreen: React.FC = () => {
   const loadDeclarations = async () => {
     try {
       const data = await apiService.getDeclarationsV2();
-      setDeclarations(data);
+      setDeclarations(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading declarations:', error);
+      setDeclarations([]);
     } finally {
       setLoading(false);
     }

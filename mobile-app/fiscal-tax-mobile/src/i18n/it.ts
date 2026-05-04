@@ -384,6 +384,15 @@ export const it = {
     watchVideo: 'Guarda Video Esplicativo',
     learnMore: 'Approfondisci sul sito ufficiale',
   },
+  
+  // Calendar
+  calendar: {
+    title: 'Calendario',
+    deadlines: 'Scadenze',
+    payments: 'Pagamenti',
+    noEvents: 'Nessun evento',
+    upcoming: 'Prossime scadenze',
+  },
 };
 
 export type TranslationKeys = typeof it;

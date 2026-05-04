@@ -99,9 +99,10 @@ export const DocumentsScreen: React.FC = () => {
   const loadDocuments = async () => {
     try {
       const data = await apiService.getDocuments();
-      setDocuments(data);
+      setDocuments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading documents:', error);
+      setDocuments([]);
     } finally {
       setLoading(false);
     }

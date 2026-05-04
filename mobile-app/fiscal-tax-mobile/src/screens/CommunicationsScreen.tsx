@@ -15,14 +15,12 @@ import {
   Clock,
   CheckCircle,
   ChevronRight,
-  User,
   Bell,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { apiService } from '../services/api';
 import { COLORS, SPACING, RADIUS } from '../config/constants';
-import { CardSkeleton } from '../components/UIStates';
 
 interface Message {
   _id: string;
@@ -71,18 +69,15 @@ export const CommunicationsScreen: React.FC = () => {
       
       setThreads(Array.isArray(threadsData) ? threadsData : []);
       
-      // Convert notifications to messages format
-      const msgs = notificationsData.map((n: any) => ({
-        _id: n._id || n.id,
-        title: n.subject || n.title,
-        content: n.body || n.message,
-        read: n.read,
-        created_at: n.created_at,
-        type: n.type,
-      }));
-      setMessages(msgs);
+      // Combina notifiche e messaggi diretti
+      const directMessages = Array.isArray(notificationsData) 
+        ? notificationsData.filter((n: any) => n.type === 'direct_message' || n.type === 'admin_message')
+        : [];
+      setMessages(directMessages);
     } catch (error) {
-      console.error('Error loading communications:', error);
+      console.error('Error loading data:', error);
+      setThreads([]);
+      setMessages([]);
     } finally {
       setLoading(false);
     }
@@ -98,157 +93,129 @@ export const CommunicationsScreen: React.FC = () => {
     try {
       const date = new Date(dateString);
       const now = new Date();
-      const diffTime = now.getTime() - date.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 0) {
-        return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-      } else if (diffDays === 1) {
-        return t.common.yesterday;
-      } else if (diffDays < 7) {
-        return `${diffDays} ${t.common.daysAgo}`;
-      } else {
-        return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+      const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+      
+      if (diffHours < 1) {
+        const diffMins = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+        return `${diffMins} ${t.common?.minutesAgo || 'min fa'}`;
       }
+      if (diffHours < 24) {
+        return `${diffHours} ${t.common?.hoursAgo || 'ore fa'}`;
+      }
+      return date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
     } catch {
-      return '';
+      return dateString;
     }
   };
 
-  const renderThread = ({ item }: { item: CommunicationThread }) => {
-    const isUnread = !item.read_by_client;
-    const lastMessage = item.messages && item.messages.length > 0 
-      ? item.messages[item.messages.length - 1] 
-      : null;
+  const handleThreadPress = (thread: CommunicationThread) => {
+    navigation.navigate('ThreadDetail', { thread });
+  };
 
-    return (
-      <TouchableOpacity
-        style={[styles.threadCard, isUnread && styles.unreadCard]}
-        onPress={() => navigation.navigate('ThreadDetail', { threadId: item.id })}
-        activeOpacity={0.7}
-      >
-        <View style={styles.threadIcon}>
-          <Mail size={24} color={isUnread ? COLORS.light.primary : COLORS.light.textSecondary} />
+  const renderThread = ({ item }: { item: CommunicationThread }) => (
+    <TouchableOpacity
+      style={styles.threadCard}
+      onPress={() => handleThreadPress(item)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.threadIconContainer}>
+        <Mail size={20} color={item.read_by_client ? COLORS.textSecondary : COLORS.primary} />
+      </View>
+      <View style={styles.threadContent}>
+        <View style={styles.threadHeader}>
+          <Text style={[styles.threadSubject, !item.read_by_client && styles.unread]} numberOfLines={1}>
+            {item.subject}
+          </Text>
+          {!item.read_by_client && <View style={styles.unreadDot} />}
         </View>
-        <View style={styles.threadContent}>
-          <View style={styles.threadHeader}>
-            <Text style={[styles.threadSubject, isUnread && styles.unreadText]} numberOfLines={1}>
-              {item.subject}
-            </Text>
-            {isUnread && <View style={styles.unreadDot} />}
-          </View>
-          {lastMessage && (
-            <Text style={styles.threadPreview} numberOfLines={2}>
-              {lastMessage.content}
-            </Text>
+        <Text style={styles.threadPreview} numberOfLines={2}>
+          {item.messages?.[item.messages.length - 1]?.content || 'Nessun messaggio'}
+        </Text>
+        <View style={styles.threadMeta}>
+          <Clock size={12} color={COLORS.textSecondary} />
+          <Text style={styles.threadDate}>{formatDate(item.updated_at || item.created_at)}</Text>
+          {item.status === 'closed' && (
+            <View style={styles.closedBadge}>
+              <CheckCircle size={10} color={COLORS.success} />
+              <Text style={styles.closedText}>Chiuso</Text>
+            </View>
           )}
-          <View style={styles.threadMeta}>
-            <User size={12} color={COLORS.light.textSecondary} />
-            <Text style={styles.threadMetaText}>
-              {item.created_by_name || 'Studio'}
-            </Text>
-            <Clock size={12} color={COLORS.light.textSecondary} style={{ marginLeft: 12 }} />
-            <Text style={styles.threadMetaText}>
-              {formatDate(item.updated_at || item.created_at)}
-            </Text>
-          </View>
         </View>
-        <ChevronRight size={20} color={COLORS.light.textSecondary} />
-      </TouchableOpacity>
-    );
-  };
+      </View>
+      <ChevronRight size={20} color={COLORS.textSecondary} />
+    </TouchableOpacity>
+  );
 
-  const renderMessage = ({ item }: { item: Message }) => {
-    return (
-      <TouchableOpacity
-        style={[styles.messageCard, !item.read && styles.unreadCard]}
-        activeOpacity={0.7}
-      >
-        <View style={styles.messageIcon}>
-          <Bell size={20} color={!item.read ? COLORS.light.primary : COLORS.light.textSecondary} />
-        </View>
-        <View style={styles.messageContent}>
-          <Text style={[styles.messageTitle, !item.read && styles.unreadText]} numberOfLines={1}>
-            {item.title}
-          </Text>
-          <Text style={styles.messagePreview} numberOfLines={2}>
-            {item.content}
-          </Text>
-          <Text style={styles.messageDate}>{formatDate(item.created_at)}</Text>
-        </View>
-        {!item.read && <View style={styles.unreadDot} />}
-      </TouchableOpacity>
-    );
-  };
-
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Mail size={64} color={COLORS.light.textSecondary} style={{ opacity: 0.5 }} />
-      <Text style={styles.emptyTitle}>{t.notifications.noNotifications}</Text>
-      <Text style={styles.emptySubtitle}>
-        Le comunicazioni dallo studio appariranno qui
-      </Text>
-    </View>
+  const renderMessage = ({ item }: { item: Message }) => (
+    <TouchableOpacity
+      style={styles.messageCard}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.messageIconContainer, { backgroundColor: item.read ? COLORS.surfaceAlt : `${COLORS.primary}20` }]}>
+        <Bell size={18} color={item.read ? COLORS.textSecondary : COLORS.primary} />
+      </View>
+      <View style={styles.messageContent}>
+        <Text style={[styles.messageTitle, !item.read && styles.unread]} numberOfLines={1}>
+          {item.title}
+        </Text>
+        <Text style={styles.messagePreview} numberOfLines={2}>
+          {item.content}
+        </Text>
+        <Text style={styles.messageDate}>{formatDate(item.created_at)}</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t.communications?.title || 'Comunicazioni'}</Text>
+          <Text style={styles.headerTitle}>Comunicazioni</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <CardSkeleton count={3} />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
-  const allItems = [...threads, ...messages.filter(m => !threads.some(th => th.id === m._id))];
+  const hasContent = threads.length > 0 || messages.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>{t.communications?.title || 'Comunicazioni'}</Text>
-        <Text style={styles.headerSubtitle}>
-          {threads.filter(th => !th.read_by_client).length + messages.filter(m => !m.read).length} non lette
-        </Text>
+        <Text style={styles.headerTitle}>Comunicazioni</Text>
       </View>
 
-      {threads.length === 0 && messages.length === 0 ? (
-        renderEmpty()
+      {!hasContent ? (
+        <View style={styles.emptyContainer}>
+          <Mail size={64} color={COLORS.textSecondary} />
+          <Text style={styles.emptyTitle}>Nessuna comunicazione</Text>
+          <Text style={styles.emptyText}>
+            Le comunicazioni con il tuo commercialista appariranno qui
+          </Text>
+        </View>
       ) : (
-        <>
-          {/* Threads Section */}
-          {threads.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Messaggi dallo Studio</Text>
-              <FlatList
-                data={threads}
-                renderItem={renderThread}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                contentContainerStyle={styles.listContent}
-              />
-            </View>
-          )}
-
-          {/* Notifications Section */}
-          {messages.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Notifiche</Text>
-              <FlatList
-                data={messages}
-                renderItem={renderMessage}
-                keyExtractor={(item) => item._id}
-                refreshControl={
-                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                }
-                contentContainerStyle={styles.listContent}
-              />
-            </View>
-          )}
-        </>
+        <FlatList
+          data={[...threads, ...messages]}
+          keyExtractor={(item: any) => item.id || item._id}
+          renderItem={({ item }) => {
+            if ('subject' in item) {
+              return renderThread({ item: item as CommunicationThread });
+            }
+            return renderMessage({ item: item as Message });
+          }}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
+            />
+          }
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+        />
       )}
     </SafeAreaView>
   );
@@ -257,62 +224,44 @@ export const CommunicationsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.light.background,
+    backgroundColor: COLORS.background,
   },
   header: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.light.surface,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.light.border,
+    borderBottomColor: COLORS.border,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: COLORS.light.text,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.light.textSecondary,
-    marginTop: 4,
+    color: COLORS.text,
   },
   loadingContainer: {
-    padding: SPACING.lg,
-  },
-  section: {
-    marginTop: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.light.text,
-    paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.sm,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   listContent: {
-    paddingHorizontal: SPACING.lg,
+    padding: SPACING.md,
   },
   threadCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.light.surface,
-    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.light.border,
+    borderColor: COLORS.border,
   },
-  unreadCard: {
-    backgroundColor: '#f0fdf4',
-    borderColor: COLORS.light.primary,
-  },
-  threadIcon: {
+  threadIconContainer: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.light.background,
-    alignItems: 'center',
+    backgroundColor: `${COLORS.primary}15`,
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: SPACING.md,
   },
   threadContent: {
@@ -321,55 +270,68 @@ const styles = StyleSheet.create({
   threadHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 4,
   },
   threadSubject: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    color: COLORS.light.text,
+    color: COLORS.text,
     flex: 1,
   },
-  unreadText: {
+  unread: {
     fontWeight: '700',
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.light.primary,
+    backgroundColor: COLORS.primary,
     marginLeft: 8,
   },
   threadPreview: {
-    fontSize: 14,
-    color: COLORS.light.textSecondary,
-    marginTop: 4,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
   },
   threadMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
   },
-  threadMetaText: {
+  threadDate: {
     fontSize: 12,
-    color: COLORS.light.textSecondary,
+    color: COLORS.textSecondary,
     marginLeft: 4,
+  },
+  closedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 12,
+    backgroundColor: `${COLORS.success}15`,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  closedText: {
+    fontSize: 11,
+    color: COLORS.success,
+    marginLeft: 4,
+    fontWeight: '500',
   },
   messageCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.light.surface,
-    borderRadius: RADIUS.md,
+    alignItems: 'flex-start',
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
     borderWidth: 1,
-    borderColor: COLORS.light.border,
+    borderColor: COLORS.border,
   },
-  messageIcon: {
+  messageIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.light.background,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     marginRight: SPACING.md,
   },
   messageContent: {
@@ -378,36 +340,39 @@ const styles = StyleSheet.create({
   messageTitle: {
     fontSize: 15,
     fontWeight: '500',
-    color: COLORS.light.text,
+    color: COLORS.text,
+    marginBottom: 4,
   },
   messagePreview: {
     fontSize: 13,
-    color: COLORS.light.textSecondary,
-    marginTop: 2,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
   },
   messageDate: {
     fontSize: 12,
-    color: COLORS.light.textSecondary,
-    marginTop: 4,
+    color: COLORS.textSecondary,
+  },
+  separator: {
+    height: SPACING.sm,
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: SPACING.xl,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.light.text,
+    color: COLORS.text,
     marginTop: SPACING.lg,
-    textAlign: 'center',
+    marginBottom: SPACING.sm,
   },
-  emptySubtitle: {
+  emptyText: {
     fontSize: 14,
-    color: COLORS.light.textSecondary,
-    marginTop: SPACING.sm,
+    color: COLORS.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

@@ -385,4 +385,13 @@ export const en: TranslationKeys = {
     watchVideo: 'Watch Explanatory Video',
     learnMore: 'Learn more on official website',
   },
+  
+  // Calendar
+  calendar: {
+    title: 'Calendar',
+    deadlines: 'Deadlines',
+    payments: 'Payments',
+    noEvents: 'No events',
+    upcoming: 'Upcoming deadlines',
+  },
 };
